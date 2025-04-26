@@ -1,7 +1,9 @@
 # SMOLiX
+![SMOLiX Logo](smolix.png)
+
 SMOLiX: Real Mode, Raw Power.
 
-Homebrew research 16-bit OS.
+Homebrew, research, 16-bit operating system for x86 processors.
 
 ## Files
 - [DEVLOG](DEVLOG)
