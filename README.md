@@ -40,4 +40,4 @@ Homebrew research 16-bit OS.
 All messages ends with a dot.
 
 # FOSS
-Copyright (C) 2025 [https://krzysztofjankowski.com](Krzysztof Krystian Jankowski). This program is free software. See [LICENSE](LICENSE) for details.
+Copyright (C) 2025 [Krzysztof Krystian Jankowski](https://krzysztofjankowski.com). This program is free software. See [LICENSE](LICENSE) for details.
