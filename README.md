@@ -1,2 +1,10 @@
-# smolix
-Smolix: Real Mode, Raw Power. Homebrew research 16-bit OS.
+# SMOLiX
+SMOLiX: Real Mode, Raw Power.
+
+## Description
+Homebrew research 16-bit OS.
+
+## Files
+
+- [DEVLOG](DEVLOG.txt)
+- [CHANGELOG](CHANGELOG.txt)
