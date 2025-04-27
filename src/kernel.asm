@@ -232,16 +232,16 @@ ret
 os_load_glyph:
   pusha
   push ax
-  shl ax, 1            ; Multiply by 2 (each entry is 2 bytes)
-  mov si, glyph_table  ; Get base address of glyph table
-  add si, ax           ; Add offset to get pointer to the right entry
-  mov bp, [si]         ; Get address of glyph data
+  shl ax, 1             ; Multiply by 2 (each entry is 2 bytes)
+  mov si, glyph_table   ; Get base address of glyph table
+  add si, ax            ; Add offset to get pointer to the right entry
+  mov bp, [si]          ; Get address of glyph data
   push ds
-  pop es              ; Ensure ES = DS (BIOS expects ES:BP for font data)
-  mov ax, 1100h       ; BIOS function to load 9×16 user-defined font
-  mov bh, 10h         ; Number of bytes per character (16 for 8/9×16 glyph)
-  mov bl, 00h         ; RAM block (0 for default)
-  mov cx, 0x01         ; Number of characters to replace (1 for now)
+  pop es                ; Ensure ES = DS (BIOS expects ES:BP for font data)
+  mov ax, 1100h         ; BIOS function to load 9×16 user-defined font
+  mov bh, 10h           ; Number of bytes per character (16 for 8/9×16 glyph)
+  mov bl, 00h           ; RAM block (0 for default)
+  mov cx, 0x01          ; Number of characters to replace (1 for now)
   pop dx
   add dx, GLYPHS_START ; Adjust character code for extended ASCII
   int 10h             ; Call BIOS video interrupt to load the font
@@ -264,28 +264,6 @@ os_load_all_glyphs:
     inc cx
     jmp .loop_glyphs
   .done:
-ret
-
-; Draw window
-; This function draws a window on the screen.
-; Expects: DH/DL = window position (row/column)
-; CH/CL = window size (height/width)
-; Returns: None
-os_draw_window:
-  call os_cursor_set_pos
-  
-  xor ch, ch
-  .line_loop:
-    push cx
-    mov al, 7+GLYPHS_START
-    mov cl, 0x10
-    call os_print_chr_color_mul
-    inc dh
-    call os_cursor_set_pos
-    pop cx
-  loop .line_loop
-
-
 ret
 
 ; Wait for key press

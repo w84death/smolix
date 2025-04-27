@@ -5,33 +5,51 @@ SMOLiX: Real Mode, Raw Power.
 
 Homebrew, research, 16-bit operating system for x86 processors.
 
-## Files
-- [DEVLOG](DEVLOG)
-- [CHANGELOG](CHANGELOG)
+![Screenshot of SMOLiX](media/smolix.png)
 
 ## Technical Details
 
+SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit). It embraces the simplicity and raw performance of direct hardware access, while providing a unique graphical user interface.
+
+### Architecture
+- **Processor Target**: x86 (486 compatible)
+- **Mode**: Real mode (16-bit)
+- **Memory Model**: Segmented memory model
+- **Boot Method**: Standard floppy disk boot
+
+### Development Tools
+- **Assembly Language**: FASM (Flat Assembler)
+- **Build System**: Make
+- **Emulation**: QEMU with KVM support
+- **Graphics Tool**: Custom Python tileset converter (tileset2glyphs.py)
+- **Disk Image Creation**: dd (direct disk utility)
+
 ### Functions:
-- bootloader
-- kernel
-    - int 0x60      System calls.
-        - 0x0000    Reset, system initialization.
-        - 0x0003    Version.
-        - 0x0006    TBD
-        - 0x0009    Print char.
-        - 0x000C    Print string.
-        - 0x000F    Set color.
-        - 0x0012    Load glyph.
-        - 0x0015    Load all glyphs for the UI.
-        - 0x0018    Draw glyph.
-        - 0x001B    Draw multi-char glyph.
-        - 0x001E    Draw window.
-        - 0x0021    Get key from input
-        - 0x0024    TBD
-        - 0x0027    TBD
-- applications
-    - sh    Shell Prompt Logic.
-    - edit  Text Editor.
+- **Bootloader**
+  - Loads kernel from disk
+  - Sets up initial environment
+  - Transfers control to kernel entry point
+  - Boot parameters configuration
+
+- **Kernel**
+  - int 0x60 System calls:
+    - Reset, system initialization
+    - Version information
+    - Print char
+    - Print string
+    - Set color
+    - Load glyph
+    - Load all glyphs for the UI
+    - Draw glyph
+    - Draw multi-char glyph
+    - Get key from input
+    - Handle text input
+    - Process keyboard events
+    - Memory management routines
+
+- **Graphics System**
+  - Custom glyph-based rendering
+  - 16-color VGA support
 
 ### Interface
 + comment message.
@@ -40,6 +58,16 @@ Homebrew, research, 16-bit operating system for x86 processors.
 @ user prompt
 
 All messages ends with a dot.
+
+![Commands](media/commands.png)
+
+## Building and Running
+
+```
+make        # Build the system
+make run    # Run in QEMU
+make clean  # Clean build artifacts
+```
 
 # FOSS
 Copyright (C) 2025 [Krzysztof Krystian Jankowski](https://krzysztofjankowski.com). This program is free software. See [LICENSE](LICENSE) for details.
