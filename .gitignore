@@ -1,2 +1,3 @@
 build
-tool
+tool/venv
+tool/data.asm
