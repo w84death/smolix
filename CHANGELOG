@@ -1,2 +1,10 @@
+alpha2:
+    - working kernel basics
+alpha1:
+    - bootloader
+    - empty kernel and userland
+    - ability to boot the OS
 alpha0:
     - init repository
+    - Initial files structure.
+    - Initial documentation and idea for the system.
