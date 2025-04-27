@@ -1,32 +1,3 @@
-; Load a custom glyph into VGA font memory using BIOS
-load_custom_glyph_bios:
-    push ds
-    pop es              ; Ensure ES = DS (BIOS expects ES:BP for font data)
-    lea bp, glyph_data  ; Pointer to custom glyph data (defined below)
-    mov ax, 1100h       ; BIOS function to load user-defined font
-    mov bh, 10h         ; Number of bytes per character (16 for 8x16 glyph)
-    mov bl, 00h         ; RAM block (0 for default)
-    mov cx, 01h         ; Number of characters to replace (1 for now)
-    mov dx, 80h         ; Starting character to replace (e.g., 0x80, an extended ASCII slot)
-    int 10h             ; Call BIOS video interrupt to load the font
-    ret
-
-; Custom glyph data for the right arrow icon
-glyph_data:
-    db 0x00, 0x00, 0x08, 0x18, 0x38, 0x78, 0xF8, 0x78
-    db 0x38, 0x18, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00
-
-
-; Display custom glyph/icon at a specific position
-display_custom_glyph:
-    mov edi, 0B8000h    ; VGA text buffer base address
-    mov ebx, 140h       ; Offset for position (e.g., row 5, col 10: (5*80 + 10)*2 = 340 = 0x140)
-    add edi, ebx        ; Calculate memory address
-    mov al, 80h         ; Character code for custom glyph (0x80)
-    mov ah, 1Eh         ; Attribute: yellow foreground (0xE) on blue background (0x1)
-    mov word [edi], ax  ; Write character and attribute to buffer
-    ret
-
 
 
 ; ; System call table

@@ -1,5 +1,11 @@
 alpha2:
     - working kernel basics
+    - colors
+    - custom glyphs
+    - tool: for converting png tileset to asm data
+    - icons for UI in the os
+    - basic shell functions: help, version
+    - debug option showing all custom glyphs w/ IDs
 alpha1:
     - bootloader
     - empty kernel and userland
