@@ -275,57 +275,63 @@ os_get_key:
   int 0x16        ; Wait for key press
 ret
 
+
 ; Interpret character
 ; This function interprets the character in AL and performs the appropriate action.
 ; Expects: AL = character to interpret
 ; Returns: None
 os_interpret_char:
-  cmp al, "h"
-  je .print_help
-  cmp al, "v"
-  je .print_os_version
-  cmp al, "r"
-  je .reset_os
-  cmp al, "d"
-  je .print_debug
+  ; Check if the command exists in the command table
+  mov si, os_commands_table
+  xor cx, cx  ; Initialize command index
 
-  mov bl, PROMPT_ERR
-  call os_print_prefix
-  mov si, unknown_cmd_msg
-  call os_print_str
+  .loop_commands:
+    lodsb           ; Load next command character
+    cmp al, 0       ; Check for end of table
+    je .unknown     ; If end, jump to unknown command
+    cmp al, [si]    ; Compare with input character
+    je .found       ; If found, jump to found command
+    add si, 3       ; Move to the next command entry (character, address, comment)
+    inc cx          ; Increment command index
+    jmp .loop_commands
 
-  jmp .done
+  .found:
+    ; Execute the corresponding command
+    jmp [si + 1]  ; Jump to the command function
 
-  .print_os_version:
-    call os_print_ver
-    jmp .done
-
-  .reset_os:
-    jmp os_reset
-
-  .print_help:
-    call os_print_help
-    jmp .done
-
-  .print_debug:
-    mov bl, PROMPT_MSG
+  .unknown:
+    mov bl, PROMPT_ERR
     call os_print_prefix
-    mov al, GLYPHS_START
-    call os_print_chr
-    mov cx, 0xF
-    .loop_chars:
-      inc al
-      call os_print_chr
-    loop .loop_chars
-
-    mov bl, PROMPT_MSG
-    call os_print_prefix
-    mov si, hex_ruler_msg
+    mov si, unknown_cmd_msg
     call os_print_str
-    jmp .done
+ret
 
+; Print debug info
+; This function prints debug information.
+; Expects: None
+; Returns: None
+os_print_debug:
+  mov bl, PROMPT_MSG
+  call os_print_prefix
+  mov al, GLYPHS_START
+  call os_print_chr
+  mov cx, 0xF
+  .loop_chars:
+    inc al
+    call os_print_chr
+  loop .loop_chars
 
-  .done:
+  mov bl, PROMPT_MSG
+  call os_print_prefix
+  mov si, hex_ruler_msg
+  call os_print_str
+ret
+
+; Print statistics
+; This function prints system statistics.
+; Expects: None
+; Returns: None
+os_print_stats:
 ret
 
 ; Data section
@@ -337,6 +343,17 @@ help_os_msg         db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,
 help_cmds_msg       db 'Commands: "v" version, "r" reset, "d" debug', 0
 unknown_cmd_msg     db 'Unknown command', 0
 hex_ruler_msg       db '0123456789ABCDEF', 0
+
+; Commands table
+os_commands_table:
+  db 'h', os_print_help, 'system help'
+  db 'v', os_print_ver, 'system version'
+  db 'r', os_reset, 'reset the system'
+  db 's', os_print_stats, 'system statistics'
+  db 'd', os_print_debug, 'debug information'
+  db 0  ; End of table
+
+; Custom glyphs
 glyph_00:
     db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
