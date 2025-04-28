@@ -1,16 +1,19 @@
+alpha3:
+    - [in-progress] commands refactor for easy expansion
+    - [todo] automatic list of commands in help
 alpha2:
-    - working kernel basics
-    - colors
-    - custom glyphs
-    - tool: for converting png tileset to asm data
-    - icons for UI in the os
-    - basic shell functions: help, version
-    - debug option showing all custom glyphs w/ IDs
+    - [done] working kernel basics
+    - [done] colors
+    - [done] custom glyphs
+    - [done] tool: for converting png tileset to asm data
+    - [done] icons for UI in the os
+    - [done] basic shell functions: help, version
+    - [done] debug option showing all custom glyphs w/ IDs
 alpha1:
-    - bootloader
-    - empty kernel and userland
-    - ability to boot the OS
+    - [done] bootloader
+    - [done] empty kernel and userland
+    - [done] ability to boot the OS
 alpha0:
-    - init repository
-    - Initial files structure.
-    - Initial documentation and idea for the system.
+    - [done] init repository
+    - [done] Initial files structure.
+    - [done] Initial documentation and idea for the system.
