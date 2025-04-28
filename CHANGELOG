@@ -1,6 +1,8 @@
 alpha3:
-    - [in-progress] commands refactor for easy expansion
     - [todo] automatic list of commands in help
+    - [todo] first program (setting up colors)
+    - [done] remade logo and icons
+    - [done] commands refactor for easy expansion
 alpha2:
     - [done] working kernel basics
     - [done] colors
