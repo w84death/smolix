@@ -1,9 +1,16 @@
-alpha3:
-    - [todo] automatic list of commands in help
-    - [todo] first program (setting up colors)
+alpha5:
+    - [todo] real time loop
+alpha4:
+    - [todo] first external program
+    - [todo] permanent header with logo and date/time
+    - [todo] finalized stats command
+alpha3 [RELEASED]:    
+    - [done] hardware stats (wip)
+    - [done] better comments in kernel and boot
+    - [done] automatic list of commands in help
     - [done] remade logo and icons
     - [done] commands refactor for easy expansion
-alpha2:
+alpha2 [RELEASED]:
     - [done] working kernel basics
     - [done] colors
     - [done] custom glyphs
@@ -11,11 +18,11 @@ alpha2:
     - [done] icons for UI in the os
     - [done] basic shell functions: help, version
     - [done] debug option showing all custom glyphs w/ IDs
-alpha1:
+alpha1 [RELEASED]:
     - [done] bootloader
-    - [done] empty kernel and userland
+    - [done] empty kernel
     - [done] ability to boot the OS
-alpha0:
+alpha0 [RELEASED]:
     - [done] init repository
     - [done] Initial files structure.
     - [done] Initial documentation and idea for the system.
