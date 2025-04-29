@@ -7,13 +7,13 @@
 org 0x7C00
 use16 
 
-KERNEL_SIZE_KB equ 8 ; Size of the kernel in KB
-SECTORS_TO_LOAD equ KERNEL_SIZE_KB*2 ; Number of sectors to load (512KB chunks)
-KERNEL_STACK_POINTER equ 0xFFFE ; Stack pointer for the kernel
-KERNEL_SEGMENT equ 0x7E0 ; Segment where kernel code is loaded
-KERNEL_OFFSET equ 0x0000 ; Offset where kernel code starts
+KERNEL_SIZE_KB        equ 4                 ; Size of the kernel in KB
+SECTORS_TO_LOAD       equ KERNEL_SIZE_KB*2  ; Sectors to load (512KB chunks)
+KERNEL_STACK_POINTER  equ 0xFFFE            ; Stack pointer for the kernel
+KERNEL_SEGMENT        equ 0x7E0             ; Segment where kernel is loaded
+KERNEL_OFFSET         equ 0x0000            ; Offset where kernel is loaded
 
-; Start of the bootloader
+; Start of the bootloader ======================================================
 ; This is the entry point of the bootloader.
 ; Expects: None
 ; Returns: None
@@ -24,16 +24,14 @@ boot_start:
   mov es, ax
 
 	mov ah, 0x00		; Set video mode
-	mov al, 0x03		; 720x400 VGA text mode
+	; mov al, 0x03		; 720x400 VGA text mode
+	mov al, 0x00    ; Set to default text mode
 	int 0x10
 
   mov si, welcome_msg
   call boot_print_str
 
-  jmp boot_load_kernel
-
-
-; Load kernel
+; Load kernel ==================================================================
 ; This function loads the kernel from disk into memory.
 ; Expects: None
 ; Returns: None
@@ -43,12 +41,11 @@ boot_load_kernel:
 
   ; Reset disk system first
   xor ax, ax
-  mov dl, 0x00           ; Drive 0 (first floppy drive)
-  int 0x13               ; Reset disk system
+  int 0x13               ; Reset disk system (DL is already 0x00 from BIOS)
   jc boot_disk_reset_error
 
   ; Set up memory location for loading kernel
-  mov ax, 0x7E0          ; Segment where code will be loaded
+  mov ax, KERNEL_SEGMENT
   mov es, ax
   xor bx, bx             ; Offset where code will be loaded (starting at 0)
   
@@ -64,12 +61,12 @@ boot_load_kernel:
   jc boot_kernel_error   ; Error if carry flag set
   
   ; Check if we read the correct number of sectors
-  cmp al, SECTORS_TO_LOAD     ; AL returns the number of sectors actually read
+  cmp al, SECTORS_TO_LOAD
   jb boot_sector_count_error  ; Error if fewer sectors read than expected
-  
-  jmp boot_kernel_success ; Jump to kernel loaded success handler
 
-; Disk reset error
+  jmp boot_kernel_success
+
+; Disk reset error =============================================================
 ; This function handles disk reset errors.
 ; Expects: None
 ; Returns: None
@@ -78,7 +75,7 @@ boot_disk_reset_error:
   call boot_print_str
   jmp boot_error_recovery
 
-; Sector count error
+; Sector count error ===========================================================
 ; This function handles sector count errors.
 ; Expects: None
 ; Returns: None  
@@ -87,16 +84,16 @@ boot_sector_count_error:
   call boot_print_str
   jmp boot_error_recovery
 
-; Disk error
+; Disk error ===================================================================
 ; This function handles disk read errors.
 ; Expects: None
 ; Returns: None
 boot_kernel_error:
-  mov si, error_msg
+  mov si, disk_read_error_msg
   call boot_print_str
   jmp boot_error_recovery
 
-; Error recovery
+; Error recovery ===============================================================
 ; Common handler for disk errors
 ; Expects: None
 ; Returns: None
@@ -104,11 +101,11 @@ boot_error_recovery:
   mov si, again_msg
   call boot_print_str
   xor ax, ax
-  int 0x16               ; BIOS keyboard interrupt (wait for keypress)
+  int 0x16               ; Wait for key press
   jmp boot_load_kernel   ; Try again
 ret
 
-; Kernel loaded successfully
+; Kernel loaded successfully ===================================================
 ; This function is called after the kernel is loaded successfully.
 ; Expects: None
 ; Returns: None
@@ -121,18 +118,14 @@ boot_kernel_success:
   call boot_print_str
   
   ; Set up stack before jumping to kernel
-  mov ax, KERNEL_SEGMENT          ; Segment where code is loaded
+  mov ax, KERNEL_SEGMENT
   mov ds, ax
   mov es, ax
   mov ss, ax
-  mov sp, KERNEL_STACK_POINTER         ; Initialize stack pointer to top of segment
-  
-  ; Jump to the loaded kernel at 0x7E0:0x0100
-  ; The kernel will enable interrupts
+  mov sp, KERNEL_STACK_POINTER 
   jmp KERNEL_SEGMENT:KERNEL_OFFSET
 
-
-; Print string
+; Print string =================================================================
 ; This function prints a string to the screen.
 ; Expects: DS:SI = pointer to string
 ; Returns: None
@@ -147,17 +140,17 @@ boot_print_str:
   .terminated:
 ret
 
-; Print statements
-welcome_msg db    '+  SMOLiX Bootloader V0.1d',0x0A,0x0D,0x0
-loading_msg db  '>  Loading kernel...',0x0A,0x0D,0x0
-error_msg db    '!  Error.',0x0A,0x0D,0x0
-reset_err_msg db '! Disk reset error.',0x0A,0x0D,0x0
-count_err_msg db '! Disk sector count error.',0x0A,0x0D,0x0
-done_msg db     '.  Success.',0x0A,0x0D,0x0
-again_msg db    '+  Press any key to try again.',0x0A,0x0D,0x0
-kernel_jump_msg db '> Jumping into kernel...',0x0A,0x0D,0x0
+; Print statements =============================================================
+welcome_msg db          'SMOLiX Bootloader Version 0.1e',0x0A,0x0D,0x0
+loading_msg db          'Loading kernel... ',0x0A,0x0D,0x0
+disk_read_error_msg db  '<!> Disk read error.',0x0A,0x0D,0x0
+reset_err_msg db        '<!> Disk reset error.',0x0A,0x0D,0x0
+count_err_msg db        '<!> Disk sector count error.',0x0A,0x0D,0x0
+done_msg db             '\o/ Success.',0x0A,0x0D,0x0
+again_msg db            '<*> Press any key to try again.',0x0A,0x0D,0x0
+kernel_jump_msg db      'Booting SMOLiX kernel...',0x0A,0x0D,0x0
 
-; Bootloader signature
+; Bootloader signature =========================================================
 times 507 - ($ - $$) db 0   ; Pad to 510 bytes
 db "P1X"                    ; Use HEX viewer to see P1X at the end of binary
 dw 0xAA55                   ; Boot signature

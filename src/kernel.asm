@@ -4,13 +4,18 @@
 ; Copyright (C) 2025 Krzysztof Krystian Jankowski
 ; This program is free software. See LICENSE for details.
 
+; Minimal hardware:
+; CPU: 286
+; Graphics: EGA
+; RAM: 256KB
+
 org 0x0000
 use16
 
 GLYPH_FIRST           equ 0x80
 PROMPT_MSG            equ GLYPH_FIRST+0xC
 PROMPT_SYS_MSG        equ GLYPH_FIRST+0xE
-PROMPT_STATUS         equ GLYPH_FIRST+0xA
+PROMPT_LIST           equ "*"
 PROMPT_ERR            equ GLYPH_FIRST+0xB
 PROMPT_USR            equ GLYPH_FIRST+0xD
 CHR_SPACE             equ GLYPH_FIRST
@@ -75,7 +80,7 @@ os_print_help:
     test al, al   ; Test if 0, terminator
     jz .done
 
-    mov bl, PROMPT_MSG
+    mov bl, PROMPT_LIST
     call os_print_prompt          ; Prompt
     call os_print_chr             ; Character printed
     mov al, CHR_SPACE             ; Move space character to AL
@@ -134,6 +139,11 @@ os_down:
   mov bx, 0001h     ; All devices
   mov cx, 0003h     ; Power off
   int 15h
+
+  mov bl, PROMPT_ERR
+  call os_print_prompt
+  mov si, unsupported_msg
+  call os_print_str
 ret
 
 os_restart:
@@ -202,10 +212,7 @@ os_print_str:
     jz .terminated
     int 0x10          ; BIOS video interrupt
   jmp near .next_char
-  .terminated:
-
-  mov al, PROMPT_END
-  int 0x10
+  .terminated: 
   popa
 ret
 
@@ -372,19 +379,91 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_stats:
-  ; Print available memory
-  mov bx, PROMPT_STATUS
+  mov bx, PROMPT_LIST
   call os_print_prompt
 
-  mov ah, 0x88
-  int 0x15      ; AX now contains KB of extended memory (above 1MB) 
-  add ax, 640   ; Add conventional memory (640KB) to display total
+  ; Get conventional memory size (first 640KB)
+  mov si, memory_installed_msg
+  call os_print_str
+
+  mov ah, 0x12
+  int 0x12       ; Returns KB in AX
   call os_print_chr
   mov al, ah
   call os_print_chr
+  
+  mov bx, PROMPT_LIST
+  call os_print_prompt
 
-  mov si, memory_available_msg
+  ; Get CPU type
+  mov si, cpu_type_msg
   call os_print_str
+
+  mov ah, 0xC0
+  int 0x15       ; Returns system info in ES:BX
+; AH = CPU family (0x01=8086/8088, 0x02=286, 0x03=386, etc.)
+  mov si, os_cpu_types_table
+  ; mov al, ah
+  shl al, 1
+  xor ah, ah
+  add si, ax
+  mov si, [si]  
+  call os_print_str
+
+  mov bx, PROMPT_LIST
+  call os_print_prompt
+
+  ; Get BIOS date
+  
+  mov si, bios_date_msg
+  call os_print_str
+
+  mov ax, 0xF000
+  mov es, ax
+  mov di, 0xFFF5  ; BIOS date string location
+  ; Now ES:DI points to the BIOS date string
+  mov si, di      ; Move BIOS date string address to SI
+  call os_print_str ; Call function to print BIOS date string
+
+
+; Check for PS/2 mouse
+
+  mov bx, PROMPT_LIST
+  call os_print_prompt
+
+  mov si, ps2_mouse_msg
+  call os_print_str
+
+  mov ax, 0xC200
+  int 0x15       ; Returns status in CF, BH=device ID
+  xor al, al
+  adc al, 0
+  or al, al
+  jz .mouse_not_detected  ; Jump if mouse not detected
+  mov si, detected_msg
+  jmp .mouse_done
+  .mouse_not_detected:
+  mov si, not_detected_msg
+  .mouse_done:
+  call os_print_str
+
+  ; APM functions
+  mov bx, PROMPT_LIST
+  call os_print_prompt
+  
+  mov si, apm_batt_msg
+  call os_print_str
+
+  mov ax, 530Ah  ; Get Power Status
+  mov bx, 0001h  ; All devices
+  int 15h        ; Returns battery status in BL, BH
+  mov al, bl
+  add al, "0"
+  call os_print_chr
+  mov al, bh
+  add al, "0"
+  call os_print_chr
+
 ret
 
 ; Data section =================================================================
@@ -392,35 +471,65 @@ version_msg         db 'Version alpha3', 0
 welcome_msg         db 'Welcome to ', 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, ' Operating System', 0
 copyright_msg       db '(C) 2025 Krzysztof Krystian Jankowski', 0
 more_info_msg       db 'Type "h" for help. Read more at smol.p1x.in/smolix/', 0
-help_icons_msg         db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_STATUS,' return status, ',PROMPT_USR,' user prompt', 0
+help_icons_msg      db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_LIST,' return status, ',PROMPT_USR,' user prompt', 0
 help_cmds_msg       db 'List of system character commands', 0
 unknown_cmd_msg     db 'Unknown command', 0
+unsupported_msg     db 'Unsupported hardware function', 0
 hex_ruler_msg       db '0123456789ABCDEF', 0
-memory_available_msg  db 'KB available memory', 0
+memory_installed_msg  db 'Memory installed: ', 0
+ps2_mouse_msg         db 'PS/2 mouse ', 0
+detected_msg          db 'detected', 0
+not_detected_msg      db 'not detected', 0
+bios_date_msg         db 'BIOS date: ', 0
+apm_batt_msg          db 'Battery status: ', 0
+cpu_type_msg          db 'CPU type: ', 0  
+cpu_8086              db '8086/8088', 0  
+cpu_286               db '286', 0  
+cpu_386               db '386', 0  
+cpu_486               db '486', 0  
+cpu_pentium          db 'Pentium', 0  
+benchmark_msg         db 'Benchmark score: ', 0
+  
+os_cpu_types_table:
+  dw cpu_8086
+  dw cpu_286
+  dw cpu_386
+  dw cpu_486
+  dw cpu_pentium
+
+
 
 ; Commands table ===============================================================
+; character (1b) | pointer to function (2b) | description (24b/chars) | terminator (1b)
 os_commands_table:
   db 'h'
   dw os_print_help
   db 'Help & list of commands ', 0x0
+
   db 'v'
   dw os_print_ver
-  db 'System version number   ', 0x0
+  db 'Prints system version   ', 0x0
+
   db 'r'
   dw os_reset
   db 'Soft system reset       ', 0x0
+
   db 'R'
   dw os_restart
   db 'Hard system restart     ', 0x0
+  
   db 'D'
   dw os_down
   db 'Shutdown the computer   ', 0x0
+  
   db 's'
   dw os_print_stats
-  db 'System statistics       ', 0x0
-  db 'd'
+  db 'Prints system statistics', 0x0
+  
+  db '`'
   dw os_print_debug
   db 'Debugging stuff         ', 0x0
+  
   db 0x0  ; End of table
 
 ; Glyphs =======================================================================

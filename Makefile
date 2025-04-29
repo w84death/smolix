@@ -5,7 +5,8 @@
 
 # Tools
 ASM = fasm
-QEMU = qemu-kvm -m 1 -k en-us -rtc base=localtime -vga std -cpu 486 -boot a 
+QEMU = qemu-system-i386 -m 1 -k en-us -rtc base=localtime -vga std -cpu 486 -boot order=a -drive format=raw,file=$(FLOPPY_IMG)
+FLATPAL_86BOX = flatpak run net._86box._86Box
 DD = dd
 MKDIR = mkdir -p
 RM = rm -f
@@ -56,10 +57,9 @@ $(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img
 	$(DD) if=$(BOOTLOADER) of=$(FLOPPY_IMG) bs=512 count=1 conv=notrunc
 	$(DD) if=$(KERNEL) of=$(FLOPPY_IMG) bs=512 seek=1 conv=notrunc
 
-# Run SMOLiX in QEMU
+# Run SMOLiX in QEMU/86Box
 run: $(FLOPPY_IMG)
-	$(QEMU) $(FLOPPY_IMG)
-
+	$(FLATPAL_86BOX)
 
 # Clean build artifacts
 clean:
