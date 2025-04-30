@@ -509,20 +509,20 @@ os_print_stats:
 ret
 
 ; Data section =================================================================
-version_msg         db 'Version alpha3', 0
-welcome_msg         db 'Welcome to ', 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, ' Operating System', 0
-copyright_msg       db '(C) 2025 Krzysztof Krystian Jankowski', 0
-more_info_msg       db 'Type "h" for help. Read more at smol.p1x.in/smolix/', 0
-help_icons_msg      db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_LIST,' data listing, ',PROMPT_USR,' user prompt', 0
-help_cmds_msg       db 'System character commands:', 0
-unknown_cmd_msg     db 'Unknown command', 0
-unsupported_msg     db 'Unsupported hardware function', 0
+version_msg           db 'Version alpha3', 0
+welcome_msg           db 'Welcome to ', 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, ' Operating System', 0
+copyright_msg         db '(C) 2025 Krzysztof Krystian Jankowski', 0
+more_info_msg         db 'Type "h" for help. Read more at smol.p1x.in/smolix/', 0
+help_icons_msg        db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_LIST,' data listing, ',PROMPT_USR,' user prompt', 0
+help_cmds_msg         db 'System character commands:', 0
+unknown_cmd_msg       db 'Unknown command', 0
+unsupported_msg       db 'Unsupported hardware function', 0
 detected_msg          db 'detected', 0
 not_detected_msg      db 'not detected', 0
-success_init_msg       db 'Initialized successfully', 0
-failed_init_msg       db 'Failed to initialize', 0
-unknown_msg           db 'Unknown', 0  
-hex_ruler_msg       db '0123456789ABCDEF', 0
+success_init_msg      db 'initialized successfully', 0
+failed_init_msg       db 'failed to initialize', 0
+unknown_msg           db 'unknown', 0  
+hex_ruler_msg         db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
 ps2_mouse_msg         db 'PS/2 mouse ', 0
 bios_date_msg         db 'BIOS date: ', 0
