@@ -15,7 +15,7 @@ use16
 GLYPH_FIRST           equ 0x80
 PROMPT_MSG            equ GLYPH_FIRST+0xC
 PROMPT_SYS_MSG        equ GLYPH_FIRST+0xE
-PROMPT_LIST           equ "*"
+PROMPT_LIST           equ 0xFE
 PROMPT_ERR            equ GLYPH_FIRST+0xB
 PROMPT_USR            equ GLYPH_FIRST+0xD
 CHR_SPACE             equ GLYPH_FIRST
@@ -353,6 +353,48 @@ ret
     call os_print_str
 ret
 
+; Initialize mouse and show cursor =============================================
+; This function initializes the mouse and shows the cursor
+; Expects: None
+; Returns: CF=0 if successful, CF=1 if failed
+os_mouse_init:
+  ; Initialize mouse
+  mov ax, 0xC200     ; Initialize mouse
+  int 0x15           ; CF=0 if successful
+  jc .init_failed
+  
+  ; Set mouse cursor visibility
+  mov ax, 0x0001     ; Function 0x01: Show mouse cursor
+  int 0x33           ; Mouse driver function
+  
+  ; Set mouse cursor shape (optional)
+  mov ax, 0x000A     ; Function 0x0A: Set text cursor
+  mov bx, 0x0000     ; Software text cursor
+  mov cx, 0x7700     ; Screen mask (AND mask)
+  mov dx, 0x0077     ; Cursor mask (XOR mask)
+  int 0x33
+  
+  mov bx, PROMPT_SYS_MSG
+  call os_print_prompt
+  mov si, ps2_mouse_msg
+  call os_print_str
+  mov si, success_init_msg
+  call os_print_str
+
+  clc                ; Clear carry flag (success)
+  ret
+  
+.init_failed:
+  mov bx, PROMPT_ERR
+  call os_print_prompt
+  mov si, ps2_mouse_msg
+  call os_print_str
+  mov si, failed_init_msg
+  call os_print_str
+
+  stc                ; Set carry flag (failure)
+  ret
+
 ; Print debug info =============================================================
 ; This function prints debug information.
 ; Expects: None
@@ -400,12 +442,15 @@ os_print_stats:
   call os_print_str
 
   mov ah, 0xC0
-  int 0x15       ; Returns system info in ES:BX
-; AH = CPU family (0x01=8086/8088, 0x02=286, 0x03=386, etc.)
+  int 0x15
   mov si, os_cpu_types_table
-  ; mov al, ah
   shl al, 1
   xor ah, ah
+
+  cmp al, 5 ; Check for bound
+  jbe .cpu_type_found
+  mov al, 5 ; Unknown
+  .cpu_type_found:
   add si, ax
   mov si, [si]  
   call os_print_str
@@ -436,10 +481,7 @@ os_print_stats:
 
   mov ax, 0xC200
   int 0x15       ; Returns status in CF, BH=device ID
-  xor al, al
-  adc al, 0
-  or al, al
-  jz .mouse_not_detected  ; Jump if mouse not detected
+  jc .mouse_not_detected  ; Jump if mouse not detected
   mov si, detected_msg
   jmp .mouse_done
   .mouse_not_detected:
@@ -471,31 +513,35 @@ version_msg         db 'Version alpha3', 0
 welcome_msg         db 'Welcome to ', 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, ' Operating System', 0
 copyright_msg       db '(C) 2025 Krzysztof Krystian Jankowski', 0
 more_info_msg       db 'Type "h" for help. Read more at smol.p1x.in/smolix/', 0
-help_icons_msg      db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_LIST,' return status, ',PROMPT_USR,' user prompt', 0
-help_cmds_msg       db 'List of system character commands', 0
+help_icons_msg      db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_LIST,' data listing, ',PROMPT_USR,' user prompt', 0
+help_cmds_msg       db 'System character commands:', 0
 unknown_cmd_msg     db 'Unknown command', 0
 unsupported_msg     db 'Unsupported hardware function', 0
+detected_msg          db 'detected', 0
+not_detected_msg      db 'not detected', 0
+success_init_msg       db 'Initialized successfully', 0
+failed_init_msg       db 'Failed to initialize', 0
+unknown_msg           db 'Unknown', 0  
 hex_ruler_msg       db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
 ps2_mouse_msg         db 'PS/2 mouse ', 0
-detected_msg          db 'detected', 0
-not_detected_msg      db 'not detected', 0
 bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
-cpu_type_msg          db 'CPU type: ', 0  
-cpu_8086              db '8086/8088', 0  
-cpu_286               db '286', 0  
-cpu_386               db '386', 0  
-cpu_486               db '486', 0  
-cpu_pentium          db 'Pentium', 0  
+cpu_type_msg          db 'CPU detected: ', 0  
+cpu_8086_msg          db '8086/8088', 0  
+cpu_286_msg           db '286', 0  
+cpu_386_msg           db '386', 0  
+cpu_486_msg           db '486', 0  
+cpu_pentium_msg       db 'Pentium', 0  
 benchmark_msg         db 'Benchmark score: ', 0
-  
+
 os_cpu_types_table:
-  dw cpu_8086
-  dw cpu_286
-  dw cpu_386
-  dw cpu_486
-  dw cpu_pentium
+  dw cpu_8086_msg
+  dw cpu_286_msg
+  dw cpu_386_msg
+  dw cpu_486_msg
+  dw cpu_pentium_msg
+  dw unknown_msg
 
 
 
@@ -521,6 +567,10 @@ os_commands_table:
   db 'D'
   dw os_down
   db 'Shutdown the computer   ', 0x0
+
+  db 'm'
+  dw os_mouse_init
+  db 'Initialize mouse driver ', 0x0
   
   db 's'
   dw os_print_stats
