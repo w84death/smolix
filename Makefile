@@ -12,6 +12,15 @@ MKDIR = mkdir -p
 RM = rm -f
 RMDIR = rm -rf
 
+# USB floppy device (change this to match your system)
+# To identify your USB floppy drive:
+#   1. Run 'lsblk' or 'sudo fdisk -l' to list all block devices
+#   2. Connect your USB floppy drive and run the command again
+#   3. The new device that appears is your floppy drive (usually /dev/sdX where X is a letter)
+#   4. Check the size to confirm (~1.4MB for a standard floppy)
+# CAUTION: Make sure this is the correct device before using 'make burn'!
+USB_FLOPPY = /dev/sdb
+
 # Directories
 BUILD_DIR = build
 BIN_DIR = $(BUILD_DIR)/bin
@@ -61,9 +70,19 @@ $(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img
 run: $(FLOPPY_IMG)
 	$(FLATPAL_86BOX)
 
+# Burn SMOLiX to physical floppy disk
+burn: $(FLOPPY_IMG)
+	@echo "WARNING: This will overwrite all data on $(USB_FLOPPY)!"
+	@echo "Make sure $(USB_FLOPPY) is your USB floppy drive, not another drive!"
+	@echo "Press Ctrl+C to cancel, or Enter to continue..."
+	@read dummy
+	sudo $(DD) if=$(FLOPPY_IMG) of=$(USB_FLOPPY) bs=1024 conv=notrunc
+	@echo "Floppy image successfully burned to $(USB_FLOPPY)"
+	@echo "You may now safely eject the floppy disk."
+
 # Clean build artifacts
 clean:
 	$(RM) $(BOOTLOADER) $(KERNEL) $(FLOPPY_IMG) $(IMG_DIR)/floppy_empty.img
 	$(RMDIR) $(BUILD_DIR)
 
-.PHONY: all run clean
+.PHONY: all run clean burn
