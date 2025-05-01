@@ -13,16 +13,28 @@ org 0x0000
 use16
 
 GLYPH_FIRST           equ 0x80
-PROMPT_MSG            equ GLYPH_FIRST+0xC
-PROMPT_SYS_MSG        equ GLYPH_FIRST+0xE
+PROMPT_MSG            equ GLYPH_FIRST+0xB
+PROMPT_SYS_MSG        equ GLYPH_FIRST+0x9
 PROMPT_LIST           equ 0xFE
-PROMPT_ERR            equ GLYPH_FIRST+0xB
-PROMPT_USR            equ GLYPH_FIRST+0xD
+PROMPT_ERR            equ GLYPH_FIRST+0xA
+PROMPT_USR            equ GLYPH_FIRST+0xC
 CHR_SPACE             equ GLYPH_FIRST
 CHR_CR                equ 0x0D
 CHR_LF                equ 0x0A
-PROMPT_END            equ GLYPH_FIRST+0x9
+PROMPT_END            equ GLYPH_FIRST+0x8
+GLYPH_BLOCK           equ GLYPH_FIRST+0xE
+GLYPH_CEILING         equ GLYPH_FIRST+0xF
+GLYPH_FLOOR           equ GLYPH_FIRST+0x10
+GLYPH_UP              equ GLYPH_FIRST+0x11
+GLYPH_DOWN            equ GLYPH_FIRST+0x12
+GLYPH_ICONS_SELECTOR  equ 0x9493
+GLYPH_ICON_RESET      equ 0x9695 
+GLYPH_ICON_REBOOT     equ 0x9897 
+GLYPH_ICON_DOWN       equ 0x9A99 
+GLYPH_ICON_SHELL      equ 0x9C9B 
+GLYPH_ICON_DOC        equ 0x9E9D
 COLOR_PRIMARY         equ 0x1F  ; White on blue
+COLOR_SECONDARY       equ 0x2F  ; Light gray on dark blue 
 LENGTH_CMDS_TBL_CHAR  equ 1     ; Command character
 LENGTH_CMDS_TBL_ADDR  equ 2     ; Address to function
 LENGTH_CMDS_TBL_DESC  equ 24+1  ; Description length + terminator character
@@ -38,8 +50,8 @@ os_reset:
   
   call os_load_all_glyphs
   call os_clear_screen
+  call os_print_header
   call os_print_welcome
-
   ; No return, go to the main loop
  
 ; Main system loop =============================================================
@@ -48,13 +60,106 @@ os_reset:
 ; Expects: None
 ; Returns: None
 os_main_loop:
+  
   mov bl, PROMPT_USR
   call os_print_prompt
   call os_get_key
   call os_print_chr
   call os_interpret_char
-  
+
+  call os_cursor_pos_get
+  push dx
+  call os_print_header
+  pop dx
+  call os_cursor_pos_set
+
 jmp os_main_loop
+
+os_cursor_pos_get: 
+  mov ax, 0x0300      ; Get cursor position and size
+  xor bh, bh        ; Page 0
+  int 0x10          ; Call BIOS
+ret
+
+os_cursor_pos_set:
+  mov ax, 0x0200      ; Set cursor position
+  xor bh, bh        ; Page 0
+  int 0x10          ; Call BIOS
+ret
+
+os_print_header: 
+  cmp dh, 24           ; Check if cursor is on the bottom row (row 24)
+  jl .no_bottom_screen
+    call os_cursor_pos_reset
+    mov al, CHR_SPACE
+    mov ah, 160
+    call os_print_chr_mul
+    mov dx, 0x034F
+    jmp .no_reset
+  .no_bottom_screen:
+    call os_cursor_pos_reset
+    mov al, CHR_SPACE
+    mov ah, 80
+    call os_print_chr_mul
+    mov dx, 0x024F
+  .no_reset:
+
+  mov ax, 0x0600     ; Function 06h (scroll window up)
+  mov bh, COLOR_SECONDARY
+  mov cx, 0x0000     ; Top left corner (row 0, col 0)
+  int 0x10
+
+  ; new line
+  mov al, CHR_SPACE
+  mov ah, 4
+  call os_print_chr_mul
+  
+  mov si, system_logo_msg
+  call os_print_str
+  
+  mov al, CHR_SPACE
+  mov ah, 4
+  call os_print_chr_mul
+
+  mov si, os_icons_msg
+  call os_print_str
+  
+  mov al, CHR_SPACE
+  mov ah, 80-14-15-7-8
+  call os_print_chr_mul
+  
+  mov si, version_msg
+  call os_print_str
+
+  mov al, CHR_SPACE
+  call os_print_chr
+
+  ; new line
+
+  mov al, GLYPH_CEILING
+  call os_print_chr
+
+  mov al, GLYPH_DOWN
+  call os_print_chr
+
+  mov al, GLYPH_FLOOR
+  mov ah, 11
+  call os_print_chr_mul
+
+  mov al, GLYPH_UP
+  call os_print_chr
+
+  mov al, GLYPH_CEILING
+  call os_print_chr
+
+  mov ax, GLYPH_ICONS_SELECTOR
+  call os_print_chr2
+
+  mov al, GLYPH_CEILING
+  mov ah, 80-14-3
+  call os_print_chr_mul
+
+ret
 
 ; Print help message ===========================================================
 ; This function prints the help message to the screen.
@@ -102,9 +207,8 @@ os_print_prompt:
   push ax
   ; New line
   mov al, CHR_CR
-  call os_print_chr
-  mov al, CHR_LF
-  call os_print_chr
+  mov ah, CHR_LF
+  call os_print_chr2
   ; Space
   mov al, CHR_SPACE
   call os_print_chr
@@ -197,6 +301,21 @@ os_print_chr:
   pop ax
 ret
 
+os_print_chr2:
+  call os_print_chr
+  mov al, ah
+  call os_print_chr
+ret
+
+os_print_chr_mul:
+  push cx  
+  movzx cx, ah
+  .char_loop:
+  call os_print_chr
+  loop .char_loop
+  pop cx
+ret
+
 ; Print string =================================================================
 ; This function prints a string to the screen.
 ; Expects: DS:SI = pointer to string
@@ -235,7 +354,7 @@ os_clear_screen:
   mov cx, 0x0000     ; Top left corner (row 0, col 0)
   mov dx, 0x184F     ; Bottom right corner (row 24, col 79)
   int 0x10
-  call os_cursor_pos_reset
+call os_cursor_pos_reset
 ret
 
 ; Cursor position reset ========================================================
@@ -245,21 +364,10 @@ ret
 os_cursor_pos_reset:
   xor dx, dx
   mov ah, 0x2
-  mov bh, 0x0
+  xor bh, bh
   int 0x10
 ret
 
-; Set cursor position ==========================================================
-; This function sets the cursor position on the screen.
-; Expects: DX = position (row * 80 + col)
-; Returns: None
-os_cursor_set_pos:
-  mov ah, 0x02
-  mov bh, 0x00
-  ; DH <-
-  ; DL <-
-  int 0x10  
-ret
 
 ; Set color ====================================================================
 ; This function sets the color of the text on the screen.
@@ -404,7 +512,7 @@ os_print_debug:
   call os_print_prompt
   mov al, GLYPH_FIRST
   call os_print_chr
-  mov cx, 0xF
+  mov cx, 0x1F
   .loop_chars:
     inc al
     call os_print_chr
@@ -413,6 +521,7 @@ os_print_debug:
   mov bl, PROMPT_MSG
   call os_print_prompt
   mov si, hex_ruler_msg
+  call os_print_str
   call os_print_str
 ret
 
@@ -444,13 +553,7 @@ os_print_stats:
   mov ah, 0xC0
   int 0x15
   mov si, os_cpu_types_table
-  shl al, 1
-  xor ah, ah
-
-  cmp al, 5 ; Check for bound
-  jbe .cpu_type_found
-  mov al, 5 ; Unknown
-  .cpu_type_found:
+  shl ax, 1
   add si, ax
   mov si, [si]  
   call os_print_str
@@ -479,9 +582,10 @@ os_print_stats:
   mov si, ps2_mouse_msg
   call os_print_str
 
-  mov ax, 0xC200
-  int 0x15       ; Returns status in CF, BH=device ID
-  jc .mouse_not_detected  ; Jump if mouse not detected
+  mov ax, 0x0
+  int 0x11     
+  test ax, 0x03 ; Mouse
+  jnz .mouse_not_detected
   mov si, detected_msg
   jmp .mouse_done
   .mouse_not_detected:
@@ -510,7 +614,8 @@ ret
 
 ; Data section =================================================================
 version_msg           db 'Version alpha3', 0
-welcome_msg           db 'Welcome to ', 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, ' Operating System', 0
+system_logo_msg       db 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0
+welcome_msg           db 'Welcome to SMOLiX Operating System', 0
 copyright_msg         db '(C) 2025 Krzysztof Krystian Jankowski', 0
 more_info_msg         db 'Type "h" for help. Read more at smol.p1x.in/smolix/', 0
 help_icons_msg        db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_LIST,' data listing, ',PROMPT_USR,' user prompt', 0
@@ -522,6 +627,18 @@ not_detected_msg      db 'not detected', 0
 success_init_msg      db 'initialized successfully', 0
 failed_init_msg       db 'failed to initialize', 0
 unknown_msg           db 'unknown', 0  
+os_icons_msg:
+dw GLYPH_ICON_SHELL
+db CHR_SPACE
+dw GLYPH_ICON_RESET
+db CHR_SPACE
+dw GLYPH_ICON_REBOOT
+db CHR_SPACE
+dw GLYPH_ICON_DOWN
+db CHR_SPACE
+dw GLYPH_ICON_DOC
+db 0  
+
 hex_ruler_msg         db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
 ps2_mouse_msg         db 'PS/2 mouse ', 0
@@ -532,6 +649,7 @@ cpu_8086_msg          db '8086/8088', 0
 cpu_286_msg           db '286', 0  
 cpu_386_msg           db '386', 0  
 cpu_486_msg           db '486', 0  
+cpu_486_plus_msg      db '486+', 0  
 cpu_pentium_msg       db 'Pentium', 0  
 benchmark_msg         db 'Benchmark score: ', 0
 
@@ -540,10 +658,9 @@ os_cpu_types_table:
   dw cpu_286_msg
   dw cpu_386_msg
   dw cpu_486_msg
+  dw cpu_486_plus_msg
   dw cpu_pentium_msg
   dw unknown_msg
-
-
 
 ; Commands table ===============================================================
 ; character (1b) | pointer to function (2b) | description (24b/chars) | terminator (1b)
