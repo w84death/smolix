@@ -53,6 +53,12 @@ LENGTH_CMDS_TBL_CHAR  equ 1     ; Command character
 LENGTH_CMDS_TBL_ADDR  equ 2     ; Address to function
 LENGTH_CMDS_TBL_DESC  equ 24+1  ; Description length + terminator character
 LOGO_LENGTH           equ 7
+
+SOUND_OS_START        equ 1500
+SOUND_SUCCESS         equ 1700
+SOUND_ERROR           equ 2500
+
+
 os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
 
@@ -67,11 +73,13 @@ os_reset:
 	mov al, [_OS_VIDEO_MODE_]
 	int 0x10            ; 80x25 text mode
   
+  call os_sound_init
   call os_load_all_glyphs
   call os_clear_screen
   call os_print_header  
   call os_print_welcome
-  
+  mov ax, SOUND_OS_START
+  call os_sound_play
   mov bl, PROMPT_USR
   call os_print_prompt
   
@@ -84,12 +92,12 @@ os_reset:
 os_main_loop:
 
   check_keyboard:
-   mov ah, 01h         ; BIOS keyboard status function
-   int 16h             ; Call BIOS interrupt
-   jz .done
+    mov ah, 01h         ; BIOS keyboard status function
+    int 16h             ; Call BIOS interrupt
+    jz .no_key_press
 
-   mov ah, 00h         ; BIOS keyboard read function
-   int 16h   
+    mov ah, 00h         ; BIOS keyboard read function
+    int 16h   
 
     call os_print_chr  
     call os_interpret_char
@@ -101,37 +109,50 @@ os_main_loop:
     call os_print_header
     pop dx
     call os_cursor_pos_set
-  .done:
+  
+  .no_key_press:
 
-wait_for_tick:
-   xor ax, ax           ; Function 00h: Read system timer counter
-   int 0x1a             ; Returns tick count in CX:DX
-   mov bx, dx           ; Store the current tick count
-   .wait_loop:
-      int 0x1a          ; Read the tick count again
-      cmp dx, bx
-      je .wait_loop     ; Loop until the tick count changes
+  xor ax, ax           ; Function 00h: Read system timer counter
+  int 0x1a             ; Returns tick count in CX:DX
+  mov bx, dx           ; Store the current tick count
+  .wait_loop:
+    int 0x1a          ; Read the tick count again
+    cmp dx, bx
+    je .wait_loop     ; Loop until the tick count changes
 
-jmp os_main_loop  ; Return to the main loop
+  call os_sound_stop
+  jmp os_main_loop  ; Return to the main loop
 
+; Gets Cursor Position
+; This function gets the current cursor position on the screen.
+; Expects: None
+; Returns: AX = column, DX = row 
 os_cursor_pos_get: 
   mov ax, 0x0300      ; Get cursor position and size
   xor bh, bh        ; Page 0
   int 0x10          ; Call BIOS
 ret
 
+; Sets Cursor Pos
+; This function sets the cursor position on the screen.
+; Expects: AX = column (0-79), DX = row (0-24)
+; Returns: None
 os_cursor_pos_set:
   mov ax, 0x0200      ; Set cursor position
   xor bh, bh        ; Page 0
   int 0x10          ; Call BIOS
 ret
 
+; Print Header =================================================================
+; This function prints the header information to the screen.
+; Expects: None
+; Returns: None
 os_print_header:
   mov dx, 0x014F    ; 2 rows, 80 columns
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   je .set_color
     mov dl, 0x27      ; 40 columns
-    
+
   .set_color:
   mov ax, 0x0600    ; Function 06h (scroll window up)
   mov bh, COLOR_SECONDARY
@@ -204,7 +225,10 @@ os_print_header:
 
 ret
 
-
+; Print Icons Toolbar
+; This function prints the icons in the toolbar.
+; Expects: None
+; Returns: None
 os_print_icons_toolbar:
   push si
   mov si, os_icons_table
@@ -310,6 +334,10 @@ os_down:
   call os_print_str
 ret
 
+; Reboot System
+; This function reboots the system.
+; Expects: None
+; Returns: None
 os_reboot:
   jmp 0FFFFh:0000h
 
@@ -361,12 +389,21 @@ os_print_chr:
   pop ax
 ret
 
+; Print Two Characters =========================================================
+; This function prints two characters to the screen.
+; Expects: AL = first character, AH = second character
+; Returns: None
 os_print_chr2:
   call os_print_chr
   mov al, ah
   call os_print_chr
 ret
 
+; Print Character Multiple Times ===============================================
+; This function prints a character multiple times to the screen.
+; Expects: AL = character
+;          AH = number of times to print
+; Returns: None
 os_print_chr_mul:
   push cx  
   movzx cx, ah
@@ -395,14 +432,6 @@ os_print_str:
   popa
 ret
 
-; Prints decimal number ========================================================
-; This function prints a decimal number to the screen.
-; Expects: AX = number to print
-; Returns: None
-os_print_dec:
-
-ret
-
 ; Clear screen =================================================================
 ; This function clears the screen with primary colors.
 ; Expects: None
@@ -419,11 +448,14 @@ os_clear_screen:
   popa
 ret
 
+; Clear Shell ==================================================================
+; This function clears the shell and resets the display.
+; Expects: None
+; Returns: None
 os_clear_shell:
   call os_clear_screen
   call os_print_header
 ret
-
 
 ; Cursor position reset ========================================================
 ; This function resets the cursor position to the top left of the screen.
@@ -518,18 +550,22 @@ os_interpret_char:
     jmp .loop_commands
 
   .found:
+    mov ax, SOUND_SUCCESS
+    call os_sound_play
     lodsw           ; Load next command address
-    call ax         ; call the command address
-ret
+    call ax         ; call the command address   
+  ret
 
   .unknown:
+    mov ax, SOUND_ERROR
+    call os_sound_play
     mov bl, PROMPT_ERR
     call os_print_prompt
     mov si, unknown_cmd_msg
     call os_print_str
-ret
+  ret
 
-; Initialize mouse and show cursor =============================================
+; Initialize Mouse Driver ======================================================
 ; This function initializes the mouse and shows the cursor
 ; Expects: None
 ; Returns: CF=0 if successful, CF=1 if failed
@@ -558,18 +594,18 @@ os_mouse_init:
   call os_print_str
 
   clc                ; Clear carry flag (success)
-  ret
+ret
   
-.init_failed:
-  mov bx, PROMPT_ERR
-  call os_print_prompt
-  mov si, ps2_mouse_msg
-  call os_print_str
-  mov si, failed_init_msg
-  call os_print_str
+  .init_failed:
+    mov bx, PROMPT_ERR
+    call os_print_prompt
+    mov si, ps2_mouse_msg
+    call os_print_str
+    mov si, failed_init_msg
+    call os_print_str
 
-  stc                ; Set carry flag (failure)
-  ret
+    stc                ; Set carry flag (failure)
+ret
 
 ; Print debug info =============================================================
 ; This function prints debug information.
@@ -609,7 +645,10 @@ os_print_debug:
   call os_print_str
 ret
 
-
+; Print Number =================================================================
+; This function prints a number in decimal format
+; Expects: AX - number to print
+; Returns: None
 os_print_number:
   mov cx, 10000  ; Divisor starting with 10000 (for 5 digits)
 
@@ -649,7 +688,10 @@ os_print_number:
   
   ret
 
-
+; Toggle Video Mode ============================================================
+; This function toggles between 40 and 80 column video modes
+; Expects: None
+; Returns: None
 os_toggle_video_mode:
   mov al, [_OS_VIDEO_MODE_]
   cmp al, OS_VIDEO_MODE_40
@@ -734,6 +776,43 @@ os_print_stats:
 
 ret
 
+; Sound Initialization =========================================================
+; This function initializes the sound system.
+; Expects: None
+; Returns: None
+os_sound_init:
+   mov al, 182         ; Binary mode, square wave, 16-bit divisor
+   out 43h, al         ; Write to PIT command register[2]
+ret
+
+; Sound Play ===================================================================
+; This function sets the sound to play a tone
+; Expects: AX - note
+; Returns: None
+os_sound_play:
+   out 42h, al         ; Low byte first
+   mov al, ah          
+   out 42h, al
+
+   in al, 61h          ; Read current port state
+   or al, 00000011b    ; Set bits 0 and 1
+   out 61h, al         ; Enable speaker output
+ret
+
+; Stop sound playback ==========================================================
+; This function stops the sound playback
+; Expects: None
+; Returns: None
+os_sound_stop:
+  in al, 61h
+  and al, 11111100b   ; Clear bits 0-1
+  out 61h, al
+ret
+
+; Void =========================================================================
+; This is a placeholder function
+; Expects: None
+; Returns: None
 os_void:
   nop
 ret
