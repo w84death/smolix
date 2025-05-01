@@ -43,7 +43,7 @@ GLYPH_ICON_DOWN       equ 0x9E9D
 GLYPH_ICON_SHELL      equ 0xA09F 
 GLYPH_ICON_EDIT       equ 0xA2A1
 GLYPH_ICON_CONF       equ 0xA4A3  ; New glyph for calculator icon
-GLYPH_ICON_HOME       equ 0xA6A5  ; New glyph for chip icon
+GLYPH_ICON_CLEAR       equ 0xA6A5  ; New glyph for chip icon
 GLYPH_ICON_X          equ 0xA8A7  ; New glyph for clear icon
 GLYPH_ICON_DOTS       equ 0xAAA9  ; New glyph for save icon
 
@@ -69,31 +69,50 @@ os_reset:
   
   call os_load_all_glyphs
   call os_clear_screen
-  xor dx, dx
-  call os_print_header
+  call os_print_header  
   call os_print_welcome
-  ; No return, go to the main loop
- 
+  
+  mov bl, PROMPT_USR
+  call os_print_prompt
+  
+  
 ; Main system loop =============================================================
 ; This is the main loop of the operating system.
 ; It waits for user input and interprets it.
 ; Expects: None
 ; Returns: None
 os_main_loop:
-  
-  mov bl, PROMPT_USR
-  call os_print_prompt
-  call os_get_key
-  call os_print_chr
-  call os_interpret_char
 
-  call os_cursor_pos_get
-  push dx
-  call os_print_header
-  pop dx
-  call os_cursor_pos_set
+  check_keyboard:
+   mov ah, 01h         ; BIOS keyboard status function
+   int 16h             ; Call BIOS interrupt
+   jz .done
 
-jmp os_main_loop
+   mov ah, 00h         ; BIOS keyboard read function
+   int 16h   
+
+    call os_print_chr  
+    call os_interpret_char
+
+    mov bl, PROMPT_USR
+    call os_print_prompt
+    call os_cursor_pos_get
+    push dx
+    call os_print_header
+    pop dx
+    call os_cursor_pos_set
+  .done:
+
+wait_for_tick:
+   xor ax, ax           ; Function 00h: Read system timer counter
+   int 0x1a             ; Returns tick count in CX:DX
+   mov bx, dx           ; Store the current tick count
+   .wait_loop:
+      int 0x1a          ; Read the tick count again
+      cmp dx, bx
+      je .wait_loop     ; Loop until the tick count changes
+
+jmp os_main_loop  ; Return to the main loop
 
 os_cursor_pos_get: 
   mov ax, 0x0300      ; Get cursor position and size
@@ -107,31 +126,19 @@ os_cursor_pos_set:
   int 0x10          ; Call BIOS
 ret
 
-os_print_header: 
-  .add_space:
-  cmp dh, 24           ; Check if cursor is on the bottom row (row 24)
-  jl .no_bottom_screen
-    call os_cursor_pos_reset
-    mov al, CHR_SPACE
-    cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
-    je .set_40
-    mov ah, 80
-    jmp .set_done
-    .set_40:
-    mov ah, 40
-    .set_done:
-    call os_print_chr_mul
-     mov dx, 0x024F
-    jmp .bottom_screen
-  .no_bottom_screen:
-    call os_cursor_pos_reset
-    mov dx, 0x014F
-  .bottom_screen:
-
-  mov ax, 0x0600     ; Function 06h (scroll window up)
+os_print_header:
+  mov dx, 0x014F    ; 2 rows, 80 columns
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  je .set_color
+    mov dl, 0x27      ; 40 columns
+    
+  .set_color:
+  mov ax, 0x0600    ; Function 06h (scroll window up)
   mov bh, COLOR_SECONDARY
-  mov cx, 0x0000     ; Top left corner (row 0, col 0)
+  mov cx, 0x0000    ; Top left corner (row 0, col 0)
   int 0x10
+
+  call os_cursor_pos_reset
 
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   je .set_width_40
@@ -414,7 +421,6 @@ ret
 
 os_clear_shell:
   call os_clear_screen
-  xor dx, dx
   call os_print_header
 ret
 
@@ -757,7 +763,7 @@ benchmark_msg         db 'Benchmark score: ', 0
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)
 os_icons_table:
-  dw GLYPH_ICON_HOME, os_void
+  dw GLYPH_ICON_CLEAR, os_clear_shell
   dw GLYPH_ICON_SHELL, os_void
   dw GLYPH_ICON_EDIT, os_void
   dw GLYPH_ICON_CONF, os_print_stats
