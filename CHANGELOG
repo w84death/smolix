@@ -1,9 +1,8 @@
-- [todo] first external program
-
 alpha5:
     - [done] working icons (select, execute)
     - [done] detect cursors for icons movement
     - [done] real time loop
+    - [done] display kernel tick (live + commands history)
     - [done] beeper support for boot tune and commands response
     - [done] fix correct handling 40/80 screen modes
 alpha4 [RELEASED]:
