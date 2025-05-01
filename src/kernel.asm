@@ -12,9 +12,11 @@
 org 0x0000
 use16
 
-OS_VIDEO_MODE_40         equ 0x00  ; default 40x25
-OS_VIDEO_MODE_80         equ 0x03  ; 80x25 // 720x400 VGA text mode
-_OS_VIDEO_MODE_        equ 0x2000
+OS_VIDEO_MODE_40      equ 0x00  ; default 40x25
+OS_VIDEO_MODE_80      equ 0x03  ; 80x25 // 720x400 VGA text mode
+_OS_MEMORY_BASE_      equ 0x2000  ; Define memory base address
+_OS_VIDEO_MODE_       equ _OS_MEMORY_BASE_+0x0
+_OS_NAV_POSITION_     equ _OS_MEMORY_BASE_+0x1
 
 GLYPH_FIRST           equ 0x80
 PROMPT_MSG            equ GLYPH_FIRST+0xB
@@ -34,34 +36,48 @@ GLYPH_BAT             equ GLYPH_FIRST+0x11
 GLYPH_BLOCK           equ GLYPH_FIRST+0x12
 GLYPH_CEILING         equ GLYPH_FIRST+0x13
 GLYPH_FLOOR           equ GLYPH_FIRST+0x14
-GLYPH_UP              equ GLYPH_FIRST+0x15
-GLYPH_DOWN            equ GLYPH_FIRST+0x16
+GLYPH_RAMP_UP         equ GLYPH_FIRST+0x15
+GLYPH_RAMP_DOWN       equ GLYPH_FIRST+0x16
 GLYPH_ICONS_SELECTOR  equ 0x9897
 GLYPH_ICON_RESET      equ 0x9A99 
 GLYPH_ICON_REBOOT     equ 0x9C9B 
 GLYPH_ICON_DOWN       equ 0x9E9D 
 GLYPH_ICON_SHELL      equ 0xA09F 
 GLYPH_ICON_EDIT       equ 0xA2A1
-GLYPH_ICON_CONF       equ 0xA4A3  ; New glyph for calculator icon
-GLYPH_ICON_CLEAR       equ 0xA6A5  ; New glyph for chip icon
-GLYPH_ICON_X          equ 0xA8A7  ; New glyph for clear icon
-GLYPH_ICON_DOTS       equ 0xAAA9  ; New glyph for save icon
+GLYPH_ICON_CONF       equ 0xA4A3 
+GLYPH_ICON_CLEAR      equ 0xA6A5
+GLYPH_ICON_X          equ 0xA8A7 
+GLYPH_ICON_DOTS       equ 0xAAA9 
+GLYPH_KBD_LEFT        equ GLYPH_FIRST+0x2B
+GLYPH_KBD_UP          equ GLYPH_FIRST+0x2C
+GLYPH_KBD_RIGHT       equ GLYPH_FIRST+0x2D
+GLYPH_KBD_DOWN        equ GLYPH_FIRST+0x2E
 
 COLOR_PRIMARY         equ 0x1F  ; White on blue
 COLOR_SECONDARY       equ 0x2F  ; Light gray on dark blue 
 LENGTH_CMDS_TBL_CHAR  equ 1     ; Command character
-LENGTH_CMDS_TBL_ADDR  equ 2     ; Address to function
+LENGTH_FUNCTION_ADDR  equ 2     ; Address to function
 LENGTH_CMDS_TBL_DESC  equ 24+1  ; Description length + terminator character
 LOGO_LENGTH           equ 7
+
+OS_NAV_START_POS      equ 0x0
+OS_NAV_LAST_POS       equ 0x8
 
 SOUND_OS_START        equ 1500
 SOUND_SUCCESS         equ 1700
 SOUND_ERROR           equ 2500
 
+KBD_KEY_LEFT          equ 0x4B
+KBD_KEY_RIGHT         equ 0x4D
+KBD_KEY_UP            equ 0x48
+KBD_KEY_DOWN          equ 0x50
+KBD_KEY_ESCAPE        equ 0x01
+KBD_KEY_ENTER         equ 0x1C
+KBD_KEY_BACKSPACE     equ 0x0E
 
 os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-
+  mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
   ; Continue with os_reset
 
 ; Entry point / System reset ===================================================
@@ -112,13 +128,13 @@ os_main_loop:
   
   .no_key_press:
 
-  xor ax, ax           ; Function 00h: Read system timer counter
-  int 0x1a             ; Returns tick count in CX:DX
-  mov bx, dx           ; Store the current tick count
+  xor ax, ax            ; Function 00h: Read system timer counter
+  int 0x1a              ; Returns tick count in CX:DX
+  mov bx, dx            ; Store the current tick count
   .wait_loop:
-    int 0x1a          ; Read the tick count again
-    cmp dx, bx
-    je .wait_loop     ; Loop until the tick count changes
+    int 0x1a            ; Read the tick count again
+    test dx, bx
+    jz .wait_loop
 
   call os_sound_stop
   jmp os_main_loop  ; Return to the main loop
@@ -152,7 +168,6 @@ os_print_header:
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   je .set_color
     mov dl, 0x27      ; 40 columns
-
   .set_color:
   mov ax, 0x0600    ; Function 06h (scroll window up)
   mov bh, COLOR_SECONDARY
@@ -164,11 +179,11 @@ os_print_header:
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   je .set_width_40
   mov dl, 27
-  mov dh, 80
+  mov dh, 80-25
   jmp .continue
   .set_width_40:
     mov dl, 2
-    mov dh, 40
+    mov dh, 40-25
   .continue:
   sub dh, 13
 
@@ -203,21 +218,20 @@ os_print_header:
   mov al, GLYPH_CEILING
   call os_print_chr
 
-  mov al, GLYPH_DOWN
+  mov al, GLYPH_RAMP_DOWN
   call os_print_chr
 
   mov al, GLYPH_FLOOR
   mov ah, LOGO_LENGTH
   call os_print_chr_mul
 
-  mov al, GLYPH_UP
+  mov al, GLYPH_RAMP_UP
   call os_print_chr
 
   mov al, GLYPH_CEILING
   call os_print_chr
 
-  mov ax, GLYPH_ICONS_SELECTOR
-  call os_print_chr2
+  call os_print_icons_selector
 
   mov al, GLYPH_CEILING
   mov ah, dh
@@ -243,6 +257,29 @@ os_print_icons_toolbar:
     jmp .icons_loop          ; Repeat for the next icon
   .done_icons:
   pop si
+ret
+
+os_print_icons_selector:
+  xor cx, cx
+  mov bl, [_OS_NAV_POSITION_]
+  .icons_loop:
+    cmp cl, OS_NAV_LAST_POS
+    jg .done_icons            ; If zero, end of icons
+    
+    cmp cl, bl
+    je .icon_selected
+    mov al, GLYPH_CEILING
+    mov ah, GLYPH_CEILING
+    jmp .print_glyph
+    .icon_selected:
+    mov ax, GLYPH_ICONS_SELECTOR
+    .print_glyph:
+    call os_print_chr2
+    mov al, GLYPH_CEILING
+    call os_print_chr    
+    inc cl
+    jmp .icons_loop          ; Repeat for the next icon
+  .done_icons:
 ret
 
 ; Print help message ===========================================================
@@ -275,7 +312,7 @@ os_print_help:
     mov al, CHR_SPACE             ; Move space character to AL
     call os_print_chr
 
-    add si, LENGTH_CMDS_TBL_ADDR  ; Skip address, point to description
+    add si, LENGTH_FUNCTION_ADDR  ; Skip address, point to description
     call os_print_str             ; Print description string  
 
     add si, LENGTH_CMDS_TBL_DESC  ; Move to next command
@@ -538,16 +575,29 @@ ret
 ; Returns: None
 os_interpret_char:
   mov si, os_commands_table
-  ; AL <-
-  mov bl, al
+  ; AL <- character
+  mov bx, ax
   .loop_commands:
     lodsb           ; Load next command character
     test al, al     ; Check for end of table
-    jz .unknown     ; If end, jump to unknown command
+    jz .unknown_command
     cmp bl, al
-    je .found       ; If found, jump to found command
-    add si, LENGTH_CMDS_TBL_ADDR+LENGTH_CMDS_TBL_DESC       ; Move to the next command entry (character, address, desc)
+    je .found
+    add si, LENGTH_FUNCTION_ADDR+LENGTH_CMDS_TBL_DESC
     jmp .loop_commands
+
+  .unknown_command:
+
+  .check_keyboard:
+  mov si, os_keyboard_table
+  .loop_kbd:
+    lodsb
+    test al, al
+    jz .unknown
+    cmp bh, al
+    je .found
+    add si, LENGTH_FUNCTION_ADDR
+  jmp .loop_kbd
 
   .found:
     mov ax, SOUND_SUCCESS
@@ -559,11 +609,39 @@ os_interpret_char:
   .unknown:
     mov ax, SOUND_ERROR
     call os_sound_play
+    movzx dx, bl
     mov bl, PROMPT_ERR
     call os_print_prompt
     mov si, unknown_cmd_msg
     call os_print_str
+    mov al, CHR_SPACE
+    call os_print_chr
+    mov ax, dx
+    call os_print_number
   ret
+
+os_icon_next:
+  cmp byte [_OS_NAV_POSITION_], OS_NAV_LAST_POS
+  jge .bounded
+  inc byte [_OS_NAV_POSITION_]
+  .bounded:
+ret
+
+os_icon_prev:
+  cmp byte [_OS_NAV_POSITION_], 0
+  jle .bounded
+  dec byte [_OS_NAV_POSITION_]
+  .bounded:
+ret
+
+os_icon_execute:
+  movzx ax, [_OS_NAV_POSITION_]
+  shl al, 2
+  mov si, os_icons_table
+  add si, ax
+  mov ax, [si+2]       ; Load the icon data into AL
+  call ax  
+ret
 
 ; Initialize Mouse Driver ======================================================
 ; This function initializes the mouse and shows the cursor
@@ -896,7 +974,16 @@ os_commands_table:
   dw os_print_debug
   db 'Debugging stuff, charset', 0x0
   
-  db 0x0  ; End of table
+  db 0x0
+
+os_keyboard_table:
+  db KBD_KEY_RIGHT
+  dw os_icon_next
+  db KBD_KEY_LEFT
+  dw os_icon_prev
+  db KBD_KEY_ENTER
+  dw os_icon_execute
+  db 0x0
 
 ; Glyphs =======================================================================
 ; This section includes the glyph definitions
