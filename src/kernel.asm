@@ -15,8 +15,9 @@ use16
 OS_VIDEO_MODE_40      equ 0x00  ; default 40x25
 OS_VIDEO_MODE_80      equ 0x03  ; 80x25 // 720x400 VGA text mode
 _OS_MEMORY_BASE_      equ 0x2000  ; Define memory base address
-_OS_VIDEO_MODE_       equ _OS_MEMORY_BASE_+0x0
-_OS_NAV_POSITION_     equ _OS_MEMORY_BASE_+0x1
+_OS_TICK_             equ _OS_MEMORY_BASE_+0x0
+_OS_VIDEO_MODE_       equ _OS_MEMORY_BASE_+0x4
+_OS_NAV_POSITION_     equ _OS_MEMORY_BASE_+0x5
 
 GLYPH_FIRST           equ 0x80
 PROMPT_MSG            equ GLYPH_FIRST+0xB
@@ -76,9 +77,9 @@ KBD_KEY_ENTER         equ 0x1C
 KBD_KEY_BACKSPACE     equ 0x0E
 
 os_init:
+  mov dword [_OS_TICK_], 0  ; Initialize tick count
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
-  ; Continue with os_reset
 
 ; Entry point / System reset ===================================================
 ; This function resets the system.
@@ -99,6 +100,7 @@ os_reset:
   mov bl, PROMPT_USR
   call os_print_prompt
   
+  call os_print_tick
   
 ; Main system loop =============================================================
 ; This is the main loop of the operating system.
@@ -136,8 +138,33 @@ os_main_loop:
     test dx, bx
     jz .wait_loop
 
+  inc dword [_OS_TICK_]
+  call os_print_tick
   call os_sound_stop
   jmp os_main_loop  ; Return to the main loop
+
+os_print_tick:
+  call os_cursor_pos_get
+  push dx
+  
+  mov dl, 0x44
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  jz .skip_40
+    mov dl, 0x1C
+  .skip_40:
+  call os_cursor_pos_set 
+  mov ax, [_OS_TICK_+2]
+  call os_print_num
+
+  mov al, CHR_SPACE
+  call os_print_chr
+
+  mov ax, [_OS_TICK_]
+  call os_print_num
+
+  pop dx
+  call os_cursor_pos_set
+ret
 
 ; Gets Cursor Position
 ; This function gets the current cursor position on the screen.
@@ -617,7 +644,7 @@ os_interpret_char:
     mov al, CHR_SPACE
     call os_print_chr
     mov ax, dx
-    call os_print_number
+    call os_print_num
   ret
 
 os_icon_next:
@@ -727,7 +754,7 @@ ret
 ; This function prints a number in decimal format
 ; Expects: AX - number to print
 ; Returns: None
-os_print_number:
+os_print_num:
   mov cx, 10000  ; Divisor starting with 10000 (for 5 digits)
 
   .next_digit:
@@ -798,9 +825,20 @@ os_print_stats:
 
   mov ah, 0x12
   int 0x12       ; Returns KB in AX
-  call os_print_number
+  call os_print_num
 
   mov si, kb_msg
+  call os_print_str
+
+  ; Kernel size
+  mov bx, GLYPH_MEM
+  call os_print_prompt
+
+  mov si, kernel_size_msg
+  call os_print_str
+  mov ax, os_kernel_end
+  call os_print_num
+  mov si, byte_msg
   call os_print_str
 
  ; Check for PS/2 mouse
@@ -832,7 +870,7 @@ os_print_stats:
 
   mov ah, 0x0B
   int 0x1A
-  call os_print_number
+  call os_print_num
 
   ; APM functions
 
@@ -846,11 +884,11 @@ os_print_stats:
   mov bx, 0001h  ; All devices
   int 15h        ; Returns battery status in BL, BH
   movzx ax, bl
-  call os_print_number
+  call os_print_num
   mov ax, CHR_SPACE
   call os_print_chr
   movzx ax, bh
-  call os_print_number
+  call os_print_num
 
 ret
 
@@ -911,7 +949,9 @@ success_init_msg      db 'initialized successfully', 0
 failed_init_msg       db 'failed to initialize', 0
 hex_ruler_msg         db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
+kernel_size_msg       db 'Kernel size: ', 0
 kb_msg                db 'KB', 0
+byte_msg              db 'B', 0
 ps2_mouse_msg         db 'PS/2 mouse ', 0
 bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
@@ -990,5 +1030,5 @@ os_keyboard_table:
 include 'glyphs.asm'
 dw 0x0 ; Terminator
 
-; Signature
 db "P1X"            ; Use HEX viewer to see `P1X` at the end of binary
+os_kernel_end:
