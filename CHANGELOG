@@ -4,6 +4,8 @@ alpha5:
     - [todo] detect cursors for icons/history
     - [todo] real time loop
     - [todo] first external program
+    - [todo] beeper support for boot tune and commands response
+    - [done] fix correct handling 40/80 screen modes
 alpha4 [RELEASED]:
     - [done] updated charset
     - [done] two video modes: 80x25, 40x25

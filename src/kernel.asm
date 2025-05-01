@@ -52,8 +52,7 @@ COLOR_SECONDARY       equ 0x2F  ; Light gray on dark blue
 LENGTH_CMDS_TBL_CHAR  equ 1     ; Command character
 LENGTH_CMDS_TBL_ADDR  equ 2     ; Address to function
 LENGTH_CMDS_TBL_DESC  equ 24+1  ; Description length + terminator character
-
-
+LOGO_LENGTH           equ 7
 os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
 
@@ -70,6 +69,7 @@ os_reset:
   
   call os_load_all_glyphs
   call os_clear_screen
+  xor dx, dx
   call os_print_header
   call os_print_welcome
   ; No return, go to the main loop
@@ -108,21 +108,25 @@ os_cursor_pos_set:
 ret
 
 os_print_header: 
+  .add_space:
   cmp dh, 24           ; Check if cursor is on the bottom row (row 24)
   jl .no_bottom_screen
     call os_cursor_pos_reset
     mov al, CHR_SPACE
-    mov ah, 160
+    cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
+    je .set_40
+    mov ah, 80
+    jmp .set_done
+    .set_40:
+    mov ah, 40
+    .set_done:
     call os_print_chr_mul
-    mov dx, 0x034F
-    jmp .no_reset
+     mov dx, 0x024F
+    jmp .bottom_screen
   .no_bottom_screen:
     call os_cursor_pos_reset
-    mov al, CHR_SPACE
-    mov ah, 80
-    call os_print_chr_mul
-    mov dx, 0x024F
-  .no_reset:
+    mov dx, 0x014F
+  .bottom_screen:
 
   mov ax, 0x0600     ; Function 06h (scroll window up)
   mov bh, COLOR_SECONDARY
@@ -131,28 +135,28 @@ os_print_header:
 
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   je .set_width_40
-  mov dl, 28
-  mov dh, 80-15
+  mov dl, 27
+  mov dh, 80
   jmp .continue
   .set_width_40:
-    mov dl, 3
-    mov dh, 40-15
+    mov dl, 2
+    mov dh, 40
   .continue:
+  sub dh, 13
 
   ; new line
   mov al, CHR_SPACE
-  mov ah, 2
-  call os_print_chr_mul
+  mov ah, CHR_SPACE
+  call os_print_chr2
   
   mov si, system_logo_msg
   call os_print_str
   
   mov al, CHR_SPACE
-  mov ah, 2
-  call os_print_chr_mul
+  mov ah, CHR_SPACE
+  call os_print_chr2
 
-  mov si, os_icons_msg
-  call os_print_str
+  call os_print_icons_toolbar
 
   mov al, CHR_SPACE
   mov ah, dl
@@ -175,7 +179,7 @@ os_print_header:
   call os_print_chr
 
   mov al, GLYPH_FLOOR
-  mov ah, 9
+  mov ah, LOGO_LENGTH
   call os_print_chr_mul
 
   mov al, GLYPH_UP
@@ -191,6 +195,23 @@ os_print_header:
   mov ah, dh
   call os_print_chr_mul
 
+ret
+
+
+os_print_icons_toolbar:
+  push si
+  mov si, os_icons_table
+  .icons_loop:
+    lodsw                     ; Load the next icon character into AL
+    test ax, ax               ; Test if 0, terminator
+    jz .done_icons            ; If zero, end of icons
+    call os_print_chr2         ; Print the icon character
+    mov al, CHR_SPACE          ; Move space character to AL
+    call os_print_chr
+    add si, 0x2             ; Skip function pointer
+    jmp .icons_loop          ; Repeat for the next icon
+  .done_icons:
+  pop si
 ret
 
 ; Print help message ===========================================================
@@ -282,7 +303,7 @@ os_down:
   call os_print_str
 ret
 
-os_restart:
+os_reboot:
   jmp 0FFFFh:0000h
 
 ; System version ===============================================================
@@ -380,6 +401,7 @@ ret
 ; Expects: None
 ; Returns: None
 os_clear_screen:
+  pusha
   call os_cursor_pos_reset
   mov ax, 0x0600     ; Function 06h (scroll window up)
   mov bh, COLOR_PRIMARY  ; Set color attribute
@@ -387,10 +409,12 @@ os_clear_screen:
   mov dx, 0x184F     ; Bottom right corner (row 24, col 79)
   int 0x10
   call os_cursor_pos_reset
+  popa
 ret
 
 os_clear_shell:
   call os_clear_screen
+  xor dx, dx
   call os_print_header
 ret
 
@@ -704,8 +728,12 @@ os_print_stats:
 
 ret
 
+os_void:
+  nop
+ret
+
 ; Data section =================================================================
-version_msg           db 'Version alpha4', 0
+version_msg           db 'Version alpha5', 0
 system_logo_msg       db 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
@@ -718,26 +746,6 @@ detected_msg          db 'detected', 0
 not_detected_msg      db 'not detected', 0
 success_init_msg      db 'initialized successfully', 0
 failed_init_msg       db 'failed to initialize', 0
-os_icons_msg:
-dw GLYPH_ICON_SHELL
-db CHR_SPACE
-dw GLYPH_ICON_RESET
-db CHR_SPACE
-dw GLYPH_ICON_REBOOT
-db CHR_SPACE
-dw GLYPH_ICON_DOWN
-db CHR_SPACE
-dw GLYPH_ICON_EDIT
-db CHR_SPACE
-dw GLYPH_ICON_CONF
-db CHR_SPACE
-dw GLYPH_ICON_HOME
-db CHR_SPACE
-dw GLYPH_ICON_X
-db CHR_SPACE
-dw GLYPH_ICON_DOTS
-db 0  
-
 hex_ruler_msg         db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
 kb_msg                db 'KB', 0
@@ -746,8 +754,22 @@ bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
 benchmark_msg         db 'Benchmark score: ', 0
 
+; Icons table ==================================================================
+; pointer to icon (2b) | pointer to function (2b)
+os_icons_table:
+  dw GLYPH_ICON_HOME, os_void
+  dw GLYPH_ICON_SHELL, os_void
+  dw GLYPH_ICON_EDIT, os_void
+  dw GLYPH_ICON_CONF, os_print_stats
+  dw GLYPH_ICON_X, os_toggle_video_mode
+  dw GLYPH_ICON_DOTS, os_void
+  dw GLYPH_ICON_RESET, os_reset
+  dw GLYPH_ICON_REBOOT, os_reboot
+  dw GLYPH_ICON_DOWN, os_down
+  dw 0x0
+
 ; Commands table ===============================================================
-; character (1b) | pointer to function (2b) | description (24b/chars) | terminator (1b)
+; character (1b) | pointer to function (2b) | description (24b/chars)
 os_commands_table:
   db 'h'
   dw os_print_help
@@ -762,8 +784,8 @@ os_commands_table:
   db 'Soft system reset       ', 0x0
 
   db 'R'
-  dw os_restart
-  db 'Hard system restart     ', 0x0
+  dw os_reboot
+  db 'Hard system reboot      ', 0x0
   
   db 'D'
   dw os_down
@@ -775,7 +797,7 @@ os_commands_table:
 
   db 'x'
   dw os_toggle_video_mode
-  db 'Switch mode 80x25, 40x25', 0x0
+  db 'Toggle 40/80 screen mode', 0x0
 
   db 'm'
   dw os_mouse_init
