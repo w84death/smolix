@@ -12,6 +12,10 @@
 org 0x0000
 use16
 
+OS_VIDEO_MODE_40         equ 0x00  ; default 40x25
+OS_VIDEO_MODE_80         equ 0x03  ; 80x25 // 720x400 VGA text mode
+_OS_VIDEO_MODE_        equ 0x2000
+
 GLYPH_FIRST           equ 0x80
 PROMPT_MSG            equ GLYPH_FIRST+0xB
 PROMPT_SYS_MSG        equ GLYPH_FIRST+0x9
@@ -22,22 +26,38 @@ CHR_SPACE             equ GLYPH_FIRST
 CHR_CR                equ 0x0D
 CHR_LF                equ 0x0A
 PROMPT_END            equ GLYPH_FIRST+0x8
-GLYPH_BLOCK           equ GLYPH_FIRST+0xE
-GLYPH_CEILING         equ GLYPH_FIRST+0xF
-GLYPH_FLOOR           equ GLYPH_FIRST+0x10
-GLYPH_UP              equ GLYPH_FIRST+0x11
-GLYPH_DOWN            equ GLYPH_FIRST+0x12
-GLYPH_ICONS_SELECTOR  equ 0x9493
-GLYPH_ICON_RESET      equ 0x9695 
-GLYPH_ICON_REBOOT     equ 0x9897 
-GLYPH_ICON_DOWN       equ 0x9A99 
-GLYPH_ICON_SHELL      equ 0x9C9B 
-GLYPH_ICON_DOC        equ 0x9E9D
+GLYPH_PC              equ GLYPH_FIRST+0xD
+GLYPH_MOUSE           equ GLYPH_FIRST+0xE
+GLYPH_CAL             equ GLYPH_FIRST+0xF
+GLYPH_MEM             equ GLYPH_FIRST+0x10
+GLYPH_BAT             equ GLYPH_FIRST+0x11
+GLYPH_BLOCK           equ GLYPH_FIRST+0x12
+GLYPH_CEILING         equ GLYPH_FIRST+0x13
+GLYPH_FLOOR           equ GLYPH_FIRST+0x14
+GLYPH_UP              equ GLYPH_FIRST+0x15
+GLYPH_DOWN            equ GLYPH_FIRST+0x16
+GLYPH_ICONS_SELECTOR  equ 0x9897
+GLYPH_ICON_RESET      equ 0x9A99 
+GLYPH_ICON_REBOOT     equ 0x9C9B 
+GLYPH_ICON_DOWN       equ 0x9E9D 
+GLYPH_ICON_SHELL      equ 0xA09F 
+GLYPH_ICON_EDIT       equ 0xA2A1
+GLYPH_ICON_CONF       equ 0xA4A3  ; New glyph for calculator icon
+GLYPH_ICON_HOME       equ 0xA6A5  ; New glyph for chip icon
+GLYPH_ICON_X          equ 0xA8A7  ; New glyph for clear icon
+GLYPH_ICON_DOTS       equ 0xAAA9  ; New glyph for save icon
+
 COLOR_PRIMARY         equ 0x1F  ; White on blue
 COLOR_SECONDARY       equ 0x2F  ; Light gray on dark blue 
 LENGTH_CMDS_TBL_CHAR  equ 1     ; Command character
 LENGTH_CMDS_TBL_ADDR  equ 2     ; Address to function
 LENGTH_CMDS_TBL_DESC  equ 24+1  ; Description length + terminator character
+
+
+os_init:
+  mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+
+  ; Continue with os_reset
 
 ; Entry point / System reset ===================================================
 ; This function resets the system.
@@ -45,7 +65,7 @@ LENGTH_CMDS_TBL_DESC  equ 24+1  ; Description length + terminator character
 ; Returns: None
 os_reset:
   mov ah, 0x00		    ; Set video mode
-	mov al, 0x03		    ; 720x400 VGA text mode
+	mov al, [_OS_VIDEO_MODE_]
 	int 0x10            ; 80x25 text mode
   
   call os_load_all_glyphs
@@ -109,30 +129,42 @@ os_print_header:
   mov cx, 0x0000     ; Top left corner (row 0, col 0)
   int 0x10
 
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
+  je .set_width_40
+  mov dl, 28
+  mov dh, 80-15
+  jmp .continue
+  .set_width_40:
+    mov dl, 3
+    mov dh, 40-15
+  .continue:
+
   ; new line
   mov al, CHR_SPACE
-  mov ah, 4
+  mov ah, 2
   call os_print_chr_mul
   
   mov si, system_logo_msg
   call os_print_str
   
   mov al, CHR_SPACE
-  mov ah, 4
+  mov ah, 2
   call os_print_chr_mul
 
   mov si, os_icons_msg
   call os_print_str
-  
-  mov al, CHR_SPACE
-  mov ah, 80-14-15-7-8
-  call os_print_chr_mul
-  
-  mov si, version_msg
-  call os_print_str
 
   mov al, CHR_SPACE
-  call os_print_chr
+  mov ah, dl
+  call os_print_chr_mul
+  
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
+  je .skip_version
+    mov si, version_msg
+    call os_print_str
+    mov al, CHR_SPACE
+    call os_print_chr
+  .skip_version:
 
   ; new line
 
@@ -143,7 +175,7 @@ os_print_header:
   call os_print_chr
 
   mov al, GLYPH_FLOOR
-  mov ah, 11
+  mov ah, 9
   call os_print_chr_mul
 
   mov al, GLYPH_UP
@@ -156,7 +188,7 @@ os_print_header:
   call os_print_chr2
 
   mov al, GLYPH_CEILING
-  mov ah, 80-14-3
+  mov ah, dh
   call os_print_chr_mul
 
 ret
@@ -354,8 +386,14 @@ os_clear_screen:
   mov cx, 0x0000     ; Top left corner (row 0, col 0)
   mov dx, 0x184F     ; Bottom right corner (row 24, col 79)
   int 0x10
-call os_cursor_pos_reset
+  call os_cursor_pos_reset
 ret
+
+os_clear_shell:
+  call os_clear_screen
+  call os_print_header
+ret
+
 
 ; Cursor position reset ========================================================
 ; This function resets the cursor position to the top left of the screen.
@@ -508,9 +546,11 @@ os_mouse_init:
 ; Expects: None
 ; Returns: None
 os_print_debug:
+
   mov bl, PROMPT_MSG
   call os_print_prompt
-  mov al, GLYPH_FIRST
+  
+  mov al, GLYPH_FIRST    
   call os_print_chr
   mov cx, 0x1F
   .loop_chars:
@@ -518,6 +558,20 @@ os_print_debug:
     call os_print_chr
   loop .loop_chars
 
+  mov bl, PROMPT_MSG
+  call os_print_prompt
+  mov si, hex_ruler_msg
+  call os_print_str
+  call os_print_str
+  
+  mov bl, PROMPT_MSG
+  call os_print_prompt
+
+  mov cx, 0x1F
+  .loop_chars2:
+    inc al
+    call os_print_chr
+  loop .loop_chars2
   mov bl, PROMPT_MSG
   call os_print_prompt
   mov si, hex_ruler_msg
@@ -564,53 +618,44 @@ os_print_number:
     jne .next_digit
   
   ret
-  
+
+
+os_toggle_video_mode:
+  mov al, [_OS_VIDEO_MODE_]
+  cmp al, OS_VIDEO_MODE_40
+  je .set_video_mode80
+  mov al, OS_VIDEO_MODE_40
+  jmp .save_video_mode
+  .set_video_mode80:
+  mov al, OS_VIDEO_MODE_80
+  .save_video_mode:
+  mov byte [_OS_VIDEO_MODE_], al
+  jmp os_reset
+ret
+
 ; Print statistics =============================================================
 ; This function prints system statistics.
 ; Expects: None
 ; Returns: None
 os_print_stats:
-  mov bx, PROMPT_LIST
+ 
+  ; Get conventional memory size (first 640KB)
+  mov bx, GLYPH_MEM
   call os_print_prompt
 
-  ; Get conventional memory size (first 640KB)
   mov si, memory_installed_msg
   call os_print_str
 
   mov ah, 0x12
   int 0x12       ; Returns KB in AX
   call os_print_number
-  
-  mov bx, PROMPT_LIST
-  call os_print_prompt
 
-  ; Get CPU type
-  mov si, cpu_type_msg
+  mov si, kb_msg
   call os_print_str
 
-  mov ah, 0xC0
-  int 0x15
-  mov si, os_cpu_types_table
-  shl ax, 1
-  add si, ax
-  mov si, [si]  
-  call os_print_str
+ ; Check for PS/2 mouse
 
-  mov bx, PROMPT_LIST
-  call os_print_prompt
-
-  ; Get BIOS date
-  
-  mov si, bios_date_msg
-  call os_print_str
-
-  mov ah, 0x0B
-  int 0x1A
-  call os_print_number
-
-  ; Check for PS/2 mouse
-
-  mov bx, PROMPT_LIST
+  mov bx, GLYPH_MOUSE
   call os_print_prompt
 
   mov si, ps2_mouse_msg
@@ -627,8 +672,21 @@ os_print_stats:
   .mouse_done:
   call os_print_str
 
+  ; Get BIOS date
+
+  mov bx, GLYPH_CAL
+  call os_print_prompt
+  
+  mov si, bios_date_msg
+  call os_print_str
+
+  mov ah, 0x0B
+  int 0x1A
+  call os_print_number
+
   ; APM functions
-  mov bx, PROMPT_LIST
+
+  mov bx, GLYPH_BAT
   call os_print_prompt
   
   mov si, apm_batt_msg
@@ -647,12 +705,12 @@ os_print_stats:
 ret
 
 ; Data section =================================================================
-version_msg           db 'Version alpha3', 0
+version_msg           db 'Version alpha4', 0
 system_logo_msg       db 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0
-copyright_msg         db '(C) 2025 Krzysztof Krystian Jankowski', 0
-more_info_msg         db 'Type "h" for help. Read more at smol.p1x.in/smolix/', 0
-help_icons_msg        db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_LIST,' data listing, ',PROMPT_USR,' user prompt', 0
+copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
+more_info_msg         db 'Type "h" for help.', 0
+help_icons_msg        db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_ERR,' error, ',PROMPT_USR,' user prompt', 0
 help_cmds_msg         db 'System character commands:', 0
 unknown_cmd_msg       db 'Unknown command', 0
 unsupported_msg       db 'Unsupported hardware function', 0
@@ -660,7 +718,6 @@ detected_msg          db 'detected', 0
 not_detected_msg      db 'not detected', 0
 success_init_msg      db 'initialized successfully', 0
 failed_init_msg       db 'failed to initialize', 0
-unknown_msg           db 'unknown', 0  
 os_icons_msg:
 dw GLYPH_ICON_SHELL
 db CHR_SPACE
@@ -670,31 +727,24 @@ dw GLYPH_ICON_REBOOT
 db CHR_SPACE
 dw GLYPH_ICON_DOWN
 db CHR_SPACE
-dw GLYPH_ICON_DOC
+dw GLYPH_ICON_EDIT
+db CHR_SPACE
+dw GLYPH_ICON_CONF
+db CHR_SPACE
+dw GLYPH_ICON_HOME
+db CHR_SPACE
+dw GLYPH_ICON_X
+db CHR_SPACE
+dw GLYPH_ICON_DOTS
 db 0  
 
 hex_ruler_msg         db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
+kb_msg                db 'KB', 0
 ps2_mouse_msg         db 'PS/2 mouse ', 0
 bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
-cpu_type_msg          db 'CPU detected: ', 0  
-cpu_8086_msg          db '8086/8088', 0  
-cpu_286_msg           db '286', 0  
-cpu_386_msg           db '386', 0  
-cpu_486_msg           db '486', 0  
-cpu_486_plus_msg      db '486+', 0  
-cpu_pentium_msg       db 'Pentium', 0  
 benchmark_msg         db 'Benchmark score: ', 0
-
-os_cpu_types_table:
-  dw cpu_8086_msg
-  dw cpu_286_msg
-  dw cpu_386_msg
-  dw cpu_486_msg
-  dw cpu_486_plus_msg
-  dw cpu_pentium_msg
-  dw unknown_msg
 
 ; Commands table ===============================================================
 ; character (1b) | pointer to function (2b) | description (24b/chars) | terminator (1b)
@@ -719,6 +769,14 @@ os_commands_table:
   dw os_down
   db 'Shutdown the computer   ', 0x0
 
+  db 'c'
+  dw os_clear_shell
+  db 'Clear the shell log     ', 0x0  
+
+  db 'x'
+  dw os_toggle_video_mode
+  db 'Switch mode 80x25, 40x25', 0x0
+
   db 'm'
   dw os_mouse_init
   db 'Initialize mouse driver ', 0x0
@@ -729,7 +787,7 @@ os_commands_table:
   
   db '`'
   dw os_print_debug
-  db 'Debugging stuff         ', 0x0
+  db 'Debugging stuff, charset', 0x0
   
   db 0x0  ; End of table
 

@@ -1,9 +1,14 @@
 alpha5:
+    - [todo] working icons (select, execute)
+    - [todo] last command history
+    - [todo] detect cursors for icons/history
     - [todo] real time loop
-alpha4:
     - [todo] first external program
-    - [todo] permanent header with logo and date/time
-    - [todo] finalized stats command
+alpha4 [RELEASED]:
+    - [done] updated charset
+    - [done] two video modes: 80x25, 40x25
+    - [done] permanent header with logo and version
+    - [done] finalized stats command
 alpha3 [RELEASED]:    
     - [done] hardware stats (wip)
     - [done] better comments in kernel and boot
