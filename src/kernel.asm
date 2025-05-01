@@ -525,6 +525,46 @@ os_print_debug:
   call os_print_str
 ret
 
+
+os_print_number:
+  mov cx, 10000  ; Divisor starting with 10000 (for 5 digits)
+
+  .next_digit:
+    xor dx, dx     ; Clear DX for division
+    div cx         ; Divide AX by CX, quotient in AX, remainder in DX
+    
+    ; Convert digit to ASCII
+    add al, '0'    ; Convert to ASCII
+    
+    ; Print the character
+    mov ah, 0x0E   ; Teletype output
+    push dx        ; Save remainder
+    push cx        ; Save divisor
+    mov bh, 0      ; Page 0
+    int 0x10       ; BIOS video interrupt
+    pop cx         ; Restore divisor
+    pop dx         ; Restore remainder
+    
+    ; Move remainder to AX for next iteration
+    mov ax, dx
+    
+    ; Update divisor
+    push ax        ; Save current remainder
+    mov ax, cx     ; Get current divisor in AX
+    xor dx, dx     ; Clear DX for division
+    push bx
+    mov bx, 10     ; Divide by 10
+    div bx         ; AX = AX/10
+    pop bx
+    mov cx, ax     ; Set new divisor
+    pop ax         ; Restore current remainder
+    
+    ; Check if we're done
+    cmp cx, 0      ; If divisor is 0, we're done
+    jne .next_digit
+  
+  ret
+  
 ; Print statistics =============================================================
 ; This function prints system statistics.
 ; Expects: None
@@ -539,9 +579,7 @@ os_print_stats:
 
   mov ah, 0x12
   int 0x12       ; Returns KB in AX
-  call os_print_chr
-  mov al, ah
-  call os_print_chr
+  call os_print_number
   
   mov bx, PROMPT_LIST
   call os_print_prompt
@@ -566,15 +604,11 @@ os_print_stats:
   mov si, bios_date_msg
   call os_print_str
 
-  mov ax, 0xF000
-  mov es, ax
-  mov di, 0xFFF5  ; BIOS date string location
-  ; Now ES:DI points to the BIOS date string
-  mov si, di      ; Move BIOS date string address to SI
-  call os_print_str ; Call function to print BIOS date string
+  mov ah, 0x0B
+  int 0x1A
+  call os_print_number
 
-
-; Check for PS/2 mouse
+  ; Check for PS/2 mouse
 
   mov bx, PROMPT_LIST
   call os_print_prompt
@@ -603,12 +637,12 @@ os_print_stats:
   mov ax, 530Ah  ; Get Power Status
   mov bx, 0001h  ; All devices
   int 15h        ; Returns battery status in BL, BH
-  mov al, bl
-  add al, "0"
+  movzx ax, bl
+  call os_print_number
+  mov ax, CHR_SPACE
   call os_print_chr
-  mov al, bh
-  add al, "0"
-  call os_print_chr
+  movzx ax, bh
+  call os_print_number
 
 ret
 
