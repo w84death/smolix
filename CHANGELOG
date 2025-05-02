@@ -1,3 +1,5 @@
+alpha6:
+    - [in-progress] file system implementation
 alpha5:
     - [done] code refactor, cleanup, comments added
     - [done] working icons (select, execute, description)

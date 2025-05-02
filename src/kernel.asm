@@ -29,7 +29,7 @@ CHR_CR                equ 0x0D
 CHR_LF                equ 0x0A
 GLYPH_MASCOT          equ GLYPH_FIRST+0x8
 GLYPH_PC              equ GLYPH_FIRST+0xD
-GLYPH_MOUSE           equ GLYPH_FIRST+0xE
+GLYPH_FLOPPY          equ GLYPH_FIRST+0xE
 GLYPH_CAL             equ GLYPH_FIRST+0xF
 GLYPH_MEM             equ GLYPH_FIRST+0x10
 GLYPH_BAT             equ GLYPH_FIRST+0x11
@@ -90,10 +90,19 @@ os_reset:
   mov dword [_OS_TICK_], 0  ; Initialize tick count
   mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
 
-  call os_sound_init
   call os_load_all_glyphs
   call os_clear_screen
   call os_print_header  
+  
+  call os_print_ver
+
+  mov bl, GLYPH_FLOPPY
+  call os_print_prompt
+  mov si, fs_init_msg
+  call os_print_str
+  call os_fs_init
+  call os_print_error_status
+  call os_sound_init
   call os_print_welcome
   mov ax, SOUND_OS_START
   call os_sound_play
@@ -101,7 +110,7 @@ os_reset:
   call os_print_prompt
   
   call os_print_tick
-  
+
 ; Main system loop =============================================================
 ; This is the main loop of the operating system.
 ; It waits for user input and interprets it.
@@ -270,7 +279,23 @@ os_print_header:
 
 ret
 
-; Print Icons Toolbar
+; Print Error Status ===========================================================
+; This function prints the status of the last operation.
+; Expects: CF = clear for success, set for error
+; Returns: None
+os_print_error_status:
+  pusha
+  jc .error
+  mov si, success_msg
+  jmp .success
+  .error:
+  mov si, failure_msg
+  .success:
+  call os_print_str
+  popa
+ret
+
+; Print Icons Toolbar ==========================================================
 ; This function prints the icons in the toolbar.
 ; Expects: None
 ; Returns: None
@@ -436,8 +461,6 @@ os_print_welcome:
   call os_print_prompt
   mov si, welcome_msg
   call os_print_str
-
-  call os_print_ver
 
   ; Print the copyright message
   mov bl, PROMPT_MSG
@@ -722,48 +745,6 @@ os_icon_execute:
   call ax               ; Execute the command
 ret
 
-; Initialize Mouse Driver ======================================================
-; This function initializes the mouse and shows the cursor
-; Expects: None
-; Returns: CF=0 if successful, CF=1 if failed
-os_mouse_init:
-  ; Initialize mouse
-  mov ax, 0xC200     ; Initialize mouse
-  int 0x15           ; CF=0 if successful
-  jc .init_failed
-  
-  ; Set mouse cursor visibility
-  mov ax, 0x0001     ; Function 0x01: Show mouse cursor
-  int 0x33           ; Mouse driver function
-  
-  ; Set mouse cursor shape (optional)
-  mov ax, 0x000A     ; Function 0x0A: Set text cursor
-  mov bx, 0x0000     ; Software text cursor
-  mov cx, 0x7700     ; Screen mask (AND mask)
-  mov dx, 0x0077     ; Cursor mask (XOR mask)
-  int 0x33
-  
-  mov bx, PROMPT_SYS_MSG
-  call os_print_prompt
-  mov si, ps2_mouse_msg
-  call os_print_str
-  mov si, success_init_msg
-  call os_print_str
-
-  clc                ; Clear carry flag (success)
-ret
-  
-  .init_failed:
-    mov bx, PROMPT_ERR
-    call os_print_prompt
-    mov si, ps2_mouse_msg
-    call os_print_str
-    mov si, failed_init_msg
-    call os_print_str
-
-    stc                ; Set carry flag (failure)
-ret
-
 ; Print debug info =============================================================
 ; This function prints debug information.
 ; Expects: None
@@ -882,23 +863,20 @@ os_print_stats:
   mov si, byte_msg
   call os_print_str
 
- ; Check for PS/2 mouse
-  mov bx, GLYPH_MOUSE
+  ; File System - Free space
+  mov bx, GLYPH_FLOPPY
   call os_print_prompt
-
-  mov si, ps2_mouse_msg
+  mov si, fs_free_space_msg
   call os_print_str
-
-  mov ax, 0x0
-  int 0x11     
-  test ax, 0x03             ; Mouse
-  jnz .mouse_not_detected
-  mov si, detected_msg
-  jmp .mouse_done
-  .mouse_not_detected:
-  mov si, not_detected_msg
-  .mouse_done:
-  call os_print_str
+  
+  mov cx, 64
+  call os_fs_find_free_sector
+  mov bx, 2880
+  sub bx, ax
+  mov ax, bx
+  call os_print_num
+  mov si, sectors_msg
+  call os_print_str  
 
   ; Get BIOS date
   mov bx, GLYPH_CAL
@@ -962,6 +940,217 @@ os_sound_stop:
   out 61h, al
 ret
 
+; File System: Initialization
+; This function initialize and load bitmap into memory
+; Expects: None
+; Returns: Carry flag set on error, clear on success
+os_fs_init:
+    pusha
+    mov ah, 0x02        ; BIOS read sectors
+    mov al, 1           ; Read 1 sector
+    mov ch, 0           ; Cylinder 0 (simplified)
+    mov cl, 11          ; Sector 10 (1-based, adjusted for bitmap)
+    mov dh, 0           ; Head 0
+    mov dl, 0           ; Drive 0 (floppy)
+    mov bx, _OS_MEMORY_BASE_+0x210 ; Buffer for bitmap
+    int 0x13            ; BIOS disk read
+    jc .error
+    ; Check if bitmap is initialized (e.g., first 21 bits should be set if formatted)
+    mov si, bx
+    cmp byte [si], 0xFF ; First 8 bits (sectors 0-7) should be used
+    je .already_init
+    ; Initialize bitmap if not set (first time format)
+    mov di, bx
+    mov cx, 512
+    mov al, 0
+    rep stosb           ; Clear bitmap buffer
+    mov byte [bx], 0xFF ; Set first 8 sectors (0-7) as used (bootloader, kernel)
+    mov byte [bx+1], 0xFF ; Set sectors 8-15 as used (kernel, superblock, bitmap, dir)
+    mov byte [bx+2], 0x1F ; Set sectors 16-20 as used (directory), rest free
+    ; Write bitmap back to disk
+    mov ah, 0x03        ; BIOS write sectors
+    mov al, 1
+    mov ch, 0
+    mov cl, 11          ; Sector 10
+    mov dh, 0
+    mov dl, 0
+    mov bx, _OS_MEMORY_BASE_+0x210
+    int 0x13
+    jc .error
+.already_init:
+    popa
+    
+    clc                 ; Success
+    ret
+.error:
+    popa
+    stc                 ; Error
+    ret
+
+; File System: Find free sector =================================================
+; This function finds contiguous free sectors in bitmap without marking them
+; Expects: CX = number of sectors needed
+; Returns: AX = starting sector number if found, Carry flag clear if success, set on error
+os_fs_find_free_sector:
+    push si
+    push bp                          ; Use BP to store original sector count
+    mov bp, cx                       ; Save original count in BP
+    mov bx, _OS_MEMORY_BASE_+0x210   ; Bitmap buffer address
+    mov dx, 21                       ; Start at first data sector (after system sectors)
+    mov si, cx                       ; Save number of sectors needed for countdown
+
+.search_loop:
+    mov cx, si                       ; Reset count of sectors to find
+    mov di, dx                       ; Save potential start sector
+    
+.check_contiguous:
+    ; Calculate byte offset and bit position for current sector
+    mov ax, dx                       ; Current sector number to AX
+    push dx                          ; Save DX (current sector)
+    mov dx, 0                        ; Clear DX for division
+    mov cx, 8                        ; Divide by 8
+    div cx                           ; AX = quotient (byte offset), DX = remainder (bit position)
+    
+    ; Calculate address of byte in bitmap
+    push bx                          ; Save base bitmap address
+    add bx, ax                       ; BX = bitmap buffer + byte offset
+    
+    ; Create bit mask for the current bit
+    mov al, 1                        ; Set AL = 1 (8-bit base value)
+    mov cl, dl                       ; Move bit position to CL
+    shl al, cl                       ; Shift left by bit position
+    
+    ; Test if bit is set (sector is used)
+    test byte [bx], al               ; Test specific bit using AL
+    pop bx                           ; Restore base bitmap address
+    pop dx                           ; Restore sector number to DX
+    
+    jnz .next_sector                 ; If bit is set (sector is used), try next sector
+    
+    ; Found a free sector
+    dec si                           ; Decrement count of sectors needed
+    jz .found_enough                 ; If we found enough sectors, proceed
+    
+    ; Check next sequential sector
+    inc dx                           ; Next sector
+    cmp dx, 2880                     ; End of disk? (1.44MB floppy has 2880 sectors)
+    jge .disk_full
+    jmp .check_contiguous
+    
+.next_sector:
+    inc dx                           ; Try the next sector
+    cmp dx, 2880                     ; End of disk?
+    jge .disk_full
+    jmp .search_loop
+    
+.found_enough:
+    ; We found enough contiguous sectors
+    mov ax, di                       ; Return starting sector in AX
+    pop bp
+    pop si
+    clc                              ; Clear carry flag (success)
+    ret
+    
+.disk_full:
+    pop bp
+    pop si
+    stc                              ; Set carry flag (error)
+    ret
+
+; File System: Mark sectors ====================================================
+; This function marks a range of sectors as used in the bitmap
+; Expects: DX = starting sector number
+;          CX = number of sectors to mark
+; Returns: Carry flag clear if success, set on error
+os_fs_mark_sectors:
+    pusha
+    mov bp, cx                       ; Keep original count in BP
+    mov bx, _OS_MEMORY_BASE_+0x210   ; Bitmap buffer address
+    
+.mark_loop:
+    ; Calculate byte offset and bit position for current sector
+    mov ax, dx                       ; Current sector to mark
+    push dx                          ; Save DX
+    mov dx, 0                        ; Clear DX for division
+    push cx                          ; Save CX
+    mov cx, 8                        ; Divide by 8
+    div cx                           ; AX = byte offset, DX = bit position
+    pop cx                           ; Restore CX
+    
+    ; Calculate address of byte in bitmap
+    push bx                          ; Save bitmap base
+    add bx, ax                       ; BX = bitmap buffer + byte offset
+    
+    ; Create bit mask and set the bit
+    mov al, 1                        ; Prepare bit mask in AL (8-bit)
+    mov cl, dl                       ; Move bit position to CL
+    shl al, cl                       ; Shift left by bit position in AL
+    or [bx], al                      ; Set the bit (mark as used)
+    
+    pop bx                           ; Restore bitmap base
+    pop dx                           ; Restore sector number
+    
+    inc dx                           ; Next sector to mark
+    dec bp                           ; Decrement count
+    jnz .mark_loop                   ; Continue until all sectors are marked
+    
+    ; Write updated bitmap back to disk - FIXED: proper BIOS disk write
+    push es                          ; Save ES
+    push ds
+    pop es                           ; ES = DS for the buffer
+    
+    mov ah, 0x03                     ; BIOS write sectors
+    mov al, 1                        ; Write 1 sector
+    mov ch, 0                        ; Cylinder 0
+    mov cl, 11                       ; Bitmap sector (sector 11)
+    mov dh, 0                        ; Head 0
+    mov dl, 0                        ; Drive 0 (first floppy)
+    mov bx, _OS_MEMORY_BASE_+0x210   ; Bitmap buffer
+    int 0x13                         ; Call BIOS
+    
+    pop es                           ; Restore ES
+    
+    jc .error                        ; If BIOS returned error
+  
+    popa
+    clc                              ; Clear carry flag (success)
+    ret
+    
+.error:
+    popa
+    stc                              ; Set carry flag (error)
+    ret
+
+
+os_fs_debug:
+  mov bx, GLYPH_FLOPPY
+  call os_print_prompt
+  mov si, fs_debug_find_msg
+  call os_print_str
+  
+  mov cx, 6
+  call os_fs_find_free_sector
+  jnc .success
+    call os_print_error_status
+    ret
+  .success:
+    call os_print_num      ; Print the sector number
+     
+    mov bx, GLYPH_FLOPPY
+    call os_print_prompt
+    mov si, fs_debug_find_msg
+    call os_print_str
+    mov cx, 6              ; Mark 6 sectors
+    call os_fs_mark_sectors
+    jnc .marked_ok
+      mov si, failure_msg
+      call os_print_str
+      ret
+    .marked_ok:
+      mov si, success_msg
+      call os_print_str
+    ret
+
 ; Void =========================================================================
 ; This is a placeholder function
 ; Expects: None
@@ -987,12 +1176,21 @@ failed_init_msg       db 'failed to initialize', 0
 hex_ruler_msg         db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
 kernel_size_msg       db 'Kernel size: ', 0
-kb_msg                db 'KB', 0
-byte_msg              db 'B', 0
-ps2_mouse_msg         db 'PS/2 mouse ', 0
+kb_msg                db ' KB', 0
+byte_msg              db ' B', 0
+sectors_msg           db ' sectors', 0
 bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
 benchmark_msg         db 'Benchmark score: ', 0
+fs_init_msg           db 'File system init: ', 0
+fs_free_space_msg     db 'Free file space: ', 0
+success_msg           db 'success.', 0
+failure_msg           db 'failure.', 0
+fs_debug_find_msg     db 'Finding free sectors: ', 0
+fs_debug_mark_msg     db 'Marking sectors: ', 0
+fs_debug_verify_msg   db 'Verifying marked sectors: ', 0
+fs_debug_fail_msg     db 'Marking failed.', 0
+fs_debug_success_msg  db 'Marking successful. New sector: ', 0
 
 msg_cmd_h             db 'Help & list of commands', 0x0
 msg_cmd_v             db 'Prints system version', 0x0
@@ -1000,11 +1198,11 @@ msg_cmd_r             db 'Soft system reset', 0x0
 msg_cmd_R             db 'Hard system reboot', 0x0
 msg_cmd_D             db 'Shutdown the computer', 0x0
 msg_cmd_c             db 'Clear the shell log', 0x0  
-msg_cmd_x             db 'Toggle between 40 and 80 screen modes', 0x0    ; Added description for msg_cmd_x 
-msg_cmd_m             db 'Initialize mouse driver', 0x0  ; Added description for msg_cmd_m 
-msg_cmd_s             db 'Print system statistics', 0x0  ; Added description for msg_cmd_s
+msg_cmd_x             db 'Toggle between 40 and 80 screen modes', 0x0
+msg_cmd_s             db 'Print system statistics', 0x0
 msg_cmd_tilde         db 'Debugging stuff, charset', 0x0
 msg_cmd_void          db 'Void. Not implemented yet.', 0x0
+msg_fs_debug          db 'File system debug information', 0x0
 
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)
@@ -1043,15 +1241,15 @@ os_commands_table:
   
   db 'x'
   dw os_toggle_video_mode, msg_cmd_x
-
-  db 'm'
-  dw os_mouse_init, msg_cmd_m
   
   db 's'
   dw os_print_stats, msg_cmd_s
   
   db '`'
   dw os_print_debug, msg_cmd_tilde
+
+  db 'f'
+  dw os_fs_debug, msg_fs_debug
   
   db 0x0
 
