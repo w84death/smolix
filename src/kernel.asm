@@ -54,11 +54,11 @@ GLYPH_KBD_UP          equ GLYPH_FIRST+0x2C
 GLYPH_KBD_RIGHT       equ GLYPH_FIRST+0x2D
 GLYPH_KBD_DOWN        equ GLYPH_FIRST+0x2E
 
-COLOR_PRIMARY         equ 0x1F  ; White on blue
-COLOR_SECONDARY       equ 0x2F  ; Light gray on dark blue 
-LENGTH_CMDS_TBL_CHAR  equ 1     ; Command character
-LENGTH_FUNCTION_ADDR  equ 2     ; Address to function
-LENGTH_CMDS_TBL_DESC  equ 24+1  ; Description length + terminator character
+COLOR_PRIMARY         equ 0x1F  
+COLOR_SECONDARY       equ 0x2F  
+LENGTH_CMDS_TBL_CHAR  equ 1     
+LENGTH_FUNCTION_ADDR  equ 2     
+LENGTH_DESC_ADDR      equ 2     
 LOGO_LENGTH           equ 7
 
 OS_NAV_START_POS      equ 0x0
@@ -280,7 +280,7 @@ os_print_icons_toolbar:
     call os_print_chr2         ; Print the icon character
     mov al, CHR_SPACE          ; Move space character to AL
     call os_print_chr
-    add si, 0x2             ; Skip function pointer
+    add si, 0x4             ; Skip function pointer, description pointer
     jmp .icons_loop          ; Repeat for the next icon
   .done_icons:
   pop si
@@ -340,9 +340,12 @@ os_print_help:
     call os_print_chr
 
     add si, LENGTH_FUNCTION_ADDR  ; Skip address, point to description
+    push si
+    mov si, [si]
     call os_print_str             ; Print description string  
+    pop si                        ; Restore original SI
 
-    add si, LENGTH_CMDS_TBL_DESC  ; Move to next command
+    add si, LENGTH_DESC_ADDR  ; Move to next command
     jmp .cmd_loop
 .done:
 ret
@@ -610,7 +613,7 @@ os_interpret_char:
     jz .unknown_command
     cmp bl, al
     je .found
-    add si, LENGTH_FUNCTION_ADDR+LENGTH_CMDS_TBL_DESC
+    add si, LENGTH_FUNCTION_ADDR+LENGTH_DESC_ADDR
     jmp .loop_commands
 
   .unknown_command:
@@ -648,22 +651,36 @@ os_interpret_char:
   ret
 
 os_icon_next:
-  cmp byte [_OS_NAV_POSITION_], OS_NAV_LAST_POS
+  movzx ax, [_OS_NAV_POSITION_]
+  cmp al, OS_NAV_LAST_POS
   jge .bounded
-  inc byte [_OS_NAV_POSITION_]
+  inc al
+  mov byte [_OS_NAV_POSITION_], al
+  call os_icon_print_desc
   .bounded:
 ret
 
 os_icon_prev:
-  cmp byte [_OS_NAV_POSITION_], 0
+  movzx ax, [_OS_NAV_POSITION_]  
+  cmp al, 0
   jle .bounded
-  dec byte [_OS_NAV_POSITION_]
+  dec al
+  mov byte [_OS_NAV_POSITION_], al
+  call os_icon_print_desc
   .bounded:
+ret
+
+os_icon_print_desc:
+  imul ax, 0x6
+  mov si, os_icons_table
+  add si, ax
+  mov si, [si+4]
+  call os_print_str
 ret
 
 os_icon_execute:
   movzx ax, [_OS_NAV_POSITION_]
-  shl al, 2
+  imul ax, 0x6
   mov si, os_icons_table
   add si, ax
   mov ax, [si+2]       ; Load the icon data into AL
@@ -957,62 +974,64 @@ bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
 benchmark_msg         db 'Benchmark score: ', 0
 
+msg_cmd_h             db 'Help & list of commands', 0x0
+msg_cmd_v             db 'Prints system version', 0x0
+msg_cmd_r             db 'Soft system reset', 0x0
+msg_cmd_R             db 'Hard system reboot', 0x0
+msg_cmd_D             db 'Shutdown the computer', 0x0
+msg_cmd_c             db 'Clear the shell log', 0x0  
+msg_cmd_x             db 'Toggle between 40 and 80 screen modes', 0x0    ; Added description for msg_cmd_x 
+msg_cmd_m             db 'Initialize mouse driver', 0x0  ; Added description for msg_cmd_m 
+msg_cmd_s             db 'Print system statistics', 0x0  ; Added description for msg_cmd_s
+msg_cmd_tilde         db 'Debugging stuff, charset', 0x0
+msg_cmd_void          db 'Void. Not implemented yet.', 0x0
+
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)
 os_icons_table:
-  dw GLYPH_ICON_CLEAR, os_clear_shell
-  dw GLYPH_ICON_SHELL, os_void
-  dw GLYPH_ICON_EDIT, os_void
-  dw GLYPH_ICON_CONF, os_print_stats
-  dw GLYPH_ICON_X, os_toggle_video_mode
-  dw GLYPH_ICON_DOTS, os_void
-  dw GLYPH_ICON_RESET, os_reset
-  dw GLYPH_ICON_REBOOT, os_reboot
-  dw GLYPH_ICON_DOWN, os_down
+  dw GLYPH_ICON_CLEAR, os_clear_shell, msg_cmd_c
+  dw GLYPH_ICON_SHELL, os_void, msg_cmd_void
+  dw GLYPH_ICON_EDIT, os_void, msg_cmd_void
+  dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
+  dw GLYPH_ICON_X, os_toggle_video_mode, msg_cmd_x  ; Added description for msg_cmd_x
+  dw GLYPH_ICON_DOTS, os_print_debug, msg_cmd_tilde
+  dw GLYPH_ICON_RESET, os_reset, msg_cmd_r
+  dw GLYPH_ICON_REBOOT, os_reboot, msg_cmd_R
+  dw GLYPH_ICON_DOWN, os_down, msg_cmd_D
   dw 0x0
 
 ; Commands table ===============================================================
 ; character (1b) | pointer to function (2b) | description (24b/chars)
 os_commands_table:
   db 'h'
-  dw os_print_help
-  db 'Help & list of commands ', 0x0
+  dw os_print_help, msg_cmd_h
 
   db 'v'
-  dw os_print_ver
-  db 'Prints system version   ', 0x0
-
-  db 'r'
-  dw os_reset
-  db 'Soft system reset       ', 0x0
-
-  db 'R'
-  dw os_reboot
-  db 'Hard system reboot      ', 0x0
+  dw os_print_ver, msg_cmd_v
   
+  db 'r'
+  dw os_reset, msg_cmd_r
+  
+  db 'R'
+  dw os_reboot, msg_cmd_R
+    
   db 'D'
-  dw os_down
-  db 'Shutdown the computer   ', 0x0
-
+  dw os_down, msg_cmd_D
+  
   db 'c'
-  dw os_clear_shell
-  db 'Clear the shell log     ', 0x0  
-
+  dw os_clear_shell, msg_cmd_c
+  
   db 'x'
-  dw os_toggle_video_mode
-  db 'Toggle 40/80 screen mode', 0x0
+  dw os_toggle_video_mode, msg_cmd_x
 
   db 'm'
-  dw os_mouse_init
-  db 'Initialize mouse driver ', 0x0
+  dw os_mouse_init, msg_cmd_m
   
   db 's'
-  dw os_print_stats
-  db 'Prints system statistics', 0x0
+  dw os_print_stats, msg_cmd_s
   
   db '`'
-  dw os_print_debug
-  db 'Debugging stuff, charset', 0x0
+  dw os_print_debug, msg_cmd_tilde
   
   db 0x0
 

@@ -1,5 +1,5 @@
 alpha5:
-    - [done] working icons (select, execute)
+    - [done] working icons (select, execute, description)
     - [done] detect cursors for icons movement
     - [done] real time loop
     - [done] display kernel tick (live + commands history)
