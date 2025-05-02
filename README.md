@@ -1,5 +1,5 @@
 # SMOLiX
-![SMOLiX Logo](smolix.png)
+![SMOLiX Logo](media/logo.png)
 
 SMOLiX: Real Mode, Raw Power.
 
@@ -59,10 +59,14 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
   - Multiple video modes (40x25, 80x25)
   - Permanent header with logo and version
 
+![Glyphs](media/glyphs.png)
+
 - **User Interface**
   - Icon-based toolbar
   - Command-line interface
   - Sound feedback for commands
+
+![Commands](media/commands.png)
 
 ## Building and Running
 
