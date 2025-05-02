@@ -78,6 +78,10 @@ make run    # Run in QEMU
 make clean  # Clean build artifacts
 ```
 
+## Tileset 2 Glyphs
+
+```/smolix/tool$ python3 tileset2glyphs.py tileset.png ../src/glyphs.asm```
+
 ## Current Version
 Version alpha5:
 - Support for both 40x25 and 80x25 video modes

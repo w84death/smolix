@@ -27,7 +27,7 @@ PROMPT_USR            equ GLYPH_FIRST+0xC
 CHR_SPACE             equ GLYPH_FIRST
 CHR_CR                equ 0x0D
 CHR_LF                equ 0x0A
-PROMPT_END            equ GLYPH_FIRST+0x8
+GLYPH_MASCOT          equ GLYPH_FIRST+0x8
 GLYPH_PC              equ GLYPH_FIRST+0xD
 GLYPH_MOUSE           equ GLYPH_FIRST+0xE
 GLYPH_CAL             equ GLYPH_FIRST+0xF
@@ -76,9 +76,7 @@ KBD_KEY_ENTER         equ 0x1C
 KBD_KEY_BACKSPACE     equ 0x0E
 
 os_init:
-  mov dword [_OS_TICK_], 0  ; Initialize tick count
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
 
 ; Entry point / System reset ===================================================
 ; This function resets the system.
@@ -89,6 +87,9 @@ os_reset:
 	mov al, [_OS_VIDEO_MODE_]
 	int 0x10            ; 80x25 text mode
   
+  mov dword [_OS_TICK_], 0  ; Initialize tick count
+  mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
+
   call os_sound_init
   call os_load_all_glyphs
   call os_clear_screen
@@ -218,7 +219,7 @@ os_print_header:
   sub dh, 13
 
   ; new line
-  mov al, CHR_SPACE
+  mov al, GLYPH_MASCOT
   mov ah, CHR_SPACE
   call os_print_chr2
   
