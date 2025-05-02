@@ -11,6 +11,8 @@ Homebrew, research, 16-bit operating system for x86 processors.
 
 SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit). It embraces the simplicity and raw performance of direct hardware access, while providing a unique graphical user interface.
 
+![40 vs 80 video mode](media/mode4080.png)
+
 ### Architecture
 - **Processor Target**: x86 (286+ compatible)
 - **Mode**: Real mode (16-bit)
