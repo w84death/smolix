@@ -143,6 +143,10 @@ os_main_loop:
   call os_sound_stop
   jmp os_main_loop  ; Return to the main loop
 
+; Print System Tick
+; This function prints the current system tick count to the screen.
+; Expects: None
+; Returns: None
 os_print_tick:
   call os_cursor_pos_get
   push dx
@@ -286,26 +290,30 @@ os_print_icons_toolbar:
   pop si
 ret
 
+; Print Icons Selector
+; This function prints the selected icon in the toolbar.
+; Expects: None
+; Returns: None 
 os_print_icons_selector:
   xor cx, cx
-  mov bl, [_OS_NAV_POSITION_]
+  mov bl, [_OS_NAV_POSITION_]     ; Save current navigation position (selection)
   .icons_loop:
     cmp cl, OS_NAV_LAST_POS
-    jg .done_icons            ; If zero, end of icons
+    jg .done_icons                ; If zero, end of icons
     
-    cmp cl, bl
+    cmp cl, bl                    ; Check if current ID is selected
     je .icon_selected
-    mov al, GLYPH_CEILING
-    mov ah, GLYPH_CEILING
+    mov al, GLYPH_CEILING         ; Set two characters
+    mov ah, GLYPH_CEILING         ; as empty space
     jmp .print_glyph
     .icon_selected:
-    mov ax, GLYPH_ICONS_SELECTOR
+    mov ax, GLYPH_ICONS_SELECTOR  ; Set selector icon
     .print_glyph:
-    call os_print_chr2
-    mov al, GLYPH_CEILING
+    call os_print_chr2            ; Print to the screen
+    mov al, GLYPH_CEILING         ; Add another empty space
     call os_print_chr    
     inc cl
-    jmp .icons_loop          ; Repeat for the next icon
+    jmp .icons_loop               ; Repeat for the next icon
   .done_icons:
 ret
 
@@ -339,20 +347,20 @@ os_print_help:
     mov al, CHR_SPACE             ; Move space character to AL
     call os_print_chr
 
-    add si, LENGTH_FUNCTION_ADDR  ; Skip address, point to description
-    push si
-    mov si, [si]
+    add si, LENGTH_FUNCTION_ADDR  ; Skip address, point to description pointer
+    push si                       ; Saves os_commands_table
+    mov si, [si]                  ; Gets the description message address
     call os_print_str             ; Print description string  
-    pop si                        ; Restore original SI
+    pop si                        ; Restore os_commands_table
 
-    add si, LENGTH_DESC_ADDR  ; Move to next command
+    add si, LENGTH_DESC_ADDR      ; Move to next command
     jmp .cmd_loop
 .done:
 ret
 
 ; Print prompt ================================================================= 
 ; This function prints the prompt for the user.
-; Expects: BL = type of prompt
+; Expects: BL = type of glyph
 ; Returns: None
 os_print_prompt:
   push ax
@@ -364,7 +372,7 @@ os_print_prompt:
   mov al, CHR_SPACE
   call os_print_chr
   ; Icon
-  ; BL <-
+  ; BL = type of glyph
   mov al, bl
   call os_print_chr
   ; Space
@@ -451,7 +459,7 @@ ret
 os_print_chr:
   push ax
   mov ah, 0x0e    ; BIOS teletype output function
-  ; AL <-
+  ; AL = character to print
   int 0x10        ; BIOS teletype output function
   pop ax
 ret
@@ -461,7 +469,9 @@ ret
 ; Expects: AL = first character, AH = second character
 ; Returns: None
 os_print_chr2:
+  ; AL = first character
   call os_print_chr
+  ; AH = second character
   mov al, ah
   call os_print_chr
 ret
@@ -473,23 +483,25 @@ ret
 ; Returns: None
 os_print_chr_mul:
   push cx  
+  ; AH = number of times to print
   movzx cx, ah
   .char_loop:
-  call os_print_chr
+    ; AL = character
+    call os_print_chr
   loop .char_loop
   pop cx
 ret
 
 ; Print string =================================================================
 ; This function prints a string to the screen.
-; Expects: DS:SI = pointer to string
+; Expects: SI = pointer to string
 ; Returns: None
 os_print_str:
   pusha
-  ; SI <-
   xor bx, bx          ; Clear page number
   mov ah, 0x0e        ; BIOS teletype output function
   .next_char:
+    ; SI = pointer to string
     lodsb             ; Load next character from SI into AL
     or al, al         ; Check for null terminator
     jz .terminated
@@ -529,12 +541,11 @@ ret
 ; Expects: None
 ; Returns: None
 os_cursor_pos_reset:
-  xor dx, dx
-  mov ah, 0x2
-  xor bh, bh
+  xor dx, dx        ; Page 0
+  mov ah, 0x2       ; Set cursor
+  xor bh, bh        ; Position 0, 0
   int 0x10
 ret
-
 
 ; Set color ====================================================================
 ; This function sets the color of the text on the screen.
@@ -543,17 +554,17 @@ ret
 os_set_color:
   mov ah, 0x0B
   mov bh, 0x00
-  ; BL <-
+  ; BL = color attribute
   int 0x10
 ret
 
 ; Load glyph ===================================================================
 ; This function loads a custom glyph into the VGA font memory using BIOS.
-; Expects: AX = character code to replace, BP = pointer to custom glyph data
+; Expects: AX = character code to replace
 ; Returns: None
 os_load_glyph:
   pusha
-  ; AX
+  ; AX = character code to replace
   push ax
   shl ax, 1             ; Multiply by 2 (each entry is 2 bytes)
   mov si, glyph_table   ; Get base address of glyph table
@@ -564,10 +575,10 @@ os_load_glyph:
   mov ax, 1100h         ; BIOS function to load 9×16 user-defined font
   mov bh, 10h           ; Number of bytes per character (16 for 8/9×16 glyph)
   mov bl, 00h           ; RAM block (0 for default)
-  mov cx, 0x01          ; Number of characters to replace (1 for now)
+  mov cx, 0x01          ; Number of characters to replace (single)
   pop dx
-  add dx, GLYPH_FIRST ; Adjust character code for extended ASCII
-  int 10h             ; Call BIOS video interrupt to load the font
+  add dx, GLYPH_FIRST   ; Adjust character code for extended ASCII
+  int 10h               ; Call BIOS video interrupt to load the font
   popa
 ret
 
@@ -583,6 +594,7 @@ os_load_all_glyphs:
     cmp ax, 0x0
     je .done
     mov ax, cx
+    ; AX = character code to replace
     call os_load_glyph
     inc cx
     jmp .loop_glyphs
@@ -596,21 +608,24 @@ ret
 os_get_key:
   xor ax, ax      ; Clear AX (any key)
   int 0x16        ; Wait for key press
-  ; AL ->
+  ; AL = key code
 ret
 
 ; Interpret character ==========================================================
 ; This function interprets the command and performs the appropriate action.
-; Expects: AL = character to interpret
+; Expects: AL = character to interpret (letters)
+;          AH = character to interpret (control)
 ; Returns: None
 os_interpret_char:
   mov si, os_commands_table
-  ; AL <- character
+  ; AL = character to interpret
+  ; AH = character to interpret (control)
   mov bx, ax
   .loop_commands:
     lodsb           ; Load next command character
     test al, al     ; Check for end of table
     jz .unknown_command
+    ; BL = character to interpret
     cmp bl, al
     je .found
     add si, LENGTH_FUNCTION_ADDR+LENGTH_DESC_ADDR
@@ -624,6 +639,7 @@ os_interpret_char:
     lodsb
     test al, al
     jz .unknown
+    ; BH = character to interpret (control)
     cmp bh, al
     je .found
     add si, LENGTH_FUNCTION_ADDR
@@ -650,27 +666,42 @@ os_interpret_char:
     call os_print_num
   ret
 
+; Selects next icon
+; This function selects the next icon in the navigation
+; Expects: None
+; Returns: None
 os_icon_next:
   movzx ax, [_OS_NAV_POSITION_]
   cmp al, OS_NAV_LAST_POS
   jge .bounded
   inc al
+  ; AX - icon index
   mov byte [_OS_NAV_POSITION_], al
   call os_icon_print_desc
   .bounded:
 ret
 
+; Selects previous icon
+; This function selects the previous icon in the navigation
+; Expects: None
+; Returns: AX - icon index
 os_icon_prev:
   movzx ax, [_OS_NAV_POSITION_]  
   cmp al, 0
   jle .bounded
   dec al
+  ; AX - icon index
   mov byte [_OS_NAV_POSITION_], al
   call os_icon_print_desc
   .bounded:
 ret
 
+; Print icon description
+; This function prints the description of the currently selected icon
+; Expects: AX - icon index
+; Returns: None
 os_icon_print_desc:
+  ; AX - icon index
   imul ax, 0x6
   mov si, os_icons_table
   add si, ax
@@ -678,13 +709,17 @@ os_icon_print_desc:
   call os_print_str
 ret
 
+; Executes icon command
+; This function executes the command associated with the currently selected icon
+; Expects: None
+; Returns: None
 os_icon_execute:
   movzx ax, [_OS_NAV_POSITION_]
-  imul ax, 0x6
+  imul ax, 0x6          ; Calculate the icon index
   mov si, os_icons_table
   add si, ax
-  mov ax, [si+2]       ; Load the icon data into AL
-  call ax  
+  mov ax, [si+2]        ; Load the command pointer
+  call ax               ; Execute the command
 ret
 
 ; Initialize Mouse Driver ======================================================
@@ -734,13 +769,12 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_debug:
-
+  ; First row
   mov bl, PROMPT_MSG
   call os_print_prompt
-  
   mov al, GLYPH_FIRST    
   call os_print_chr
-  mov cx, 0x1F
+  mov cx, 0x1F            ; 32 glyphs
   .loop_chars:
     inc al
     call os_print_chr
@@ -752,14 +786,15 @@ os_print_debug:
   call os_print_str
   call os_print_str
   
+  ; Second row
   mov bl, PROMPT_MSG
   call os_print_prompt
-
-  mov cx, 0x1F
+  mov cx, 0x1F          ; 32 glyphs
   .loop_chars2:
     inc al
     call os_print_chr
   loop .loop_chars2
+
   mov bl, PROMPT_MSG
   call os_print_prompt
   mov si, hex_ruler_msg
@@ -776,19 +811,12 @@ os_print_num:
 
   .next_digit:
     xor dx, dx     ; Clear DX for division
+    ; AX - number to print
     div cx         ; Divide AX by CX, quotient in AX, remainder in DX
     
     ; Convert digit to ASCII
     add al, '0'    ; Convert to ASCII
-    
-    ; Print the character
-    mov ah, 0x0E   ; Teletype output
-    push dx        ; Save remainder
-    push cx        ; Save divisor
-    mov bh, 0      ; Page 0
-    int 0x10       ; BIOS video interrupt
-    pop cx         ; Restore divisor
-    pop dx         ; Restore remainder
+    call os_print_chr
     
     ; Move remainder to AX for next iteration
     mov ax, dx
@@ -804,11 +832,10 @@ os_print_num:
     mov cx, ax     ; Set new divisor
     pop ax         ; Restore current remainder
     
-    ; Check if we're done
     cmp cx, 0      ; If divisor is 0, we're done
-    jne .next_digit
+  jne .next_digit
   
-  ret
+ret
 
 ; Toggle Video Mode ============================================================
 ; This function toggles between 40 and 80 column video modes
@@ -825,23 +852,20 @@ os_toggle_video_mode:
   .save_video_mode:
   mov byte [_OS_VIDEO_MODE_], al
   jmp os_reset
-ret
 
 ; Print statistics =============================================================
 ; This function prints system statistics.
 ; Expects: None
 ; Returns: None
 os_print_stats:
- 
-  ; Get conventional memory size (first 640KB)
+   ; Get conventional memory size (first 640KB)
   mov bx, GLYPH_MEM
   call os_print_prompt
-
   mov si, memory_installed_msg
   call os_print_str
 
   mov ah, 0x12
-  int 0x12       ; Returns KB in AX
+  int 0x12                  ; Returns KB in AX
   call os_print_num
 
   mov si, kb_msg
@@ -853,13 +877,12 @@ os_print_stats:
 
   mov si, kernel_size_msg
   call os_print_str
-  mov ax, os_kernel_end
+  mov ax, os_kernel_end     ; Last place in memory in B
   call os_print_num
   mov si, byte_msg
   call os_print_str
 
  ; Check for PS/2 mouse
-
   mov bx, GLYPH_MOUSE
   call os_print_prompt
 
@@ -868,7 +891,7 @@ os_print_stats:
 
   mov ax, 0x0
   int 0x11     
-  test ax, 0x03 ; Mouse
+  test ax, 0x03             ; Mouse
   jnz .mouse_not_detected
   mov si, detected_msg
   jmp .mouse_done
@@ -878,10 +901,8 @@ os_print_stats:
   call os_print_str
 
   ; Get BIOS date
-
   mov bx, GLYPH_CAL
   call os_print_prompt
-  
   mov si, bios_date_msg
   call os_print_str
 
@@ -889,17 +910,15 @@ os_print_stats:
   int 0x1A
   call os_print_num
 
-  ; APM functions
-
+  ; Battery status
   mov bx, GLYPH_BAT
-  call os_print_prompt
-  
+  call os_print_prompt  
   mov si, apm_batt_msg
   call os_print_str
 
-  mov ax, 530Ah  ; Get Power Status
-  mov bx, 0001h  ; All devices
-  int 15h        ; Returns battery status in BL, BH
+  mov ax, 530Ah         ; Get Power Status
+  mov bx, 0001h         ; All devices
+  int 15h               ; Returns battery status in BL, BH
   movzx ax, bl
   call os_print_num
   mov ax, CHR_SPACE
@@ -920,16 +939,17 @@ ret
 
 ; Sound Play ===================================================================
 ; This function sets the sound to play a tone
-; Expects: AX - note
+; Expects: AX = note
 ; Returns: None
 os_sound_play:
-   out 42h, al         ; Low byte first
-   mov al, ah          
-   out 42h, al
+  ; AX = note
+  out 42h, al         ; Low byte first
+  mov al, ah          
+  out 42h, al
 
-   in al, 61h          ; Read current port state
-   or al, 00000011b    ; Set bits 0 and 1
-   out 61h, al         ; Enable speaker output
+  in al, 61h          ; Read current port state
+  or al, 00000011b    ; Set bits 0 and 1
+  out 61h, al         ; Enable speaker output
 ret
 
 ; Stop sound playback ==========================================================
