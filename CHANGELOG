@@ -1,4 +1,5 @@
 alpha5:
+    - [done] code refactor, cleanup, comments added
     - [done] working icons (select, execute, description)
     - [done] detect cursors for icons movement
     - [done] real time loop
