@@ -788,6 +788,7 @@ ret
 ; Expects: AX - number to print
 ; Returns: None
 os_print_num:
+  pusha
   mov cx, 10000  ; Divisor starting with 10000 (for 5 digits)
 
   .next_digit:
@@ -815,7 +816,7 @@ os_print_num:
     
     cmp cx, 0      ; If divisor is 0, we're done
   jne .next_digit
-  
+  popa
 ret
 
 ; Toggle Video Mode ============================================================
@@ -1135,11 +1136,7 @@ os_fs_debug:
     ret
   .success:
     call os_print_num      ; Print the sector number
-     
-    mov bx, GLYPH_FLOPPY
-    call os_print_prompt
-    mov si, fs_debug_find_msg
-    call os_print_str
+    mov dx, ax
     mov cx, 6              ; Mark 6 sectors
     call os_fs_mark_sectors
     jnc .marked_ok
