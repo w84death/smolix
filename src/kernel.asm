@@ -21,7 +21,7 @@ _OS_NAV_POSITION_     equ _OS_MEMORY_BASE_+0x5
 GLYPH_FIRST           equ 0x80
 PROMPT_MSG            equ GLYPH_FIRST+0xB
 PROMPT_SYS_MSG        equ GLYPH_FIRST+0x9
-PROMPT_LIST           equ 0xFE
+PROMPT_LIST           equ 0x1A
 PROMPT_ERR            equ GLYPH_FIRST+0xA
 PROMPT_USR            equ GLYPH_FIRST+0xC
 CHR_SPACE             equ GLYPH_FIRST
@@ -117,18 +117,27 @@ os_main_loop:
     mov ah, 00h         ; BIOS keyboard read function
     int 16h   
 
-    call os_print_chr  
-    call os_interpret_char
+    test al, al
+    jz .no_command_key
 
-    mov bl, PROMPT_USR
-    call os_print_prompt
+      call os_print_chr  
+      call os_interpret_char
+
+      mov bl, PROMPT_USR
+      call os_print_prompt
+      jmp .continue
+
+    .no_command_key:
+    call os_interpret_kb
+
+    .continue:
     call os_cursor_pos_get
     push dx
     call os_print_header
     pop dx
     call os_cursor_pos_set
   
-  .no_key_press:
+    .no_key_press:
 
   xor ax, ax            ; Function 00h: Read system timer counter
   int 0x1a              ; Returns tick count in CX:DX
@@ -359,8 +368,13 @@ os_print_help:
 
     mov bl, PROMPT_LIST
     call os_print_prompt          ; Prompt
+    cmp al, '!'
+    jge .skip_enter
+    mov al, GLYPH_PC
+    .skip_enter:
     call os_print_chr             ; Character printed
     mov al, CHR_SPACE             ; Move space character to AL
+    
     call os_print_chr
 
     add si, LENGTH_FUNCTION_ADDR  ; Skip address, point to description pointer
@@ -628,36 +642,20 @@ ret
 ; Interpret character ==========================================================
 ; This function interprets the command and performs the appropriate action.
 ; Expects: AL = character to interpret (letters)
-;          AH = character to interpret (control)
 ; Returns: None
 os_interpret_char:
   mov si, os_commands_table
   ; AL = character to interpret
-  ; AH = character to interpret (control)
   mov bx, ax
   .loop_commands:
     lodsb           ; Load next command character
     test al, al     ; Check for end of table
-    jz .unknown_command
+    jz .unknown
     ; BL = character to interpret
     cmp bl, al
     je .found
     add si, LENGTH_FUNCTION_ADDR+LENGTH_DESC_ADDR
     jmp .loop_commands
-
-  .unknown_command:
-
-  .check_keyboard:
-  mov si, os_keyboard_table
-  .loop_kbd:
-    lodsb
-    test al, al
-    jz .unknown
-    ; BH = character to interpret (control)
-    cmp bh, al
-    je .found
-    add si, LENGTH_FUNCTION_ADDR
-  jmp .loop_kbd
 
   .found:
     mov ax, SOUND_SUCCESS
@@ -679,6 +677,33 @@ os_interpret_char:
     mov ax, dx
     call os_print_num
   ret
+
+os_interpret_kb:
+  mov si, os_keyboard_table
+  ; AH = character to interpret (control)
+  mov bl, ah
+  .loop_kbd:
+    lodsb
+    test al, al
+    jz .unknown
+    ; BH = character to interpret (control)
+    cmp bl, al
+    je .found
+    add si, LENGTH_FUNCTION_ADDR
+  jmp .loop_kbd
+
+  .found:
+    mov ax, SOUND_SUCCESS
+    call os_sound_play
+    lodsw           ; Load next command address
+    call ax         ; call the command address   
+  ret
+
+  .unknown:
+    mov ax, SOUND_ERROR
+    call os_sound_play
+  ret
+
 
 ; Selects next icon
 ; This function selects the next icon in the navigation
@@ -720,7 +745,21 @@ os_icon_print_desc:
   mov si, os_icons_table
   add si, ax
   mov si, [si+4]
+
+  call os_cursor_pos_get
+  push dx
+  mov dx, 0x0200
+  call os_cursor_pos_set
+  mov al, CHR_SPACE
+  mov ah, 40
+  call os_print_chr_mul
+  mov dx, 0x0202
+  call os_cursor_pos_set
   call os_print_str
+
+  pop dx
+  call os_cursor_pos_set
+  
 ret
 
 ; Executes icon command
@@ -917,6 +956,11 @@ os_sound_stop:
   out 61h, al
 ret
 
+os_fs_read_file:
+
+ret
+
+
 os_fs_debug:
   mov bx, GLYPH_FLOPPY
   call os_print_prompt
@@ -933,7 +977,7 @@ os_void:
 ret
 
 ; Data section =================================================================
-version_msg           db 'Version alpha5', 0
+version_msg           db 'Version alpha6', 0
 system_logo_msg       db 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
@@ -975,7 +1019,8 @@ msg_cmd_s             db 'Print system statistics', 0x0
 msg_cmd_l             db 'List files in the root directory', 0x0
 msg_cmd_tilde         db 'Debugging stuff, charset', 0x0
 msg_cmd_void          db 'Void. Not implemented yet.', 0x0
-msg_cmd_fs_debug          db 'File system debug information', 0x0
+msg_cmd_fs_debug      db 'File system debug information', 0x0
+msg_cmd_enter         db 'Execute command from selected icon', 0x0
 
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)
@@ -1024,6 +1069,9 @@ os_commands_table:
   db 'f'
   dw os_fs_debug, msg_cmd_fs_debug
 
+  db 13
+  dw os_icon_execute, msg_cmd_enter
+
   db 0x0
 
 os_keyboard_table:
@@ -1031,8 +1079,6 @@ os_keyboard_table:
   dw os_icon_next
   db KBD_KEY_LEFT
   dw os_icon_prev
-  db KBD_KEY_ENTER
-  dw os_icon_execute
   db 0x0
 
 
