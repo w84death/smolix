@@ -1,7 +1,6 @@
-# SMOLiX
-![SMOLiX Logo](media/logo.png)
+![SMOLiX](media/logo.png)
 
-SMOLiX: Real Mode, Raw Power.
+Real Mode, Raw Power.
 
 Homebrew, research, 16-bit operating system for x86 processors.
 
@@ -82,15 +81,6 @@ make clean  # Clean build artifacts
 
 ```/smolix/tool$ python3 tileset2glyphs.py tileset.png ../src/glyphs.asm```
 
-## Current Version
-Version alpha5:
-- Support for both 40x25 and 80x25 video modes
-- Updated character set
-- Permanent header with logo and version
-- Hardware statistics display
-- APM power management
-- Sound feedback for commands
-- Automatic command listing in help
 
 # FOSS
 Copyright (C) 2025 [Krzysztof Krystian Jankowski](https://krzysztofjankowski.com). This program is free software. See [LICENSE](LICENSE) for details.

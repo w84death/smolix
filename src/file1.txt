@@ -1,0 +1,22 @@
+SMOLiX MANUAL
+
+> ‚ƒ„…†‡ Real Mode, Raw Power.
+> Homebrew, research, 16-bit operating system for x86 processors.
+
+# Technical Details
+Minimalist operating system designed to run in x86 Real Mode (16-bit). It embraces the simplicity and raw performance of direct hardware access, while providing a unique graphical user interface.
+
+# Architecture
+- Processor Target: x86 (286+ compatible)
+- Mode: Real mode (16-bit)
+- Memory Model: Segmented memory model
+- Boot Method: Standard floppy disk boot
+- Minimal Hardware:
+  - CPU: 286
+  - Graphics: EGA
+  - RAM: 256KB
+
+# FOSS
+This program is free software. See LICENSE for details.
+Copyright (C) 2025 Krzysztof Krystian Jankowski
+https://krzysztofjankowski.com

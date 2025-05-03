@@ -33,3 +33,21 @@
 ;     jmp near os_draw_glyph_long
 ;     jmp near os_draw_window
 ;     jmp near os_get_key
+
+
+
+  ; .scroll_up:
+  ;   ; Scroll up if not at beginning
+  ;   cmp word [os_fs_file_pos], 0
+  ;   je .nav_loop           ; Already at top, ignore
+  ;   sub word [os_fs_file_pos], 160 ; Decrease by screen width*2 for one line
+  ;   call .display_file_content
+  ;   jmp .nav_loop
+    
+  ; .scroll_down:
+  ;   ; Scroll down if not at end
+  ;   add word [os_fs_file_pos], 160 ; Increase by screen width*2 for one line
+  ;   ; We would need to check if we're at the end of the file here
+  ;   ; For simplicity, we're just allowing scrolling within buffer limits
+  ;   call .display_file_content
+  ;   jmp .nav_loop

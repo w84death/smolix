@@ -1,5 +1,10 @@
 alpha6:
-    - [in-progress] file system implementation
+    - [done] basic file system implementation:
+        - read file from disk to buffer
+        - display buffer
+        - write buffer to the disk
+    - [done] example file on floppy
+    - [done] clean up, refactor
 alpha5:
     - [done] code refactor, cleanup, comments added
     - [done] working icons (select, execute, description)

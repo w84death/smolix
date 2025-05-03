@@ -11,12 +11,23 @@
 org 0x0000
 use16
 
-OS_VIDEO_MODE_40      equ 0x00  ; default 40x25
-OS_VIDEO_MODE_80      equ 0x03  ; 80x25 // 720x400 VGA text mode
-_OS_MEMORY_BASE_      equ 0x2000  ; Define memory base address
-_OS_TICK_             equ _OS_MEMORY_BASE_+0x0
-_OS_VIDEO_MODE_       equ _OS_MEMORY_BASE_+0x4
-_OS_NAV_POSITION_     equ _OS_MEMORY_BASE_+0x5
+_OS_MEMORY_BASE_      equ 0x2000    ; Define memory base address
+_OS_TICK_             equ _OS_MEMORY_BASE_ + 0x00
+_OS_VIDEO_MODE_       equ _OS_MEMORY_BASE_ + 0x04
+_OS_NAV_POSITION_     equ _OS_MEMORY_BASE_ + 0x05
+_OS_FS_BUFFER_        equ _OS_MEMORY_BASE_ + 0x10
+
+OS_VIDEO_MODE_40      equ 0x00      ; 40x25 // 360x400
+OS_VIDEO_MODE_80      equ 0x03      ; 80x25 // 720x400 VGA text mode
+OS_NAV_START_POS            equ 0x0
+OS_NAV_LAST_POS             equ 0x8
+OS_FS_BLOCK_FIRST           equ 9
+OS_FS_BLOCK_SIZE            equ 16
+OS_FS_FILE_SIZE             equ 8192
+OS_FS_FILE_LINES_ON_SCREEN  equ 0x12
+OS_FS_FILE_CHARS_ON_LINE_80 equ 80-1
+OS_FS_FILE_CHARS_ON_LINE_40 equ 40-1
+OS_FS_FILE_SCROLL_CHARS     equ 160
 
 GLYPH_FIRST           equ 0x80
 PROMPT_MSG            equ GLYPH_FIRST+0xB
@@ -60,8 +71,7 @@ LENGTH_FUNCTION_ADDR  equ 2
 LENGTH_DESC_ADDR      equ 2     
 LOGO_LENGTH           equ 7
 
-OS_NAV_START_POS      equ 0x0
-OS_NAV_LAST_POS       equ 0x8
+
 
 SOUND_OS_START        equ 1500
 SOUND_SUCCESS         equ 1700
@@ -347,13 +357,6 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_help:
-  ; Line describing icons
-  mov bl, PROMPT_MSG
-  call os_print_prompt
-  mov si, help_icons_msg
-  call os_print_str
-
-  ; Commands header
   mov bl, PROMPT_MSG
   call os_print_prompt
   mov si, help_cmds_msg
@@ -560,8 +563,10 @@ ret
 ; Expects: None
 ; Returns: None
 os_clear_shell:
+  pusha
   call os_clear_screen
   call os_print_header
+  popa
 ret
 
 ; Cursor position reset ========================================================
@@ -658,10 +663,10 @@ os_interpret_char:
     jmp .loop_commands
 
   .found:
-    mov ax, SOUND_SUCCESS
-    call os_sound_play
     lodsw           ; Load next command address
     call ax         ; call the command address   
+    mov ax, SOUND_SUCCESS
+    call os_sound_play
   ret
 
   .unknown:
@@ -692,11 +697,11 @@ os_interpret_kb:
     add si, LENGTH_FUNCTION_ADDR
   jmp .loop_kbd
 
-  .found:
-    mov ax, SOUND_SUCCESS
-    call os_sound_play
+  .found:    
     lodsw           ; Load next command address
     call ax         ; call the command address   
+    mov ax, SOUND_SUCCESS
+    call os_sound_play
   ret
 
   .unknown:
@@ -956,17 +961,189 @@ os_sound_stop:
   out 61h, al
 ret
 
-os_fs_read_file:
-
+os_fs_file1_load:
+  xor dx, dx
+  call os_fs_file_load
+  call os_print_error_status
+  mov word [os_fs_file_pos], 0
 ret
 
+; File System: read file =======================================================
+; This function reads a file from the floppy disk and displays it on the screen
+; Expects: DX = file block
+; Returns: CF = 0 on success, CF = 1 on failure
+os_fs_file_load:
+  mov bl, GLYPH_FLOPPY
+  call os_print_prompt
+  mov si, fs_reading_msg
+  call os_print_str
 
-os_fs_debug:
+  ; Reset disk system first
+  xor ax, ax
+  int 0x13               ; Reset disk system
+  jc .disk_error
+
+  mov ax, OS_FS_BLOCK_SIZE
+  ; DX = file block
+  mov bx, dx
+  imul ax, bx            ; Set correct file block
+  add ax, OS_FS_BLOCK_FIRST
+  mov dh, al
+  
+  mov ax, ds
+  mov es, ax              ; Make sure ES=DS for disk read
+  mov bx, _OS_FS_BUFFER_ 
+  
+  mov ah, 0x02            ; BIOS read sectors function
+  mov al, OS_FS_BLOCK_SIZE 
+  mov ch, 0               ; Cylinder 0
+  mov cl, dh              ; Starting sector (file block)
+  mov dh, 0               ; Head 0
+  mov dl, 0x00            ; Drive 0 (first floppy drive)
+
+  int 0x13               ; BIOS disk interrupt
+  jc .disk_error         ; Error if carry flag set
+   
+  clc                    ; Clear carry flag (success)
+  ret
+  
+  .disk_error:
+    stc                   ; Set carry flag (error)
+    ret
+
+; File System: display file ====================================================
+; This function displays the contents of a file on the screen
+; Expects: None
+; Returns: None
+os_fs_file_display:
+  mov si, _OS_FS_BUFFER_
+  add si, [os_fs_file_pos]  ; Add current scroll position
+
+  cmp byte [si], 0          ; Check if the current character is null
+  je .empty_file
+
+  call os_clear_shell
+
+  ; Calculate end of buffer for bounds checking
+  mov di, _OS_FS_BUFFER_
+  add di, OS_FS_FILE_SIZE
+
+  mov cx, OS_FS_FILE_LINES_ON_SCREEN  ; Number of lines to display
+  mov dl, OS_FS_FILE_CHARS_ON_LINE_80 ; Chars per line (default 80 col)
+  push si
+  mov si, fs_ruler_80_msg
+
+  .video_mode_adjust2:
+    cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
+    jne .done_video_mode_adjust2
+    mov dl, OS_FS_FILE_CHARS_ON_LINE_40 ; Adjust for 40 col
+    mov si, fs_ruler_40_msg
+  .done_video_mode_adjust2:
+  call os_print_str
+  pop si
+
+  .line_loop:
+    xor dh, dh  ; Move cursor to line 0
+
+    .char_loop:
+      cmp si, di
+      jge .done               ; Reached end of buffer data
+
+      lodsb
+
+      test al, al
+      jz .done                ; Last character
+
+      cmp al, CHR_CR          ; Check for Carriage Return (CR)
+      je .char_loop           ; Ignore CR, get next char
+
+      cmp al, CHR_LF          ; Check for Line Feed (LF)
+      je .newline             ; LF found, handle end of line
+
+      call os_print_chr      ; Print the character
+      inc dh
+
+      cmp dh, dl   ; Check if line is full
+      jl .char_loop               ; Line not full, continue reading chars
+      jmp .newline
+
+    .newline:
+      dec cx                  ; Decrement line counter (one line finished)
+      jz .done                ; Last line
+
+      mov al, CHR_CR
+      mov ah, CHR_LF
+      call os_print_chr2
+    jmp .line_loop
+
+  .done:
+    mov bl, PROMPT_MSG
+    call os_print_prompt
+    mov si, fs_nav_msg
+    call os_print_str
+ret
+  .empty_file:
+    mov bl, PROMPT_ERR
+    call os_print_prompt  
+    mov si, fs_empty_msg
+    call os_print_str
+ret
+
+; File System: scroll up =======================================================
+os_fs_scroll_up:
+  cmp word [os_fs_file_pos], OS_FS_FILE_SCROLL_CHARS
+  jl .done
+  sub word [os_fs_file_pos], OS_FS_FILE_SCROLL_CHARS
+  call os_fs_file_display
+  .done:  
+ret
+
+; File System: scroll Down =====================================================
+os_fs_scroll_down:
+  cmp word [os_fs_file_pos], OS_FS_FILE_SIZE-OS_FS_FILE_SCROLL_CHARS
+  jg .done 
+  add word [os_fs_file_pos], OS_FS_FILE_SCROLL_CHARS
+  call os_fs_file_display
+  .done:
+ret
+
+; File System: file write ======================================================
+; This function writes data to a file on the disk
+; Expects: None
+; Returns: CF = 0 on success, CF = 1 on error
+os_fs_file_write:
   mov bx, GLYPH_FLOPPY
   call os_print_prompt
-  mov si, fs_debug_msg
+  mov si, fs_writing_msg
   call os_print_str
-ret
+  
+  ; Reset disk system first
+  xor ax, ax
+  int 0x13               ; Reset disk system
+  jc .write_error
+      
+  ; Set up ES:BX for disk write
+  mov ax, ds
+  mov es, ax
+  mov bx, _OS_FS_BUFFER_
+  
+  ; Set up disk write parameters
+  mov ah, 0x03           ; BIOS write sectors function
+  mov al, OS_FS_BLOCK_SIZE ; Number of sectors to write
+  mov ch, 0              ; Cylinder 0
+  mov cl, OS_FS_BLOCK_FIRST ; Start from sector defined in constants
+  mov dh, 0              ; Head 0
+  mov dl, 0x00           ; Drive 0 (first floppy drive)
+  
+  int 0x13               ; Call BIOS to write sectors
+  jc .write_error        ; Error if carry flag set
+
+  clc                    ; Clear carry flag (success)
+  ret
+  
+  .write_error:
+    stc                  ; Set carry flag (error)
+    ret
 
 ; Void =========================================================================
 ; This is a placeholder function
@@ -982,14 +1159,9 @@ system_logo_msg       db 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
 more_info_msg         db 'Type "h" for help.', 0
-help_icons_msg        db 'Legend: ',PROMPT_SYS_MSG,' system message, ',PROMPT_MSG,' message, ',PROMPT_ERR,' error, ',PROMPT_USR,' user prompt', 0
 help_cmds_msg         db 'System character commands:', 0
 unknown_cmd_msg       db 'Unknown command', 0
 unsupported_msg       db 'Unsupported hardware function', 0
-detected_msg          db 'detected', 0
-not_detected_msg      db 'not detected', 0
-success_init_msg      db 'initialized successfully', 0
-failed_init_msg       db 'failed to initialize', 0
 hex_ruler_msg         db '0123456789ABCDEF', 0
 memory_installed_msg  db 'Memory installed: ', 0
 kernel_size_msg       db 'Kernel size: ', 0
@@ -998,15 +1170,14 @@ byte_msg              db ' B', 0
 sectors_msg           db ' sectors', 0
 bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
-benchmark_msg         db 'Benchmark score: ', 0
-fs_init_msg           db 'File system init: ', 0
-fs_free_space_msg     db 'Free file space: ', 0
 success_msg           db 'success.', 0
 failure_msg           db 'failure.', 0
-fs_debug_msg          db 'Writing file...', 0
-fs_list_header_msg    db 'Listing files:', 0
-fs_read_error_msg     db 'Error reading directory.', 0
-fs_no_free_entry_msg  db 'No free directory entry found.', 0
+fs_reading_msg        db 'Reading data from disk...', 0
+fs_writing_msg        db 'Writing data to disk...', 0
+fs_nav_msg            db 'Use UP/DOWN to scroll.', 0
+fs_empty_msg          db 'No/empty file. Read data first.', 0
+fs_ruler_80_msg       db '0--------1---------2---------3---------4---------5---------6---------7---------8', 0x0
+fs_ruler_40_msg       db '0--------1---------2---------3---------4', 0x0
 
 msg_cmd_h             db 'Help & list of commands', 0x0
 msg_cmd_v             db 'Prints system version', 0x0
@@ -1014,13 +1185,15 @@ msg_cmd_r             db 'Soft system reset', 0x0
 msg_cmd_R             db 'Hard system reboot', 0x0
 msg_cmd_D             db 'Shutdown the computer', 0x0
 msg_cmd_c             db 'Clear the shell log', 0x0  
-msg_cmd_x             db 'Toggle between 40 and 80 screen modes', 0x0
+msg_cmd_x             db 'Toggle between 40/80 screen modes', 0x0
 msg_cmd_s             db 'Print system statistics', 0x0
-msg_cmd_l             db 'List files in the root directory', 0x0
 msg_cmd_tilde         db 'Debugging stuff, charset', 0x0
 msg_cmd_void          db 'Void. Not implemented yet.', 0x0
-msg_cmd_fs_debug      db 'File system debug information', 0x0
-msg_cmd_enter         db 'Execute command from selected icon', 0x0
+msg_cmd_enter         db '[ENTER] Run selected icon command', 0x0
+msg_cmd_fs_display    db GLYPH_FLOPPY, ' Display loaded file content', 0x0
+msg_cmd_fs_load       db GLYPH_FLOPPY, ' Load file from the file system', 0x0
+msg_cmd_fs_write      db GLYPH_FLOPPY, ' Write file to the file system', 0x0
+os_fs_file_pos       dw 0
 
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)
@@ -1066,8 +1239,14 @@ os_commands_table:
   db '`'
   dw os_print_debug, msg_cmd_tilde
 
+  db 'F'
+  dw os_fs_file1_load, msg_cmd_fs_load
+
   db 'f'
-  dw os_fs_debug, msg_cmd_fs_debug
+  dw os_fs_file_display, msg_cmd_fs_display
+
+  db 'W'
+  dw os_fs_file_write, msg_cmd_fs_write
 
   db 13
   dw os_icon_execute, msg_cmd_enter
@@ -1079,12 +1258,13 @@ os_keyboard_table:
   dw os_icon_next
   db KBD_KEY_LEFT
   dw os_icon_prev
+  db KBD_KEY_UP
+  dw os_fs_scroll_up
+  db KBD_KEY_DOWN
+  dw os_fs_scroll_down
+  db KBD_KEY_ESCAPE
+  dw os_clear_shell
   db 0x0
-
-
-test_file_name: db 'test.txt', 0
-test_file_content: db 'This is the content of the test file.'
-test_file_end:
 
 ; Glyphs =======================================================================
 ; This section includes the glyph definitions
