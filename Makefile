@@ -30,7 +30,9 @@ IMG_DIR = $(BUILD_DIR)/img
 BOOTLOADER = $(BIN_DIR)/boot.bin
 KERNEL = $(BIN_DIR)/kernel.bin
 FLOPPY_IMG = $(IMG_DIR)/floppy.img
-TEST_FILE = src/file1.txt
+OS_FILE_MANUAL = src/manual.txt
+OS_FILE_LEM = src/lem.txt
+
 
 # Assembly flags
 # Note: FASM doesn't need format flags like NASM does
@@ -62,11 +64,12 @@ $(IMG_DIR)/floppy_empty.img: | $(IMG_DIR)
 	$(DD) if=/dev/zero of=$@ bs=1474560 count=1
 
 # Write bootloader to floppy image
-$(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(TEST_FILE)
+$(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(OS_FILE_MANUAL) $(OS_FILE_2)
 	cp $(IMG_DIR)/floppy_empty.img $(FLOPPY_IMG)
 	$(DD) if=$(BOOTLOADER) of=$(FLOPPY_IMG) bs=512 count=1 conv=notrunc
 	$(DD) if=$(KERNEL) of=$(FLOPPY_IMG) bs=512 seek=1 conv=notrunc
-	$(DD) if=$(TEST_FILE) of=$(FLOPPY_IMG) bs=512 seek=16 conv=notrunc
+	$(DD) if=$(OS_FILE_MANUAL) of=$(FLOPPY_IMG) bs=512 seek=16 conv=notrunc
+	$(DD) if=$(OS_FILE_LEM) of=$(FLOPPY_IMG) bs=512 seek=18 conv=notrunc
 
 # Run SMOLiX in QEMU/86Box
 run: $(FLOPPY_IMG)

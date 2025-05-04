@@ -980,7 +980,8 @@ os_sound_stop:
 ret
 
 os_fs_file1_read:
-  xor dx, dx
+  mov dl, [os_fs_directory_table+2]
+  mov dh, [os_fs_directory_table+3]
   call os_fs_file_load
   call os_print_error_status
   mov word [os_fs_file_pos], 0
@@ -988,9 +989,10 @@ ret
 
 ; File System: read file =======================================================
 ; This function reads a file from the floppy disk and displays it on the screen
-; Expects: DX = file block
+; Expects: DL = File number
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_file_load:
+  
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
   mov si, fs_reading_msg
@@ -1000,14 +1002,7 @@ os_fs_file_load:
   xor ax, ax
   int 0x13               ; Reset disk system
   jc .disk_error
-
-  mov ax, OS_FS_BLOCK_SIZE
-  ; DX = file block
-  mov bx, dx
-  imul ax, bx            ; Set correct file block
-  add ax, OS_FS_BLOCK_FIRST
-  mov dh, al
-  
+ 
   mov ax, ds
   mov es, ax              ; Make sure ES=DS for disk read
   mov bx, _OS_FS_BUFFER_ 
@@ -1015,10 +1010,9 @@ os_fs_file_load:
   mov ah, 0x02            ; BIOS read sectors function
   mov al, OS_FS_BLOCK_SIZE 
   mov ch, 0               ; Cylinder 0
-  mov cl, dh              ; Starting sector (file block)
-  mov dh, 0               ; Head 0
+  ; mov dh, 1               ; Head 1
+  mov cl, dl              ; Starting sector (file block)
   mov dl, 0x00            ; Drive 0 (first floppy drive)
-
   int 0x13               ; BIOS disk interrupt
   jc .disk_error         ; Error if carry flag set
    
@@ -1297,6 +1291,11 @@ os_cpu_family_table:
   dw cpu_family_other
   dw 0x0
 
+os_fs_directory_table:
+  db 17, 0    ; Manual at 0x2000
+  db 1, 1     ; Lem at 0x4000
+  db 0x0
+
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)
 os_icons_table:
@@ -1375,6 +1374,8 @@ os_keyboard_table:
 ; Glyphs =======================================================================
 ; This section includes the glyph definitions
 include 'glyphs.asm'
+
+times 1024*6 - ($ - $$) db 0x69   ; Pad to 510 bytes
 
 db "P1X"            ; Use HEX viewer to see `P1X` at the end of binary
 os_kernel_end:
