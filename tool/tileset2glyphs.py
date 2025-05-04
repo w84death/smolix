@@ -57,22 +57,23 @@ def convert_sprite_to_bytes(img, sprite_index, width, height, sprites_per_row):
 def generate_asm_output(sprites_data, output_file=None):
     output = []
     
-    # Generate the assembly code for each sprite
-    for i, sprite in enumerate(sprites_data):
-        output.append(f"glyph_{i:02x}:")
+    # Generate the assembly code for each sprite, starting from index 1 (skip first glyph)
+    for i, sprite in enumerate(sprites_data[1:], start=1):
+        # Remove the last two lines from each glyph
+        trimmed_sprite = sprite[:-2] if len(sprite) >= 2 else sprite
         
-        # Format bytes in rows of 8
-        rows = [sprite[j:j+8] for j in range(0, len(sprite), 8)]
-        for row in rows:
-            byte_str = ", ".join([f"0x{b:02x}" for b in row])
-            output.append(f"    db {byte_str}")
-        
+        # Format each glyph on a single line
+        byte_str = ", ".join([f"0x{b:02x}" for b in trimmed_sprite])
+        output.append(f"glyph_{i:02x}:  db {byte_str}")
         output.append("")
     
     # Add a table that contains pointers to all glyphs
     output.append("glyph_table:")
-    for i in range(len(sprites_data)):
+    for i in range(1, len(sprites_data)):  # Start from 1 to skip the first glyph
         output.append(f"    dw glyph_{i:02x}")
+    
+    # Add termination entry (0x0)
+    output.append("    dw 0x0000  ; termination entry")
     
     result = "\n".join(output)
     
