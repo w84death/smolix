@@ -66,7 +66,7 @@ $(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(TEST_FILE)
 	cp $(IMG_DIR)/floppy_empty.img $(FLOPPY_IMG)
 	$(DD) if=$(BOOTLOADER) of=$(FLOPPY_IMG) bs=512 count=1 conv=notrunc
 	$(DD) if=$(KERNEL) of=$(FLOPPY_IMG) bs=512 seek=1 conv=notrunc
-	$(DD) if=$(TEST_FILE) of=$(FLOPPY_IMG) bs=512 seek=8 conv=notrunc
+	$(DD) if=$(TEST_FILE) of=$(FLOPPY_IMG) bs=512 seek=16 conv=notrunc
 
 # Run SMOLiX in QEMU/86Box
 run: $(FLOPPY_IMG)
