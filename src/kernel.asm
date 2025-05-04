@@ -4,88 +4,86 @@
 ; This program is free software. See LICENSE for details.
 
 ; Minimal hardware:
-; CPU: 386
-; Graphics: EGA
-; RAM: 256KB
+; CPU: 486+ (due to CPUID function, rest should work on 286)
+; Graphics: EGA (for best compatibility, VGA also works)
+; RAM: 1MB (tested, should work on 64K in theory)
 
 org 0x0000
 
-_OS_MEMORY_BASE_      equ 0x2000    ; Define memory base address
-_OS_TICK_             equ _OS_MEMORY_BASE_ + 0x00
-_OS_VIDEO_MODE_       equ _OS_MEMORY_BASE_ + 0x04
-_OS_STATE_            equ _OS_MEMORY_BASE_ + 0x05
-_OS_NAV_POSITION_     equ _OS_MEMORY_BASE_ + 0x06
-_OS_FS_BUFFER_        equ _OS_MEMORY_BASE_ + 0x10
+_OS_MEMORY_BASE_                equ 0x2000    ; Define memory base address
+_OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00
+_OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04
+_OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05
+_OS_NAV_POSITION_               equ _OS_MEMORY_BASE_ + 0x06
+_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x10
 
-OS_STATE_INIT         equ 0x01
-OS_STATE_SHELL        equ 0x02
-OS_STATE_EDIT         equ 0x03
-OS_STATE_SCREENSAVER  equ 0x04
+OS_STATE_INIT                   equ 0x01
+OS_STATE_SHELL                  equ 0x02
+OS_STATE_EDIT                   equ 0x03
+OS_STATE_SCREENSAVER            equ 0x04
+OS_VIDEO_MODE_40                equ 0x00      ; 40x25 // 360x400
+OS_VIDEO_MODE_80                equ 0x03      ; 80x25 // 720x400 VGA text mode
+OS_NAV_START_POS                equ 0x0
+OS_NAV_LAST_POS                 equ 0x8
+OS_NAV_POS_SHELL                equ 0x0
+OS_NAV_POS_EDIT                 equ 0x2
+OS_FS_BLOCK_FIRST               equ 17
+OS_FS_BLOCK_SIZE                equ 16
+OS_FS_FILE_SIZE                 equ 8192
+OS_FS_FILE_LINES_ON_SCREEN      equ 0x15
+OS_FS_FILE_CHARS_ON_LINE_80     equ 80-1
+OS_FS_FILE_CHARS_ON_LINE_40     equ 40-1
+OS_FS_FILE_SCROLL_CHARS         equ 160
+OS_COLOR_PRIMARY                equ 0x1F  
+OS_COLOR_SECONDARY              equ 0x2F  
+OS_LENGTH_BYTE                  equ 1     
+OS_LENGTH_WORD                  equ 2     
+OS_LENGTH_WORD                  equ 2     
+OS_LOGO_LENGTH                  equ 7
+OS_SOUND_STARTUP                equ 1500
+OS_SOUND_SUCCESS                equ 1700
+OS_SOUND_ERROR                  equ 2500
 
-OS_VIDEO_MODE_40      equ 0x00      ; 40x25 // 360x400
-OS_VIDEO_MODE_80      equ 0x03      ; 80x25 // 720x400 VGA text mode
-OS_NAV_START_POS            equ 0x0
-OS_NAV_LAST_POS             equ 0x8
-OS_NAV_POS_SHELL            equ 0x0
-OS_NAV_POS_EDIT             equ 0x2
-OS_FS_BLOCK_FIRST           equ 17
-OS_FS_BLOCK_SIZE            equ 16
-OS_FS_FILE_SIZE             equ 8192
-OS_FS_FILE_LINES_ON_SCREEN  equ 0x15
-OS_FS_FILE_CHARS_ON_LINE_80 equ 80-1
-OS_FS_FILE_CHARS_ON_LINE_40 equ 40-1
-OS_FS_FILE_SCROLL_CHARS     equ 160
+OS_GLYPH_ADDRESS                equ 0x80
+PROMPT_MSG                      equ OS_GLYPH_ADDRESS+0xA
+PROMPT_SYS_MSG                  equ OS_GLYPH_ADDRESS+0x8
+PROMPT_LIST                     equ 0x1A
+PROMPT_ERR                      equ OS_GLYPH_ADDRESS+0x9
+PROMPT_USR                      equ OS_GLYPH_ADDRESS+0xB
+GLYPH_MASCOT                    equ OS_GLYPH_ADDRESS+0x7
+GLYPH_PC                        equ OS_GLYPH_ADDRESS+0xC
+GLYPH_FLOPPY                    equ OS_GLYPH_ADDRESS+0xD
+GLYPH_CAL                       equ OS_GLYPH_ADDRESS+0xE
+GLYPH_MEM                       equ OS_GLYPH_ADDRESS+0x0F
+GLYPH_BAT                       equ OS_GLYPH_ADDRESS+0x10
+GLYPH_BLOCK                     equ OS_GLYPH_ADDRESS+0x11
+GLYPH_CEILING                   equ OS_GLYPH_ADDRESS+0x12
+GLYPH_FLOOR                     equ OS_GLYPH_ADDRESS+0x13
+GLYPH_RAMP_UP                   equ OS_GLYPH_ADDRESS+0x14
+GLYPH_RAMP_DOWN                 equ OS_GLYPH_ADDRESS+0x15
+GLYPH_ICONS_SELECTOR            equ 0x9796
+GLYPH_ICON_RESET                equ 0x9998  
+GLYPH_ICON_REBOOT               equ 0x9B9A 
+GLYPH_ICON_DOWN                 equ 0x9D9C 
+GLYPH_ICON_SHELL                equ 0x9F9E 
+GLYPH_ICON_EDIT                 equ 0xA1A0
+GLYPH_ICON_CONF                 equ 0xA3A2 
+GLYPH_ICON_CLEAR                equ 0xA5A4
+GLYPH_ICON_X                    equ 0xA7A6
+GLYPH_ICON_DOTS                 equ 0xA9A8 
+GLYPH_ICON_FLOPPY               equ 0xABAA 
 
-GLYPH_FIRST           equ 0x80
-PROMPT_MSG            equ GLYPH_FIRST+0xB
-PROMPT_SYS_MSG        equ GLYPH_FIRST+0x9
-PROMPT_LIST           equ 0x1A
-PROMPT_ERR            equ GLYPH_FIRST+0xA
-PROMPT_USR            equ GLYPH_FIRST+0xC
-CHR_SPACE             equ GLYPH_FIRST
-CHR_CR                equ 0x0D
-CHR_LF                equ 0x0A
-GLYPH_MASCOT          equ GLYPH_FIRST+0x8
-GLYPH_PC              equ GLYPH_FIRST+0xD
-GLYPH_FLOPPY          equ GLYPH_FIRST+0xE
-GLYPH_CAL             equ GLYPH_FIRST+0xF
-GLYPH_MEM             equ GLYPH_FIRST+0x10
-GLYPH_BAT             equ GLYPH_FIRST+0x11
-GLYPH_BLOCK           equ GLYPH_FIRST+0x12
-GLYPH_CEILING         equ GLYPH_FIRST+0x13
-GLYPH_FLOOR           equ GLYPH_FIRST+0x14
-GLYPH_RAMP_UP         equ GLYPH_FIRST+0x15
-GLYPH_RAMP_DOWN       equ GLYPH_FIRST+0x16
-GLYPH_ICONS_SELECTOR  equ 0x9897
-GLYPH_ICON_RESET      equ 0x9A99 
-GLYPH_ICON_REBOOT     equ 0x9C9B 
-GLYPH_ICON_DOWN       equ 0x9E9D 
-GLYPH_ICON_SHELL      equ 0xA09F 
-GLYPH_ICON_EDIT       equ 0xA2A1
-GLYPH_ICON_CONF       equ 0xA4A3 
-GLYPH_ICON_CLEAR      equ 0xA6A5
-GLYPH_ICON_X          equ 0xA8A7 
-GLYPH_ICON_DOTS       equ 0xAAA9 
-GLYPH_ICON_FLOPPY     equ 0xACAB 
+CHR_SPACE                       equ ' '
+CHR_CR                          equ 0x0D
+CHR_LF                          equ 0x0A
 
-COLOR_PRIMARY         equ 0x1F  
-COLOR_SECONDARY       equ 0x2F  
-LENGTH_CMDS_TBL_CHAR  equ 1     
-LENGTH_FUNCTION_ADDR  equ 2     
-LENGTH_DESC_ADDR      equ 2     
-LOGO_LENGTH           equ 7
-
-SOUND_OS_START        equ 1500
-SOUND_SUCCESS         equ 1700
-SOUND_ERROR           equ 2500
-
-KBD_KEY_LEFT          equ 0x4B
-KBD_KEY_RIGHT         equ 0x4D
-KBD_KEY_UP            equ 0x48
-KBD_KEY_DOWN          equ 0x50
-KBD_KEY_ESCAPE        equ 0x01
-KBD_KEY_ENTER         equ 0x1C
-KBD_KEY_BACKSPACE     equ 0x0E
+KBD_KEY_LEFT                    equ 0x4B
+KBD_KEY_RIGHT                   equ 0x4D
+KBD_KEY_UP                      equ 0x48
+KBD_KEY_DOWN                    equ 0x50
+KBD_KEY_ESCAPE                  equ 0x01
+KBD_KEY_ENTER                   equ 0x1C
+KBD_KEY_BACKSPACE               equ 0x0E
 
 os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
@@ -110,7 +108,7 @@ os_reset:
   call os_print_ver
   call os_sound_init
   call os_print_welcome
-  mov ax, SOUND_OS_START
+  mov ax, OS_SOUND_STARTUP
   call os_sound_play
   mov bl, PROMPT_USR
   call os_print_prompt
@@ -228,7 +226,7 @@ os_print_header:
     mov dl, 0x27      ; 40 columns
   .set_color:
   mov ax, 0x0600    ; Function 06h (scroll window up)
-  mov bh, COLOR_SECONDARY
+  mov bh, OS_COLOR_SECONDARY
   mov cx, 0x0000    ; Top left corner (row 0, col 0)
   int 0x10
 
@@ -280,7 +278,7 @@ os_print_header:
   call os_print_chr
 
   mov al, GLYPH_FLOOR
-  mov ah, LOGO_LENGTH
+  mov ah, OS_LOGO_LENGTH
   call os_print_chr_mul
 
   mov al, GLYPH_RAMP_UP
@@ -394,13 +392,13 @@ os_print_help:
     
     call os_print_chr
 
-    add si, LENGTH_FUNCTION_ADDR  ; Skip address, point to description pointer
+    add si, OS_LENGTH_WORD  ; Skip address, point to description pointer
     push si                       ; Saves os_commands_table
     mov si, [si]                  ; Gets the description message address
     call os_print_str             ; Print description string  
     pop si                        ; Restore os_commands_table
 
-    add si, LENGTH_DESC_ADDR      ; Move to next command
+    add si, OS_LENGTH_WORD      ; Move to next command
     jmp .cmd_loop
 .done:
 ret
@@ -564,7 +562,7 @@ os_clear_screen:
   pusha
   call os_cursor_pos_reset
   mov ax, 0x0600     ; Function 06h (scroll window up)
-  mov bh, COLOR_PRIMARY  ; Set color attribute
+  mov bh, OS_COLOR_PRIMARY  ; Set color attribute
   mov cx, 0x0000     ; Top left corner (row 0, col 0)
   mov dx, 0x184F     ; Bottom right corner (row 24, col 79)
   int 0x10
@@ -624,7 +622,7 @@ os_load_glyph:
   mov bl, 00h           ; RAM block (0 for default)
   mov cx, 0x01          ; Number of characters to replace (single)
   pop dx                ; Restore character code
-  add dx, GLYPH_FIRST   ; Adjust character code for extended ASCII
+  add dx, OS_GLYPH_ADDRESS   ; Adjust character code for extended ASCII
   int 10h               ; Call BIOS video interrupt to load the font
   popa
 ret
@@ -673,18 +671,18 @@ os_interpret_char:
     ; BL = character to interpret
     cmp bl, al
     je .found
-    lea si, [si + LENGTH_FUNCTION_ADDR+LENGTH_DESC_ADDR]
+    lea si, [si + OS_LENGTH_WORD+OS_LENGTH_WORD]
     jmp .loop_commands
 
   .found:
     lodsw           ; Load next command address
     call ax         ; call the command address   
-    mov ax, SOUND_SUCCESS
+    mov ax, OS_SOUND_SUCCESS
     call os_sound_play
   ret
 
   .unknown:
-    mov ax, SOUND_ERROR
+    mov ax, OS_SOUND_ERROR
     call os_sound_play
     movzx dx, bl
     mov bl, PROMPT_ERR
@@ -712,18 +710,18 @@ os_interpret_kb:
     cmp bl, al
     je .found
     .next:
-    add si, LENGTH_FUNCTION_ADDR
+    add si, OS_LENGTH_WORD
   jmp .loop_kbd
 
   .found:    
     lodsw           ; Load next command address
     call ax         ; call the command address   
-    mov ax, SOUND_SUCCESS
+    mov ax, OS_SOUND_SUCCESS
     call os_sound_play
   ret
 
   .unknown:
-    mov ax, SOUND_ERROR
+    mov ax, OS_SOUND_ERROR
     call os_sound_play
   ret
 
@@ -805,7 +803,7 @@ os_print_debug:
   ; First row
   mov bl, PROMPT_MSG
   call os_print_prompt
-  mov al, GLYPH_FIRST    
+  mov al, OS_GLYPH_ADDRESS    
   call os_print_chr
   mov cx, 0x1F            ; 32 glyphs
   .loop_chars:
@@ -1221,13 +1219,20 @@ ret
 
 ; Data section =================================================================
 version_msg           db 'Version alpha8', 0
-system_logo_msg       db 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0
+system_logo_msg       db OS_GLYPH_ADDRESS+0x0
+                      db OS_GLYPH_ADDRESS+0x1
+                      db OS_GLYPH_ADDRESS+0x2
+                      db OS_GLYPH_ADDRESS+0x3
+                      db OS_GLYPH_ADDRESS+0x4
+                      db OS_GLYPH_ADDRESS+0x5
+                      db OS_GLYPH_ADDRESS+0x6
+                      db 0x0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
 more_info_msg         db 'Type "h" for help.', 0
-help_line1_msg         db 'LEFT/RIGHT/ENTER to navigate toolbar', 0
-help_line2_msg         db 'Load&read first file for manual', 0
-help_line3_msg         db 'List of text commands:', 0
+help_line1_msg        db 'LEFT/RIGHT/ENTER to navigate toolbar', 0
+help_line2_msg        db 'Load&read first file for manual', 0
+help_line3_msg        db 'List of text commands:', 0
 unknown_cmd_msg       db 'Unknown command', 0
 unsupported_msg       db 'Unsupported hardware function', 0
 hex_ruler_msg         db '0123456789ABCDEF', 0
@@ -1252,18 +1257,18 @@ fs_reading_msg        db 'Reading data from disk...', 0
 fs_writing_msg        db 'Writing data to disk...', 0
 fs_nav_msg            db 'Use UP/DOWN to scroll.', 0
 fs_empty_msg          db 'No/empty file. Read data first.', 0
-fs_ruler_80_msg:      db 0xAF,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB1
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB2
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB3
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB3
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB4
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB4
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB4
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB5,0x0
-fs_ruler_40_msg:      db 0xAF,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB1
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB2
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB3
-                      db 0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB0,0xB5,0x0
+fs_ruler_80_msg:      db 0xAE,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB0
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB1
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB2
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB3
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB3
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB3
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB3
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB4,0x0
+fs_ruler_40_msg:      db 0xAE,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB0
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB1
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB2
+                      db 0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xAF,0xB4,0x0
 msg_cmd_h             db 'Short help and list of commands', 0x0
 msg_cmd_v             db 'Prints system version', 0x0
 msg_cmd_r             db 'Soft system reset', 0x0
