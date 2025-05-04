@@ -1375,7 +1375,6 @@ os_keyboard_table:
 ; Glyphs =======================================================================
 ; This section includes the glyph definitions
 include 'glyphs.asm'
-dw 0x0 ; Terminator
 
 db "P1X"            ; Use HEX viewer to see `P1X` at the end of binary
 os_kernel_end:
