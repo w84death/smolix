@@ -138,7 +138,7 @@ W (Write File):
 ---------------------
 SMOLiX runs in real mode (16-bit) on x86 processors. Minimum requirements:
 
-* CPU: 286 or better
+* CPU: 486 or better
 * Graphics: EGA compatible
 * RAM: 256KB minimum
 

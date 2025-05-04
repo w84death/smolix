@@ -1,4 +1,22 @@
+; Intresting instructions:
 
+ADC—Add With Carry
+ADCX—Unsigned Integer Addition of Two Operands With Carry Flag
+BEXTR—Bit Field Extract
+BSF—Bit Scan Forward
+BSR—Bit Scan Reverse
+
+BT—Bit Test
+CLUI—Clear User Interrupt Flag
+CMOVcc—Conditional Move
+CPUID—CPU Identification
+LEA—Load Effective Address
+NOT—One's Complement Negation
+PMAXSB/PMAXSW—Maximum of Packed Unsigned Integers
+PMINSB/PMINSW—Minimum of Packed Signed Integers
+POPCNT—Return the Count of Number of Bits Set to 1
+
+3613 bytes 
 
 ; ; System call table
 ; SYS                 equ 0x0100  ; Position of the router in the kernel
@@ -34,20 +52,3 @@
 ;     jmp near os_draw_window
 ;     jmp near os_get_key
 
-
-
-  ; .scroll_up:
-  ;   ; Scroll up if not at beginning
-  ;   cmp word [os_fs_file_pos], 0
-  ;   je .nav_loop           ; Already at top, ignore
-  ;   sub word [os_fs_file_pos], 160 ; Decrease by screen width*2 for one line
-  ;   call .display_file_content
-  ;   jmp .nav_loop
-    
-  ; .scroll_down:
-  ;   ; Scroll down if not at end
-  ;   add word [os_fs_file_pos], 160 ; Increase by screen width*2 for one line
-  ;   ; We would need to check if we're at the end of the file here
-  ;   ; For simplicity, we're just allowing scrolling within buffer limits
-  ;   call .display_file_content
-  ;   jmp .nav_loop

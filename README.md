@@ -13,12 +13,12 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
 ![40 vs 80 video mode](media/mode4080.png)
 
 ### Architecture
-- **Processor Target**: x86 (286+ compatible)
+- **Processor Target**: x86 (486+ compatible)
 - **Mode**: Real mode (16-bit)
 - **Memory Model**: Segmented memory model
 - **Boot Method**: Standard floppy disk boot
 - **Minimal Hardware**:
-  - CPU: 286
+  - CPU: 486
   - Graphics: EGA
   - RAM: 256KB
 

@@ -4,12 +4,11 @@
 ; This program is free software. See LICENSE for details.
 
 ; Minimal hardware:
-; CPU: 286
+; CPU: 386
 ; Graphics: EGA
 ; RAM: 256KB
 
 org 0x0000
-use16
 
 _OS_MEMORY_BASE_      equ 0x2000    ; Define memory base address
 _OS_TICK_             equ _OS_MEMORY_BASE_ + 0x00
@@ -27,10 +26,12 @@ OS_VIDEO_MODE_40      equ 0x00      ; 40x25 // 360x400
 OS_VIDEO_MODE_80      equ 0x03      ; 80x25 // 720x400 VGA text mode
 OS_NAV_START_POS            equ 0x0
 OS_NAV_LAST_POS             equ 0x8
+OS_NAV_POS_SHELL            equ 0x0
+OS_NAV_POS_EDIT             equ 0x2
 OS_FS_BLOCK_FIRST           equ 17
 OS_FS_BLOCK_SIZE            equ 16
 OS_FS_FILE_SIZE             equ 8192
-OS_FS_FILE_LINES_ON_SCREEN  equ 0x14
+OS_FS_FILE_LINES_ON_SCREEN  equ 0x15
 OS_FS_FILE_CHARS_ON_LINE_80 equ 80-1
 OS_FS_FILE_CHARS_ON_LINE_40 equ 40-1
 OS_FS_FILE_SCROLL_CHARS     equ 160
@@ -606,15 +607,15 @@ ret
 
 ; Load glyph ===================================================================
 ; This function loads a custom glyph into the VGA font memory using BIOS.
-; Expects: AX = character code to replace
+; Expects: AL = character code to replace
 ; Returns: None
 os_load_glyph:
   pusha
-  ; AX = character code to replace
-  push ax
-  shl ax, 1             ; Multiply by 2 (each entry is 2 bytes)
-  mov si, glyph_table   ; Get base address of glyph table
-  add si, ax            ; Add offset to get pointer to the right entry
+  ; AL = character code to replace
+  movzx bx, al          ; Move character code to BX, clears AH
+  push bx               ; Save character code
+  shl bx, 1             ; Multiply by 2 (each entry is 2 bytes)
+  lea si, [glyph_table + bx]  ; Get pointer to the right entry
   mov bp, [si]          ; Get address of glyph data
   push ds
   pop es                ; Ensure ES = DS (BIOS expects ES:BP for font data)
@@ -622,7 +623,7 @@ os_load_glyph:
   mov bh, 10h           ; Number of bytes per character (16 for 8/9×16 glyph)
   mov bl, 00h           ; RAM block (0 for default)
   mov cx, 0x01          ; Number of characters to replace (single)
-  pop dx
+  pop dx                ; Restore character code
   add dx, GLYPH_FIRST   ; Adjust character code for extended ASCII
   int 10h               ; Call BIOS video interrupt to load the font
   popa
@@ -664,7 +665,7 @@ ret
 os_interpret_char:
   mov si, os_commands_table
   ; AL = character to interpret
-  mov bx, ax
+  mov bl, al
   .loop_commands:
     lodsb           ; Load next command character
     test al, al     ; Check for end of table
@@ -672,7 +673,7 @@ os_interpret_char:
     ; BL = character to interpret
     cmp bl, al
     je .found
-    add si, LENGTH_FUNCTION_ADDR+LENGTH_DESC_ADDR
+    lea si, [si + LENGTH_FUNCTION_ADDR+LENGTH_DESC_ADDR]
     jmp .loop_commands
 
   .found:
@@ -764,9 +765,9 @@ ret
 os_icon_print_desc:
   ; AX - icon index
   imul ax, 0x6
-  mov si, os_icons_table
-  add si, ax
-  mov si, [si+4]
+  mov bx, ax
+  lea si, [os_icons_table + bx + 4]
+  mov si, [si]
 
   call os_cursor_pos_get
   push dx
@@ -789,10 +790,9 @@ ret
 ; Expects: None
 ; Returns: None
 os_icon_execute:
-  movzx ax, [_OS_NAV_POSITION_]
-  imul ax, 0x6          ; Calculate the icon index
-  mov si, os_icons_table
-  add si, ax
+  movzx bx, [_OS_NAV_POSITION_]
+  imul bx, 0x6          ; Calculate the icon index
+  lea si, [os_icons_table + bx]
   mov ax, [si+2]        ; Load the command pointer
   call ax               ; Execute the command
 ret
@@ -892,7 +892,10 @@ os_toggle_video_mode:
 ; Expects: None
 ; Returns: None
 os_print_stats:
-   ; Get conventional memory size (first 640KB)
+
+  call os_print_cpuid
+
+  ; Get conventional memory size (first 640KB)
   mov bx, GLYPH_MEM
   call os_print_prompt
   mov si, memory_installed_msg
@@ -941,8 +944,8 @@ os_print_stats:
   call os_print_chr
   movzx ax, bh
   call os_print_num
-
 ret
+
 
 ; Sound Initialization =========================================================
 ; This function initializes the sound system.
@@ -1040,11 +1043,11 @@ os_fs_file_display:
   je .empty_file
 
   mov byte [_OS_STATE_], OS_STATE_EDIT
+  mov byte [_OS_NAV_POSITION_], OS_NAV_POS_EDIT
   call os_clear_shell
 
   ; Calculate end of buffer for bounds checking
-  mov di, _OS_FS_BUFFER_
-  add di, OS_FS_FILE_SIZE
+  lea di, [_OS_FS_BUFFER_ + OS_FS_FILE_SIZE]
 
   mov cx, OS_FS_FILE_LINES_ON_SCREEN  ; Number of lines to display
   mov dl, OS_FS_FILE_CHARS_ON_LINE_80 ; Chars per line (default 80 col)
@@ -1174,11 +1177,39 @@ os_fs_file_write:
 
 os_fs_state_set_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
+  mov byte [_OS_NAV_POSITION_], OS_NAV_POS_SHELL
   call os_clear_shell
   mov bl, PROMPT_USR
   call os_print_prompt
 ret
 
+
+os_print_cpuid:
+  mov ax, 1                  ; ax = 1 for processor info
+  cpuid
+
+  mov bl, PROMPT_SYS_MSG
+  call os_print_prompt
+  mov si, cpu_family_msg
+  call os_print_str
+  
+  ; Extract family ID (bits 8-11 of ax)
+  mov bx, ax
+  shr bx, 8                  ; Shift right by 8 bits
+  and bx, 0Fh                ; Mask off all but family ID
+  
+  ; Print family ID
+  cmp bx, 0x8
+  jle .known_cpu
+  .unknown_cpu:
+    mov bx, 0x9
+  .known_cpu:
+  shl bx, 1                 ; Table is word sized
+  lea si, [os_cpu_family_table + bx]
+  mov si, [si]
+  call os_print_str
+
+ret
 
 ; Void =========================================================================
 ; This is a placeholder function
@@ -1189,7 +1220,7 @@ os_void:
 ret
 
 ; Data section =================================================================
-version_msg           db 'Version alpha7', 0
+version_msg           db 'Version alpha8', 0
 system_logo_msg       db 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
@@ -1200,6 +1231,14 @@ help_line3_msg         db 'List of text commands:', 0
 unknown_cmd_msg       db 'Unknown command', 0
 unsupported_msg       db 'Unsupported hardware function', 0
 hex_ruler_msg         db '0123456789ABCDEF', 0
+cpu_family_msg        db 'CPU Family: ', 0
+cpu_family_3          db 'Intel 386',0x0
+cpu_family_4          db 'Intel 486',0x0
+cpu_family_5          db 'Intel Pentium/MMX',0x0
+cpu_family_6          db 'Intel Pentium Pro+',0x0
+cpu_family_7          db 'Intel Itanium',0x0
+cpu_family_8          db 'AMD K8 (Athlon 64)',0x0
+cpu_family_other      db 'Unknown CPU Vendor',0x0
 memory_installed_msg  db 'Memory installed: ', 0
 kernel_size_msg       db 'Kernel size: ', 0
 kb_msg                db ' KB', 0
@@ -1239,6 +1278,19 @@ msg_cmd_fs_display    db GLYPH_FLOPPY, ' Display loaded file content', 0x0
 msg_cmd_fs_read       db GLYPH_FLOPPY, ' Read file from the file system', 0x0
 msg_cmd_fs_write      db GLYPH_FLOPPY, ' Write file to the file system', 0x0
 os_fs_file_pos       dw 0
+
+os_cpu_family_table:
+  dw cpu_family_other
+  dw cpu_family_other
+  dw cpu_family_other
+  dw cpu_family_3
+  dw cpu_family_4
+  dw cpu_family_5
+  dw cpu_family_6
+  dw cpu_family_7
+  dw cpu_family_8
+  dw cpu_family_other
+  dw 0x0
 
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)

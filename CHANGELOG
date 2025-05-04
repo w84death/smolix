@@ -1,4 +1,7 @@
-alpha7:
+alpha8:
+    - code golf and optimizations
+     - cpuid (brakes emulators)
+alpha7 [RELEASED]:
     - file system bugfixes
     - ruler in file display
     - state machine implementation
