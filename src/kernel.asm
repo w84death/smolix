@@ -980,16 +980,17 @@ os_sound_stop:
 ret
 
 os_fs_file0_read:
-  mov dx, 0
+  mov dl, 0
   call os_fs_file_read
 ret
 
 os_fs_file1_read:
-  mov dx, 1
+  mov dl, 1
   call os_fs_file_read
 ret
 
 os_fs_file_read:
+  mov word [os_fs_file_pos], 0
   call os_fs_file_load
   call os_print_error_status
   mov word [os_fs_file_pos], 0
@@ -1011,9 +1012,9 @@ os_fs_file_load:
   int 0x13               ; Reset disk system
   jc .disk_error
  
-  mov si, os_fs_directory_table
-  shl dx, 1
-  add si, dx
+  movzx bx, dl
+  shl bx, 1
+  lea si, [os_fs_directory_table + bx]       ; Load effective address with offset
   mov dx, [si]
 
   mov ax, ds
@@ -1023,13 +1024,12 @@ os_fs_file_load:
   mov ah, 0x02            ; BIOS read sectors function
   mov al, OS_FS_BLOCK_SIZE 
   mov ch, 0               ; Cylinder 0
-  ; mov dh, 1               ; Head 1
   mov cl, dl              ; Starting sector (file block)
   mov dl, 0x00            ; Drive 0 (first floppy drive)
-  int 0x13               ; BIOS disk interrupt
-  jc .disk_error         ; Error if carry flag set
+  int 0x13                ; BIOS disk interrupt
+  jc .disk_error          ; Error if carry flag set
    
-  clc                    ; Clear carry flag (success)
+  clc                     ; Clear carry flag (success)
   ret
   
   .disk_error:
@@ -1305,9 +1305,9 @@ os_cpu_family_table:
   dw 0x0
 
 os_fs_directory_table:
-  db 17, 0    ; Manual at 0x2000
-  db 1, 1     ; Lem at 0x4000
-  db 0x0
+  dw 0x0011
+  dw 0x010B
+  dw 0x0
 
 ; Icons table ==================================================================
 ; pointer to icon (2b) | pointer to function (2b)
@@ -1354,7 +1354,7 @@ os_commands_table:
   dw os_print_debug, msg_cmd_tilde
 
   db 'F'
-  dw os_fs_file1_read, msg_cmd_fs_read
+  dw os_fs_file0_read, msg_cmd_fs_read
 
   db 'f'
   dw os_fs_file_display, msg_cmd_fs_display
