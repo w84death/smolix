@@ -1,42 +1,47 @@
+alpha7:
+    - file system bugfixes
+    - ruler in file display
+    - state machine implementation
+    - shell and edit states
 alpha6:
-    - [done] basic file system implementation:
+    - basic file system implementation:
         - read file from disk to buffer
         - display buffer
         - write buffer to the disk
-    - [done] example file on floppy
-    - [done] clean up, refactor
+    - example file on floppy
+    - clean up, refactor
 alpha5:
-    - [done] code refactor, cleanup, comments added
-    - [done] working icons (select, execute, description)
-    - [done] detect cursors for icons movement
-    - [done] real time loop
-    - [done] display kernel tick (live + commands history)
-    - [done] beeper support for boot tune and commands response
-    - [done] fix correct handling 40/80 screen modes
+    - code refactor, cleanup, comments added
+    - working icons (select, execute, description)
+    - detect cursors for icons movement
+    - real time loop
+    - display kernel tick (live + commands history)
+    - beeper support for boot tune and commands response
+    - fix correct handling 40/80 screen modes
 alpha4 [RELEASED]:
-    - [done] updated charset
-    - [done] two video modes: 80x25, 40x25
-    - [done] permanent header with logo and version
-    - [done] finalized stats command
+    - updated charset
+    - two video modes: 80x25, 40x25
+    - permanent header with logo and version
+    - finalized stats command
 alpha3 [RELEASED]:    
-    - [done] hardware stats (wip)
-    - [done] better comments in kernel and boot
-    - [done] automatic list of commands in help
-    - [done] remade logo and icons
-    - [done] commands refactor for easy expansion
+    - hardware stats (wip)
+    - better comments in kernel and boot
+    - automatic list of commands in help
+    - remade logo and icons
+    - commands refactor for easy expansion
 alpha2 [RELEASED]:
-    - [done] working kernel basics
-    - [done] colors
-    - [done] custom glyphs
-    - [done] tool: for converting png tileset to asm data
-    - [done] icons for UI in the os
-    - [done] basic shell functions: help, version
-    - [done] debug option showing all custom glyphs w/ IDs
+    - working kernel basics
+    - colors
+    - custom glyphs
+    - tool: for converting png tileset to asm data
+    - icons for UI in the os
+    - basic shell functions: help, version
+    - debug option showing all custom glyphs w/ IDs
 alpha1 [RELEASED]:
-    - [done] bootloader
-    - [done] empty kernel
-    - [done] ability to boot the OS
+    - bootloader
+    - empty kernel
+    - ability to boot the OS
 alpha0 [RELEASED]:
-    - [done] init repository
-    - [done] Initial files structure.
-    - [done] Initial documentation and idea for the system.
+    - init repository
+    - Initial files structure.
+    - Initial documentation and idea for the system.
