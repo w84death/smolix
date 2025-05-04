@@ -979,9 +979,17 @@ os_sound_stop:
   out 61h, al
 ret
 
+os_fs_file0_read:
+  mov dx, 0
+  call os_fs_file_read
+ret
+
 os_fs_file1_read:
-  mov dl, [os_fs_directory_table+2]
-  mov dh, [os_fs_directory_table+3]
+  mov dx, 1
+  call os_fs_file_read
+ret
+
+os_fs_file_read:
   call os_fs_file_load
   call os_print_error_status
   mov word [os_fs_file_pos], 0
@@ -1003,6 +1011,11 @@ os_fs_file_load:
   int 0x13               ; Reset disk system
   jc .disk_error
  
+  mov si, os_fs_directory_table
+  shl dx, 1
+  add si, dx
+  mov dx, [si]
+
   mov ax, ds
   mov es, ax              ; Make sure ES=DS for disk read
   mov bx, _OS_FS_BUFFER_ 
