@@ -59,11 +59,9 @@ def generate_asm_output(sprites_data, output_file=None):
     
     # Generate the assembly code for each sprite, starting from index 1 (skip first glyph)
     for i, sprite in enumerate(sprites_data[1:], start=1):
-        # Remove the last two lines from each glyph
-        trimmed_sprite = sprite[:-2] if len(sprite) >= 2 else sprite
-        
+
         # Format each glyph on a single line
-        byte_str = ", ".join([f"0x{b:02x}" for b in trimmed_sprite])
+        byte_str = ", ".join([f"0x{b:02x}" for b in sprite])
         output.append(f"glyph_{i:02x}:  db {byte_str}")
         output.append("")
     

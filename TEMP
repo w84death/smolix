@@ -15,8 +15,18 @@ NOT—One's Complement Negation
 PMAXSB/PMAXSW—Maximum of Packed Unsigned Integers
 PMINSB/PMINSW—Minimum of Packed Signed Integers
 POPCNT—Return the Count of Number of Bits Set to 1
+MFENCE—Memory Fence
+MOVBE—Move Data After Swapping Bytes
+MOVD/MOVQ—Move Doubleword/Move Quadword
+MOVZX—Move With Zero-Extend
+MULX—Unsigned Multiply Without Affecting Flags
+POPCNT—Return the Count of Number of Bits Set to 1
+PTEST—Logical Compare Vol. 2B 4-496
+PTEST—Logical Compare
+RDPID—Read Processor ID
+RDRAND—Read Random Number
 
-3613 bytes 
+
 
 ; ; System call table
 ; SYS                 equ 0x0100  ; Position of the router in the kernel

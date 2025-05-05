@@ -1,6 +1,12 @@
 alpha8:
     - code golf and optimizations
-     - cpuid (brakes emulators)
+    - cpuid (brakes emulators)
+    - updated logo
+    - [todo] splash screen
+    - [todo] refactored toolbar with secondary menus
+    - [todo] polish characters
+    - [todo] file system update (metadata)
+    - [todo] listing and selecting files to read/write
 alpha7 [RELEASED]:
     - file system bugfixes
     - ruler in file display
