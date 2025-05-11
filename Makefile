@@ -5,6 +5,7 @@
 
 # Tools
 ASM = fasm
+BOCHS = bochs -q -f .bochsrc
 QEMU = qemu-system-i386 -m 1 -k en-us -rtc base=localtime -vga std -cpu 486 -boot order=a -drive format=raw,file=$(FLOPPY_IMG)
 FLATPAL_86BOX = flatpak run net._86box._86Box
 DD = dd
@@ -71,9 +72,13 @@ $(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(OS_FILE_MAN
 	$(DD) if=$(OS_FILE_MANUAL) of=$(FLOPPY_IMG) bs=512 seek=16 conv=notrunc
 	$(DD) if=$(OS_FILE_LEM) of=$(FLOPPY_IMG) bs=512 seek=28 conv=notrunc
 
-# Run SMOLiX in QEMU/86Box
+# Run SMOLiX in emulator (default: Bochs)
 run: $(FLOPPY_IMG)
 	$(FLATPAL_86BOX)
+
+# Run SMOLiX in emulator (default: Bochs)
+debug: $(FLOPPY_IMG)
+	$(BOCHS)
 
 # Burn SMOLiX to physical floppy disk
 burn: $(FLOPPY_IMG)
@@ -90,4 +95,4 @@ clean:
 	$(RM) $(BOOTLOADER) $(KERNEL) $(FLOPPY_IMG) $(IMG_DIR)/floppy_empty.img
 	$(RMDIR) $(BUILD_DIR)
 
-.PHONY: all run clean burn
+.PHONY: all run clean burn debug

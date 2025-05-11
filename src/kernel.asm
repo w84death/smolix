@@ -1,12 +1,12 @@
 ; SMOLiX: Real Mode, Raw Power.
 ; It is a simple kernel that runs in real mode as god intended.
-; Copyright (C)2025 Krzysztof Krystian Jankowski
-; This program is free software. See LICENSE for details.
+; Copyright (C) 2025 Krzysztof Krystian Jankowski
+; This is free and open software. See LICENSE for details.
 
-; Minimal hardware:
-; CPU: 486+ (due to CPUID function, rest should work on 286)
-; Graphics: EGA (for best compatibility, VGA also works)
-; RAM: 1MB (tested, should work on 64K in theory)
+; Tested hardware:
+; CPU: 486 DX4, 100Mhz
+; Graphics: VGA (works on EGA)
+; RAM: 16MB (works on 1MB)
 
 org 0x0000
 
@@ -14,7 +14,9 @@ _OS_MEMORY_BASE_                equ 0x2000    ; Define memory base address
 _OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00
 _OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04
 _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05
-_OS_NAV_POSITION_               equ _OS_MEMORY_BASE_ + 0x06
+_OS_TOOLBAR_STATE_              equ _OS_MEMORY_BASE_ + 0x06
+_OS_NAV_POSITION_               equ _OS_MEMORY_BASE_ + 0x07
+_OS_ACTIVE_PAGE_                equ _OS_MEMORY_BASE_ + 0x08
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x10
 
 OS_STATE_INIT                   equ 0x01
@@ -24,6 +26,10 @@ OS_STATE_FS                     equ 0x04
 OS_STATE_SETTINGS               equ 0x05
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
+OS_TOOLBAR_STATE_MAIN           equ 0x0
+OS_TOOLBAR_STATE_SHELL          equ 0x1
+OS_TOOLBAR_STATE_FS             equ 0x2
+OS_TOOLBAR_STATE_HELP           equ 0x3
 OS_NAV_START_POS                equ 0x0
 OS_NAV_LAST_POS                 equ 0x3
 OS_NAV_POS_SHELL                equ 0x0
@@ -35,11 +41,11 @@ OS_FS_FILE_LINES_ON_SCREEN      equ 0x15
 OS_FS_FILE_CHARS_ON_LINE_80     equ 80-1
 OS_FS_FILE_CHARS_ON_LINE_40     equ 40-1
 OS_FS_FILE_SCROLL_CHARS         equ 160
-OS_COLOR_PRIMARY                equ 0x1F  
-OS_COLOR_SECONDARY              equ 0x2F  
-OS_LENGTH_BYTE                  equ 1     
-OS_LENGTH_WORD                  equ 2     
-OS_LENGTH_WORD                  equ 2     
+OS_COLOR_PRIMARY                equ 0x1F
+OS_COLOR_SECONDARY              equ 0x2F
+OS_LENGTH_BYTE                  equ 1
+OS_LENGTH_WORD                  equ 2
+OS_LENGTH_WORD                  equ 2
 OS_LOGO_LENGTH                  equ 7
 OS_SOUND_STARTUP                equ 1500
 OS_SOUND_SUCCESS                equ 1700
@@ -63,26 +69,26 @@ GLYPH_FLOOR                     equ 0x93
 GLYPH_RAMP_UP                   equ 0x94
 GLYPH_RAMP_DOWN                 equ 0x95
 GLYPH_ICONS_SELECTOR            equ 0x9796
-GLYPH_ICON_RESET                equ 0x9998  
-GLYPH_ICON_REBOOT               equ 0x9B9A 
-GLYPH_ICON_DOWN                 equ 0x9D9C 
-GLYPH_ICON_BACK                 equ 0x9F9E 
+GLYPH_ICON_RESET                equ 0x9998
+GLYPH_ICON_REBOOT               equ 0x9B9A
+GLYPH_ICON_DOWN                 equ 0x9D9C
+GLYPH_ICON_BACK                 equ 0x9F9E
 GLYPH_ICON_EDIT                 equ 0xA1A0
-GLYPH_ICON_CONF                 equ 0xA3A2 
-GLYPH_ICON_CLEAR                equ 0xA5A4
+GLYPH_ICON_CONF                 equ 0xA3A2
+GLYPH_ICON_SHELL                equ 0xA5A4
 GLYPH_ICON_X                    equ 0xA7A6
-GLYPH_ICON_HELP                 equ 0xA9A8 
+GLYPH_ICON_HELP                 equ 0xA9A8
 GLYPH_ICON_FLOPPY               equ 0xABAA
 GLYPH_RULER_START               equ 0xAC
 GLYPH_RULER_MIDDLE              equ 0xAD
 GLYPH_RULER_END                 equ 0xAE
-GLYPH_RULER_NO                  equ 0xAF                  
+GLYPH_RULER_NO                  equ 0xAF
 GLYPH_ICON_FS_READ              equ 0xB7B6
 GLYPH_ICON_FS_WRITE             equ 0xB9B8
 GLYPH_ICON_FS_LIST              equ 0xBBBA
-GLYPH_ALPHA1                    equ 0xBC
-GLYPH_ALPHA2                    equ 0xBD
-GLYPH_ALPHA3                    equ 0xBE
+GLYPH_16BIT_1                   equ 0xBC
+GLYPH_16BIT_2                   equ 0xBD
+GLYPH_16BIT_3                   equ 0xBE
 
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
@@ -99,7 +105,7 @@ KBD_KEY_BACKSPACE               equ 0x0E
 
 os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  
+
 ; Entry point / System reset ===================================================
 ; This function resets the system.
 ; Expects: None
@@ -110,7 +116,7 @@ os_reset:
   mov ah, 0x00		    ; Set video mode
 	mov al, [_OS_VIDEO_MODE_]
 	int 0x10            ; 80x25 text mode
-  
+
   mov dword [_OS_TICK_], 0  ; Initialize tick count
   mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
 
@@ -135,16 +141,16 @@ os_main_loop:
     jz .done
 
     mov ah, 00h         ; BIOS keyboard read function
-    int 16h   
+    int 16h
 
     cmp byte [_OS_STATE_], OS_STATE_FS
     je .no_command_key
     cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
     je .no_command_key
-    
+
     test al, al
     jz .no_command_key
-      call os_print_chr  
+      call os_print_chr
       call os_interpret_char
 
       mov bl, PROMPT_USR
@@ -189,13 +195,13 @@ os_main_loop:
 os_print_tick:
   call os_cursor_pos_get
   push dx
-  
+
   mov dl, 0x44
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   jz .skip_40
     mov dl, 0x1C
   .skip_40:
-  call os_cursor_pos_set 
+  call os_cursor_pos_set
   mov ax, [_OS_TICK_+2]
   call os_print_num
 
@@ -212,8 +218,8 @@ ret
 ; Gets Cursor Position
 ; This function gets the current cursor position on the screen.
 ; Expects: None
-; Returns: DX = column, DX = row 
-os_cursor_pos_get: 
+; Returns: DX = column, DX = row
+os_cursor_pos_get:
   mov ax, 0x0300    ; Get cursor position and size
   xor bh, bh        ; Page 0
   int 0x10          ; Call BIOS
@@ -261,10 +267,10 @@ os_print_header:
   mov al, GLYPH_MASCOT
   mov ah, CHR_SPACE
   call os_print_chr2
-  
+
   mov si, system_logo_msg
   call os_print_str
-  
+
   mov al, CHR_SPACE
   mov ah, CHR_SPACE
   call os_print_chr2
@@ -274,7 +280,7 @@ os_print_header:
   mov al, CHR_SPACE
   mov ah, dl
   call os_print_chr_mul
-  
+
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   je .skip_version
     mov si, version_msg
@@ -295,13 +301,13 @@ os_print_header:
   mov ah, 2
   call os_print_chr_mul
 
-  mov al, GLYPH_ALPHA1
-  mov ah, GLYPH_ALPHA2
+  mov al, GLYPH_16BIT_1
+  mov ah, GLYPH_16BIT_2
   call os_print_chr2
-  
-  mov al, GLYPH_ALPHA3
+
+  mov al, GLYPH_16BIT_3
   call os_print_chr
-  
+
   mov al, GLYPH_FLOOR
   mov ah, 2
   call os_print_chr_mul
@@ -359,14 +365,14 @@ ret
 ; Print Icons Selector
 ; This function prints the selected icon in the toolbar.
 ; Expects: None
-; Returns: None 
+; Returns: None
 os_print_icons_selector:
   xor cx, cx
   mov bl, [_OS_NAV_POSITION_]     ; Save current navigation position (selection)
   .icons_loop:
     cmp cl, OS_NAV_LAST_POS
     jg .done_icons                ; If zero, end of icons
-    
+
     cmp cl, bl                    ; Check if current ID is selected
     je .icon_selected
     mov al, GLYPH_CEILING         ; Set two characters
@@ -377,7 +383,7 @@ os_print_icons_selector:
     .print_glyph:
     call os_print_chr2            ; Print to the screen
     mov al, GLYPH_CEILING         ; Add another empty space
-    call os_print_chr    
+    call os_print_chr
     inc cl
     jmp .icons_loop               ; Repeat for the next icon
   .done_icons:
@@ -393,10 +399,6 @@ os_print_help:
   mov si, help_line1_msg
   call os_print_str
 
-  call os_print_prompt
-  mov si, help_line2_msg
-  call os_print_str
-  
   call os_print_prompt
   mov si, help_line3_msg
   call os_print_str
@@ -414,13 +416,13 @@ os_print_help:
     jl .done                      ; Skip if not a character (enter, arrows)
     call os_print_chr             ; Character printed
     mov al, CHR_SPACE             ; Move space character to AL
-    
+
     call os_print_chr
 
     add si, OS_LENGTH_WORD  ; Skip address, point to description pointer
     push si                       ; Saves os_commands_table
     mov si, [si]                  ; Gets the description message address
-    call os_print_str             ; Print description string  
+    call os_print_str             ; Print description string
     pop si                        ; Restore os_commands_table
 
     add si, OS_LENGTH_WORD      ; Move to next command
@@ -428,7 +430,12 @@ os_print_help:
 .done:
 ret
 
-; Print prompt ================================================================= 
+os_load_and_read_manual:
+  call os_fs_file0_read
+  call os_fs_file_display
+ret
+
+; Print prompt =================================================================
 ; This function prints the prompt for the user.
 ; Expects: BL = type of glyph
 ; Returns: None
@@ -460,13 +467,13 @@ os_down:
   mov ax, 5301h
   xor bx, bx        ; Device ID = 0 (APM BIOS)
   int 15h
-  
+
   ; Try to set APM version (1.2)
   mov ax, 530Eh
   xor bx, bx
   mov cx, 0102h     ; APM version 1.2
   int 15h
-  
+
   ; Turn off the system
   mov ax, 5307h
   mov bx, 0001h     ; All devices
@@ -550,7 +557,7 @@ ret
 ;          AH = number of times to print
 ; Returns: None
 os_print_chr_mul:
-  push cx  
+  push cx
   ; AH = number of times to print
   movzx cx, ah
   .char_loop:
@@ -575,7 +582,7 @@ os_print_str:
     jz .terminated
     int 0x10          ; BIOS video interrupt
   jmp near .next_char
-  .terminated: 
+  .terminated:
   popa
 ret
 
@@ -701,7 +708,7 @@ os_interpret_char:
 
   .found:
     lodsw           ; Load next command address
-    call ax         ; call the command address   
+    call ax         ; call the command address
     mov ax, OS_SOUND_SUCCESS
     call os_sound_play
   ret
@@ -728,7 +735,7 @@ os_interpret_kb:
   .loop_kbd:
     lodsb
     test al, al
-    jz .unknown    
+    jz .unknown
     cmp al, bh
     jne .skip_kb
     lodsb
@@ -741,9 +748,9 @@ os_interpret_kb:
     add si, OS_LENGTH_WORD
   jmp .loop_kbd
 
-  .found:    
+  .found:
     lodsw           ; Load next command address
-    call ax         ; call the command address   
+    call ax         ; call the command address
     mov ax, OS_SOUND_SUCCESS
     call os_sound_play
   ret
@@ -774,7 +781,7 @@ ret
 ; Expects: None
 ; Returns: AX - icon index
 os_icon_prev:
-  movzx ax, [_OS_NAV_POSITION_]  
+  movzx ax, [_OS_NAV_POSITION_]
   cmp al, 0
   jle .bounded
   dec al
@@ -808,7 +815,7 @@ os_icon_print_desc:
 
   pop dx
   call os_cursor_pos_set
-  
+
 ret
 
 ; Executes icon command
@@ -831,7 +838,7 @@ os_print_debug:
   ; First row
   mov bl, PROMPT_MSG
   call os_print_prompt
-  mov al, OS_GLYPH_ADDRESS    
+  mov al, OS_GLYPH_ADDRESS
   call os_print_chr
   mov cx, 0x1F            ; 32 glyphs
   .loop_chars:
@@ -844,7 +851,7 @@ os_print_debug:
   mov si, hex_ruler_msg
   call os_print_str
   call os_print_str
-  
+
   ; Second row
   mov bl, PROMPT_MSG
   call os_print_prompt
@@ -873,14 +880,14 @@ os_print_num:
     xor dx, dx     ; Clear DX for division
     ; AX - number to print
     div cx         ; Divide AX by CX, quotient in AX, remainder in DX
-    
+
     ; Convert digit to ASCII
     add al, '0'    ; Convert to ASCII
     call os_print_chr
-    
+
     ; Move remainder to AX for next iteration
     mov ax, dx
-    
+
     ; Update divisor
     push ax        ; Save current remainder
     mov ax, cx     ; Get current divisor in AX
@@ -891,7 +898,7 @@ os_print_num:
     pop bx
     mov cx, ax     ; Set new divisor
     pop ax         ; Restore current remainder
-    
+
     cmp cx, 0      ; If divisor is 0, we're done
   jne .next_digit
   popa
@@ -957,7 +964,7 @@ os_print_stats:
 
   ; Battery status
   mov bx, GLYPH_BAT
-  call os_print_prompt  
+  call os_print_prompt
   mov si, apm_batt_msg
   call os_print_str
 
@@ -989,7 +996,7 @@ ret
 os_sound_play:
   ; AX = note
   out 42h, al         ; Low byte first
-  mov al, ah          
+  mov al, ah
   out 42h, al
 
   in al, 61h          ; Read current port state
@@ -1029,7 +1036,7 @@ ret
 ; Expects: DL = File number
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_file_load:
-  
+
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
   mov si, fs_reading_msg
@@ -1039,7 +1046,7 @@ os_fs_file_load:
   xor ax, ax
   int 0x13               ; Reset disk system
   jc .disk_error
- 
+
   movzx bx, dl
   shl bx, 1
   lea si, [os_fs_directory_table + bx]       ; Load effective address with offset
@@ -1047,19 +1054,19 @@ os_fs_file_load:
 
   mov ax, ds
   mov es, ax              ; Make sure ES=DS for disk read
-  mov bx, _OS_FS_BUFFER_ 
-  
+  mov bx, _OS_FS_BUFFER_
+
   mov ah, 0x02            ; BIOS read sectors function
-  mov al, OS_FS_BLOCK_SIZE 
+  mov al, OS_FS_BLOCK_SIZE
   mov ch, 0               ; Cylinder 0
   mov cl, dl              ; Starting sector (file block)
   mov dl, 0x00            ; Drive 0 (first floppy drive)
   int 0x13                ; BIOS disk interrupt
   jc .disk_error          ; Error if carry flag set
-   
+
   clc                     ; Clear carry flag (success)
   ret
-  
+
   .disk_error:
     stc                   ; Set carry flag (error)
     ret
@@ -1139,7 +1146,7 @@ os_fs_file_display:
 ret
   .empty_file:
     mov bl, PROMPT_ERR
-    call os_print_prompt  
+    call os_print_prompt
     mov si, fs_empty_msg
     call os_print_str
 ret
@@ -1150,14 +1157,14 @@ os_fs_scroll_up:
   jl .done
   sub word [os_fs_file_pos], OS_FS_FILE_SCROLL_CHARS
   call os_fs_file_display
-  .done:  
+  .done:
 ret
 
 ; File System: scroll Down =====================================================
 os_fs_scroll_down:
   cmp word [os_fs_file_pos], OS_FS_FILE_SIZE-OS_FS_FILE_SCROLL_CHARS
   jg .done
-  
+
   mov si, _OS_FS_BUFFER_
   add si, [os_fs_file_pos]
   add si, OS_FS_FILE_SCROLL_CHARS
@@ -1178,17 +1185,17 @@ os_fs_file_write:
   call os_print_prompt
   mov si, fs_writing_msg
   call os_print_str
-  
+
   ; Reset disk system first
   xor ax, ax
   int 0x13               ; Reset disk system
   jc .write_error
-      
+
   ; Set up ES:BX for disk write
   mov ax, ds
   mov es, ax
   mov bx, _OS_FS_BUFFER_
-  
+
   ; Set up disk write parameters
   mov ah, 0x03           ; BIOS write sectors function
   mov al, OS_FS_BLOCK_SIZE ; Number of sectors to write
@@ -1196,13 +1203,13 @@ os_fs_file_write:
   mov cl, OS_FS_BLOCK_FIRST ; Start from sector defined in constants
   mov dh, 0              ; Head 0
   mov dl, 0x00           ; Drive 0 (first floppy drive)
-  
+
   int 0x13               ; Call BIOS to write sectors
   jc .write_error        ; Error if carry flag set
 
   clc                    ; Clear carry flag (success)
   ret
-  
+
   .write_error:
     stc                  ; Set carry flag (error)
     ret
@@ -1225,12 +1232,12 @@ os_print_cpuid:
   call os_print_prompt
   mov si, cpu_family_msg
   call os_print_str
-  
+
   ; Extract family ID (bits 8-11 of ax)
   mov bx, ax
   shr bx, 8                  ; Shift right by 8 bits
   and bx, 0Fh                ; Mask off all but family ID
-  
+
   ; Print family ID
   cmp bx, 0x8
   jle .known_cpu
@@ -1247,24 +1254,109 @@ ret
 os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
   call os_clear_screen
-  call os_print_header  
+  call os_print_header
   call os_print_welcome
   mov bl, PROMPT_USR
   call os_print_prompt
 ret
 
 os_print_splash_screen:
-  mov dx, 0x0B25
+  mov cx, 0x25
+  mov dx, 0x0A27
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   je .skip_40
-  mov dl, 0x11
-  .skip_40:  
+  mov dl, 0x13
+  mov cx, 0x11
+  .skip_40:
 
+  ; Logo
+  call os_cursor_pos_set
+  mov al, GLYPH_MASCOT
+  call os_print_chr
+
+  inc dh
+  sub dl, 0x3
   call os_cursor_pos_set
   mov si, system_logo_msg
   call os_print_str
+
+  ; Version
+  add dh, 0x4
+  sub dl, 0x4
+  call os_cursor_pos_set
+  mov si, version_msg
+  call os_print_str
+
+  ; Press ENTER
+  inc dh
+  sub dl, 0x3
+  call os_cursor_pos_set
+  mov si, press_enter_msg
+  call os_print_str
+
+  ; Frame
+  mov dx, 0x0900
+  call os_cursor_pos_set
+  mov al, GLYPH_FLOOR
+  mov ah, cl
+  call os_print_chr_mul
+
+  mov al, GLYPH_RAMP_UP
+  call os_print_chr
+  mov al, GLYPH_CEILING
+  mov ah, 0x03
+  call os_print_chr_mul
+
+  mov al, GLYPH_RAMP_DOWN
+  call os_print_chr
+  mov al, GLYPH_FLOOR
+  mov ah, cl
+  inc ah
+  call os_print_chr_mul
+
+  mov dx, 0x0C00
+  call os_cursor_pos_set
+  mov al, GLYPH_CEILING
+  mov ah, cl
+  sub ah, 0x3
+  call os_print_chr_mul
+
+  mov al, GLYPH_RAMP_DOWN
+  call os_print_chr
+  mov al, GLYPH_FLOOR
+  mov ah, 0x03
+  call os_print_chr_mul
+
+  mov al, GLYPH_16BIT_1
+  mov ah, GLYPH_16BIT_2
+  call os_print_chr2
+  mov al, GLYPH_16BIT_3
+  call os_print_chr
+
+  mov al, GLYPH_FLOOR
+  mov ah, 0x03
+  call os_print_chr_mul
+
+  mov al, GLYPH_RAMP_UP
+  call os_print_chr
+  mov al, GLYPH_CEILING
+  mov ah, cl
+  sub ah, 0x2
+  call os_print_chr_mul
+
+
+  ; Set position for printing OS tick
   mov dx, 0x1802
   call os_cursor_pos_set
+ret
+
+os_toolbar_back:
+ret
+
+os_enter_fs:
+ret
+
+os_enter_help:
 ret
 
 ; Void =========================================================================
@@ -1287,9 +1379,9 @@ system_logo_msg       db OS_GLYPH_ADDRESS+0x0
                       db 0x0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
+press_enter_msg       db 'Press ENTER to begin.', 0
 more_info_msg         db 'Type "h" for help.', 0
 help_line1_msg        db 'LEFT/RIGHT/ENTER to navigate toolbar', 0
-help_line2_msg        db 'Load&read first file for manual', 0
 help_line3_msg        db 'List of text commands:', 0
 unknown_cmd_msg       db 'Unknown command', 0
 unsupported_msg       db 'Unsupported hardware function', 0
@@ -1300,13 +1392,12 @@ cpu_family_4          db 'Intel 486',0x0
 cpu_family_5          db 'Intel Pentium/MMX',0x0
 cpu_family_6          db 'Intel Pentium Pro+',0x0
 cpu_family_7          db 'Intel Itanium',0x0
-cpu_family_8          db 'AMD K8 (Athlon 64)',0x0
+cpu_family_8          db 'AMD Athlon 64',0x0
 cpu_family_other      db 'Unknown CPU Vendor',0x0
 memory_installed_msg  db 'Memory installed: ', 0
 kernel_size_msg       db 'Kernel size: ', 0
 kb_msg                db ' KB', 0
-byte_msg              db ' Bytes', 0
-sectors_msg           db ' sectors', 0
+byte_msg              db ' B', 0
 bios_date_msg         db 'BIOS date: ', 0
 apm_batt_msg          db 'Battery status: ', 0
 success_msg           db 'success.', 0
@@ -1315,32 +1406,37 @@ fs_reading_msg        db 'Reading data from disk...', 0
 fs_writing_msg        db 'Writing data to disk...', 0
 fs_nav_msg            db 'Use UP/DOWN to scroll.', 0
 fs_empty_msg          db 'No/empty file. Read data first.', 0
-fs_ruler_80_msg:      db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAF
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB3
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB4
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB5
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
-fs_ruler_40_msg:      db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
-                      db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
-msg_cmd_h             db 'Short help and list of commands', 0x0
-msg_cmd_v             db 'Prints system version', 0x0
-msg_cmd_r             db 'Soft system reset', 0x0
-msg_cmd_R             db 'Hard system reboot', 0x0
-msg_cmd_D             db 'Shutdown the computer', 0x0
-msg_cmd_c             db 'Clear the shell log', 0x0  
+fs_ruler_80_msg:
+db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAF
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB3
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB4
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB5
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
+fs_ruler_40_msg:
+db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
+db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
+msg_cmd_back          db 'Back', 0x0
+msg_cmd_h             db 'Quick help', 0x0
+msg_cmd_manual        db 'Full system manual', 0x0
+msg_cmd_v             db 'System version', 0x0
+msg_cmd_r             db 'Soft reset', 0x0
+msg_cmd_R             db 'Hard reboot', 0x0
+msg_cmd_D             db 'Shutdown', 0x0
+msg_cmd_c             db 'Clear the shell log', 0x0
 msg_cmd_x             db 'Toggle between 40/80 screen modes', 0x0
-msg_cmd_s             db 'Print system statistics', 0x0
-msg_cmd_tilde         db 'Debugging stuff, charset', 0x0
-msg_cmd_void          db 'Void. Not implemented yet.', 0x0
+msg_cmd_s             db 'System statistics', 0x0
+msg_cmd_tilde         db 'Custom charset', 0x0
+msg_cmd_void          db 0x0 ; Nothing
 msg_cmd_fs_display    db GLYPH_FLOPPY, ' Display loaded file content', 0x0
-msg_cmd_fs_read       db GLYPH_FLOPPY, ' Read file from the file system', 0x0
-msg_cmd_fs_write      db GLYPH_FLOPPY, ' Write file to the file system', 0x0
-os_fs_file_pos       dw 0
+msg_cmd_fs_read       db GLYPH_FLOPPY, ' Read file [0]', 0x0
+msg_cmd_fs_write      db GLYPH_FLOPPY, ' Write current file', 0x0
+
+os_fs_file_pos        dw 0
 
 os_cpu_family_table:
   dw cpu_family_other
@@ -1361,13 +1457,35 @@ os_fs_directory_table:
   dw 0x0
 
 ; Icons table ==================================================================
-; pointer to icon (2b) | pointer to function (2b)
+; pointer to icon (2b) | pointer to function (2b) | pointer to description (2b)
 os_icons_table:
-  dw GLYPH_ICON_CLEAR, os_clear_shell, msg_cmd_c
+  dw GLYPH_ICON_SHELL, os_clear_shell, msg_cmd_c
   dw GLYPH_ICON_HELP, os_print_help, msg_cmd_h
   dw GLYPH_ICON_FLOPPY, os_fs_file1_read, msg_cmd_fs_read
   dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
   dw 0x0
+
+; current state, target state
+; icon, function, description
+os_toolbar_table:
+  ; MAIN
+  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_SHELL, os_enter_shell, msg_cmd_c
+
+  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_FS
+  dw GLYPH_ICON_FLOPPY, os_enter_fs, msg_cmd_c
+
+  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_HELP
+  dw GLYPH_ICON_HELP, os_enter_help, msg_cmd_c
+
+  ; SHELL
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_MAIN
+  dw GLYPH_ICON_BACK, os_toolbar_back, msg_cmd_back
+
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_FS_READ, os_fs_file0_read, msg_cmd_fs_read
+
+
 
 ; Commands table ===============================================================
 ; character (1b) | pointer to function (2b) | description (24b/chars)
@@ -1375,27 +1493,30 @@ os_commands_table:
   db 'h'
   dw os_print_help, msg_cmd_h
 
+  db 'H'
+  dw os_load_and_read_manual, msg_cmd_manual
+
   db 'v'
   dw os_print_ver, msg_cmd_v
-  
+
   db 'r'
   dw os_reset, msg_cmd_r
-  
+
   db 'R'
   dw os_reboot, msg_cmd_R
-    
+
   db 'D'
   dw os_down, msg_cmd_D
-  
+
   db 'c'
   dw os_clear_shell, msg_cmd_c
-  
+
   db 'x'
   dw os_toggle_video_mode, msg_cmd_x
-  
+
   db 's'
   dw os_print_stats, msg_cmd_s
-  
+
   db '`'
   dw os_print_debug, msg_cmd_tilde
 
@@ -1435,8 +1556,6 @@ os_keyboard_table:
 ; Glyphs =======================================================================
 ; This section includes the glyph definitions
 include 'glyphs.asm'
-
-times 1024*6 - ($ - $$) db 0x69   ; Pad to 510 bytes
 
 db "P1X"            ; Use HEX viewer to see `P1X` at the end of binary
 os_kernel_end:

@@ -1,12 +1,13 @@
 alpha8:
-    - code golf and optimizations
-    - cpuid (brakes emulators)
-    - updated logo
-    - [todo] splash screen
     - [todo] refactored toolbar with secondary menus
     - [todo] polish characters
     - [todo] file system update (metadata)
     - [todo] listing and selecting files to read/write
+    - [todo] virtual pages for fake-multi tasking
+    - code golf and optimizations
+    - cpuid (brakes emulators)
+    - updated logo
+    - splash screen
 alpha7 [RELEASED]:
     - file system bugfixes
     - ruler in file display
@@ -32,7 +33,7 @@ alpha4 [RELEASED]:
     - two video modes: 80x25, 40x25
     - permanent header with logo and version
     - finalized stats command
-alpha3 [RELEASED]:    
+alpha3 [RELEASED]:
     - hardware stats (wip)
     - better comments in kernel and boot
     - automatic list of commands in help
