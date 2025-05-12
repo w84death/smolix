@@ -2,9 +2,12 @@
 
 Real Mode, Raw Power.
 
-Homebrew, research, 16-bit operating system for x86 processors.
+Homebrew, research, 16-bit operating system for x86 processors. Targeting retro computers (486).
 
-![Screenshot of SMOLiX](media/smolix.png)
+![Screenshot of SMOLiX](media/smolix-logo.png)
+
+## ALPHA STAGE
+This code is in alpha stage. This means that all the documentation/manual is constantly outdated. I try to commit only working code but sometimes that means that features are removed before refactor.
 
 ## Technical Details
 
@@ -25,7 +28,7 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
 ### Development Tools
 - **Assembly Language**: FASM (Flat Assembler)
 - **Build System**: Make
-- **Emulation**: QEMU with KVM support
+- **Emulation**: QEMU/Bochs
 - **Graphics Tool**: Custom Python tileset converter (tileset2glyphs.py)
 - **Disk Image Creation**: dd (direct disk utility)
 

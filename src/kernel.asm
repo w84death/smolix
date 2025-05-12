@@ -6,7 +6,7 @@
 ; Tested hardware:
 ; CPU: 486 DX4, 100Mhz
 ; Graphics: VGA (works on EGA)
-; RAM: 16MB (works on 1MB)
+; RAM: 16MB (doesnt recognize more than 1MB)
 
 org 0x0000
 
@@ -16,7 +16,7 @@ _OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04
 _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05
 _OS_TOOLBAR_STATE_              equ _OS_MEMORY_BASE_ + 0x06
 _OS_NAV_POSITION_               equ _OS_MEMORY_BASE_ + 0x07
-_OS_ACTIVE_PAGE_                equ _OS_MEMORY_BASE_ + 0x08
+_OS_TOOLBAR_SELECTED_           equ _OS_MEMORY_BASE_ + 0x08   ; 2b
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x10
 
 OS_STATE_INIT                   equ 0x01
@@ -26,14 +26,16 @@ OS_STATE_FS                     equ 0x04
 OS_STATE_SETTINGS               equ 0x05
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
-OS_TOOLBAR_STATE_MAIN           equ 0x0
-OS_TOOLBAR_STATE_SHELL          equ 0x1
-OS_TOOLBAR_STATE_FS             equ 0x2
-OS_TOOLBAR_STATE_HELP           equ 0x3
-OS_NAV_START_POS                equ 0x0
-OS_NAV_LAST_POS                 equ 0x3
+OS_TOOLBAR_STATE_MAIN           equ 0x01
+OS_TOOLBAR_STATE_SHELL          equ 0x02
+OS_TOOLBAR_STATE_FS             equ 0x03
+OS_TOOLBAR_STATE_HELP           equ 0x04
+
+OS_NAV_START_POS                equ 0x00
+OS_NAV_LAST_POS                 equ 0x03
 OS_NAV_POS_SHELL                equ 0x0
 OS_NAV_POS_FS                   equ 0x2
+
 OS_FS_BLOCK_FIRST               equ 17
 OS_FS_BLOCK_SIZE                equ 16
 OS_FS_FILE_SIZE                 equ 8192
@@ -119,6 +121,8 @@ os_reset:
 
   mov dword [_OS_TICK_], 0  ; Initialize tick count
   mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
+  mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
+  mov word [_OS_TOOLBAR_SELECTED_], os_toolbar_table
 
   call os_load_all_glyphs
   call os_sound_init
@@ -254,12 +258,12 @@ os_print_header:
 
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   je .set_width_40
-  mov dl, 27+15
-  mov dh, 80-10
+  mov dl, 41+15
+  mov dh, 82
   jmp .continue
   .set_width_40:
-    mov dl, 2+15
-    mov dh, 40-10
+    mov dl, 16+15
+    mov dh, 42
   .continue:
   sub dh, 13
 
@@ -270,12 +274,6 @@ os_print_header:
 
   mov si, system_logo_msg
   call os_print_str
-
-  mov al, CHR_SPACE
-  mov ah, CHR_SPACE
-  call os_print_chr2
-
-  call os_print_icons_toolbar
 
   mov al, CHR_SPACE
   mov ah, dl
@@ -304,7 +302,6 @@ os_print_header:
   mov al, GLYPH_16BIT_1
   mov ah, GLYPH_16BIT_2
   call os_print_chr2
-
   mov al, GLYPH_16BIT_3
   call os_print_chr
 
@@ -318,12 +315,12 @@ os_print_header:
   mov al, GLYPH_CEILING
   call os_print_chr
 
-  call os_print_icons_selector
-
   mov al, GLYPH_CEILING
   mov ah, dh
   call os_print_chr_mul
 
+
+  call os_print_toolbar
 ret
 
 ; Print Error Status ===========================================================
@@ -340,53 +337,6 @@ os_print_error_status:
   .success:
   call os_print_str
   popa
-ret
-
-; Print Icons Toolbar ==========================================================
-; This function prints the icons in the toolbar.
-; Expects: None
-; Returns: None
-os_print_icons_toolbar:
-  push si
-  mov si, os_icons_table
-  .icons_loop:
-    lodsw                     ; Load the next icon character into AL
-    test ax, ax               ; Test if 0, terminator
-    jz .done_icons            ; If zero, end of icons
-    call os_print_chr2         ; Print the icon character
-    mov al, CHR_SPACE          ; Move space character to AL
-    call os_print_chr
-    add si, 0x4             ; Skip function pointer, description pointer
-    jmp .icons_loop          ; Repeat for the next icon
-  .done_icons:
-  pop si
-ret
-
-; Print Icons Selector
-; This function prints the selected icon in the toolbar.
-; Expects: None
-; Returns: None
-os_print_icons_selector:
-  xor cx, cx
-  mov bl, [_OS_NAV_POSITION_]     ; Save current navigation position (selection)
-  .icons_loop:
-    cmp cl, OS_NAV_LAST_POS
-    jg .done_icons                ; If zero, end of icons
-
-    cmp cl, bl                    ; Check if current ID is selected
-    je .icon_selected
-    mov al, GLYPH_CEILING         ; Set two characters
-    mov ah, GLYPH_CEILING         ; as empty space
-    jmp .print_glyph
-    .icon_selected:
-    mov ax, GLYPH_ICONS_SELECTOR  ; Set selector icon
-    .print_glyph:
-    call os_print_chr2            ; Print to the screen
-    mov al, GLYPH_CEILING         ; Add another empty space
-    call os_print_chr
-    inc cl
-    jmp .icons_loop               ; Repeat for the next icon
-  .done_icons:
 ret
 
 ; Print help message ===========================================================
@@ -759,76 +709,6 @@ os_interpret_kb:
     mov ax, OS_SOUND_ERROR
     call os_sound_play
   ret
-
-
-; Selects next icon
-; This function selects the next icon in the navigation
-; Expects: None
-; Returns: AX = icon index
-os_icon_next:
-  movzx ax, [_OS_NAV_POSITION_]
-  cmp al, OS_NAV_LAST_POS
-  jge .bounded
-  inc al
-  ; AX = icon index
-  mov byte [_OS_NAV_POSITION_], al
-  call os_icon_print_desc
-  .bounded:
-ret
-
-; Selects previous icon
-; This function selects the previous icon in the navigation
-; Expects: None
-; Returns: AX - icon index
-os_icon_prev:
-  movzx ax, [_OS_NAV_POSITION_]
-  cmp al, 0
-  jle .bounded
-  dec al
-  ; AX - icon index
-  mov byte [_OS_NAV_POSITION_], al
-  call os_icon_print_desc
-  .bounded:
-ret
-
-; Print icon description
-; This function prints the description of the currently selected icon
-; Expects: AX - icon index
-; Returns: None
-os_icon_print_desc:
-  ; AX - icon index
-  imul ax, 0x6
-  mov bx, ax
-  lea si, [os_icons_table + bx + 4]
-  mov si, [si]
-
-  call os_cursor_pos_get
-  push dx
-  mov dx, 0x0200
-  call os_cursor_pos_set
-  mov al, CHR_SPACE
-  mov ah, 40
-  call os_print_chr_mul
-  mov dx, 0x0202
-  call os_cursor_pos_set
-  call os_print_str
-
-  pop dx
-  call os_cursor_pos_set
-
-ret
-
-; Executes icon command
-; This function executes the command associated with the currently selected icon
-; Expects: None
-; Returns: None
-os_icon_execute:
-  movzx bx, [_OS_NAV_POSITION_]
-  imul bx, 0x6          ; Calculate the icon index
-  lea si, [os_icons_table + bx]
-  mov ax, [si+2]        ; Load the command pointer
-  call ax               ; Execute the command
-ret
 
 ; Print debug info =============================================================
 ; This function prints debug information.
@@ -1215,15 +1095,6 @@ os_fs_file_write:
     ret
 
 
-os_fs_state_set_shell:
-  mov byte [_OS_STATE_], OS_STATE_SHELL
-  mov byte [_OS_NAV_POSITION_], OS_NAV_POS_SHELL
-  call os_clear_shell
-  mov bl, PROMPT_USR
-  call os_print_prompt
-ret
-
-
 os_print_cpuid:
   mov ax, 1                  ; ax = 1 for processor info
   cpuid
@@ -1249,15 +1120,6 @@ os_print_cpuid:
   mov si, [si]
   call os_print_str
 
-ret
-
-os_enter_shell:
-  mov byte [_OS_STATE_], OS_STATE_SHELL
-  call os_clear_screen
-  call os_print_header
-  call os_print_welcome
-  mov bl, PROMPT_USR
-  call os_print_prompt
 ret
 
 os_print_splash_screen:
@@ -1350,13 +1212,168 @@ os_print_splash_screen:
   call os_cursor_pos_set
 ret
 
+
+; Print Icons Toolbar ==========================================================
+; This function prints the icons in the toolbar.
+; Expects: None
+; Returns: None
+os_print_icons_toolbar:
+  push si
+  mov si, os_icons_table
+  .icons_loop:
+    lodsw                     ; Load the next icon character into AL
+    test ax, ax               ; Test if 0, terminator
+    jz .done_icons            ; If zero, end of icons
+    call os_print_chr2         ; Print the icon character
+    mov al, CHR_SPACE          ; Move space character to AL
+    call os_print_chr
+    add si, 0x4             ; Skip function pointer, description pointer
+    jmp .icons_loop          ; Repeat for the next icon
+  .done_icons:
+  pop si
+ret
+
+OS_TOOLBAR_TABLE_ENTRY_SIZE equ 8
+; Selects next icon
+; This function selects the next icon in the navigation
+; Expects: None
+; Returns: None
+os_icon_next:
+  mov bx, OS_TOOLBAR_TABLE_ENTRY_SIZE
+  call os_icon_test_bound
+ret
+
+; Selects previous icon
+; This function selects the previous icon in the navigation
+; Expects: None
+; Returns: None
+os_icon_prev:
+  mov bx, -OS_TOOLBAR_TABLE_ENTRY_SIZE
+  call os_icon_test_bound
+ret
+
+os_icon_test_bound:
+  mov si, [_OS_TOOLBAR_SELECTED_]
+  add si, bx
+  lodsb
+  test al, al
+  jz .bounded
+  cmp al, [_OS_TOOLBAR_STATE_]
+  jne .bounded
+  add word [_OS_TOOLBAR_SELECTED_], bx
+  clc
+ret
+  .bounded:
+  stc
+ret
+
+
+; Print icon description
+; This function prints the description of the currently selected icon
+; Expects: AX - icon index
+; Returns: None
+os_icon_print_desc:
+  ; AX - icon index
+  imul ax, 0x6
+  mov bx, ax
+  lea si, [os_icons_table + bx + 4]
+  mov si, [si]
+
+  call os_cursor_pos_get
+  push dx
+  mov dx, 0x0200
+  call os_cursor_pos_set
+  mov al, CHR_SPACE
+  mov ah, 40
+  call os_print_chr_mul
+  mov dx, 0x0202
+  call os_cursor_pos_set
+  call os_print_str
+
+  pop dx
+  call os_cursor_pos_set
+
+ret
+
+; Executes icon command
+; This function executes the command associated with the currently selected icon
+; Expects: None
+; Returns: None
+os_icon_execute:
+  movzx bx, [_OS_NAV_POSITION_]
+  imul bx, 0x6          ; Calculate the icon index
+  lea si, [os_icons_table + bx]
+  mov ax, [si+2]        ; Load the command pointer
+  call ax               ; Execute the command
+ret
+
+os_print_toolbar:
+  call os_cursor_pos_get
+  push dx
+
+  mov dx, 0x000C
+  call os_cursor_pos_set
+
+  mov si, os_toolbar_table
+  .icons_loop:
+    lodsb
+    test al, al
+    jz .done
+    cmp al, [_OS_TOOLBAR_STATE_]
+    jne .next_icon
+
+    mov ax, si
+    dec ax
+    cmp ax, [_OS_TOOLBAR_SELECTED_]
+    jne .skip_selector
+      call os_cursor_pos_get
+      add dh, 0x01
+      call os_cursor_pos_set
+      mov ax, GLYPH_ICONS_SELECTOR
+      call os_print_chr2
+      sub dh, 0x01
+      call os_cursor_pos_set
+    .skip_selector:
+
+    inc si                        ; skip toolbar target state
+    lodsw
+    call os_print_chr2
+    mov al, CHR_SPACE
+    call os_print_chr
+
+    add si, 4                     ; skip command + desc
+    jmp .icons_loop
+
+    .next_icon:
+      add si, 7                   ; skip target state, command, desc
+      jmp .icons_loop
+    .done:
+
+  pop dx
+  call os_cursor_pos_set
+ret
+
 os_toolbar_back:
+  mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
+ret
+
+os_enter_shell:
+  mov byte [_OS_STATE_], OS_STATE_SHELL
+  ;mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_SHELL
+  call os_clear_screen
+  call os_print_header
+  call os_print_welcome
+  mov bl, PROMPT_USR
+  call os_print_prompt
 ret
 
 os_enter_fs:
+  mov byte [_OS_STATE_], OS_STATE_SHELL
+  mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_FS
 ret
 
 os_enter_help:
+  mov byte [_OS_STATE_], OS_STATE_SHELL
 ret
 
 ; Void =========================================================================
@@ -1473,19 +1490,22 @@ os_toolbar_table:
   dw GLYPH_ICON_SHELL, os_enter_shell, msg_cmd_c
 
   db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_FS
-  dw GLYPH_ICON_FLOPPY, os_enter_fs, msg_cmd_c
+  dw GLYPH_ICON_FLOPPY, os_void, msg_cmd_c
 
-  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_HELP
+  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_MAIN
   dw GLYPH_ICON_HELP, os_enter_help, msg_cmd_c
 
   ; SHELL
   db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_MAIN
-  dw GLYPH_ICON_BACK, os_toolbar_back, msg_cmd_back
+  dw GLYPH_ICON_BACK, os_void, msg_cmd_back
 
   db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
   dw GLYPH_ICON_FS_READ, os_fs_file0_read, msg_cmd_fs_read
 
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
 
+  db 0x0 ; Terminator
 
 ; Commands table ===============================================================
 ; character (1b) | pointer to function (2b) | description (24b/chars)
@@ -1534,7 +1554,8 @@ os_commands_table:
 
   db 27
   dw os_clear_shell, msg_cmd_void
-  db 0x0
+
+  db 0x0 ; Terminator
 
 os_keyboard_table:
   db OS_STATE_SPLASH_SCREEN, KBD_KEY_ENTER
@@ -1550,7 +1571,7 @@ os_keyboard_table:
   db OS_STATE_FS, KBD_KEY_DOWN
   dw os_fs_scroll_down
   db OS_STATE_FS, KBD_KEY_ESCAPE
-  dw os_fs_state_set_shell
+  dw os_enter_shell
   db 0x0
 
 ; Glyphs =======================================================================

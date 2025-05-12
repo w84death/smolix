@@ -1,9 +1,10 @@
-alpha8:
-    - [todo] refactored toolbar with secondary menus
-    - [todo] polish characters
+  future:
+    - [todo] polish characters (own custom encoding)
     - [todo] file system update (metadata)
     - [todo] listing and selecting files to read/write
     - [todo] virtual pages for fake-multi tasking
+  alpha8:
+    - [in-progress] refactored toolbar with secondary menus
     - code golf and optimizations
     - cpuid (brakes emulators)
     - updated logo

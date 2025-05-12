@@ -5,7 +5,7 @@
 ; This program is free software. See LICENSE for details.
 
 org 0x7C00
-use16 
+use16
 
 KERNEL_SIZE_KB        equ 6                 ; Size of the kernel in KB
 SECTORS_TO_LOAD       equ KERNEL_SIZE_KB*2  ; Sectors to load (512KB chunks)
@@ -24,7 +24,6 @@ boot_start:
   mov es, ax
 
 	mov ah, 0x00		; Set video mode
-	; mov al, 0x03		; 720x400 VGA text mode
 	mov al, 0x00    ; Set to default text mode
 	int 0x10
 
@@ -48,7 +47,7 @@ boot_load_kernel:
   mov ax, KERNEL_SEGMENT
   mov es, ax
   xor bx, bx             ; Offset where code will be loaded (starting at 0)
-  
+
   ; Set up disk read parameters
   mov ah, 0x02           ; BIOS read sectors function
   mov al, SECTORS_TO_LOAD
@@ -56,10 +55,10 @@ boot_load_kernel:
   mov cl, 2              ; Start from sector 2
   mov dh, 0              ; Head 0
   mov dl, 0x00           ; Drive 0 (first floppy drive)
-  
+
   int 0x13               ; BIOS disk interrupt
   jc boot_kernel_error   ; Error if carry flag set
-  
+
   ; Check if we read the correct number of sectors
   cmp al, SECTORS_TO_LOAD
   jb boot_sector_count_error  ; Error if fewer sectors read than expected
@@ -78,7 +77,7 @@ boot_disk_reset_error:
 ; Sector count error ===========================================================
 ; This function handles sector count errors.
 ; Expects: None
-; Returns: None  
+; Returns: None
 boot_sector_count_error:
   mov si, count_err_msg
   call boot_print_str
@@ -116,13 +115,13 @@ boot_kernel_success:
   ; Give visual indicator we're about to jump to kernel
   mov si, kernel_jump_msg
   call boot_print_str
-  
+
   ; Set up stack before jumping to kernel
   mov ax, KERNEL_SEGMENT
   mov ds, ax
   mov es, ax
   mov ss, ax
-  mov sp, KERNEL_STACK_POINTER 
+  mov sp, KERNEL_STACK_POINTER
   jmp KERNEL_SEGMENT:KERNEL_OFFSET
 
 ; Print string =================================================================
