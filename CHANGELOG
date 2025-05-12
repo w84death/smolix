@@ -4,7 +4,8 @@
     - [todo] listing and selecting files to read/write
     - [todo] virtual pages for fake-multi tasking
   alpha8:
-    - [in-progress] refactored toolbar with secondary menus
+    - updated status [s] reporting (date/battery)
+    - refactored toolbar backend with secondary menus
     - code golf and optimizations
     - cpuid (brakes emulators)
     - updated logo

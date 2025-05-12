@@ -8,3 +8,4 @@ floppya: 1_44="build/img/floppy.img", status=inserted
 boot: floppy
 mouse: enabled=1, type=ps2
 clock: sync=realtime, time0=local
+magic_break: enabled=1

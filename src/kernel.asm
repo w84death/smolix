@@ -98,7 +98,7 @@ CHR_CR                          equ 0x0D
 CHR_LF                          equ 0x0A
 CHR_NEW_LINE                    equ 0x0A0D
 CHR_LIST                        equ 0x1A
-
+CHR_SLASH                       equ '/'
 KBD_KEY_LEFT                    equ 0x4B
 KBD_KEY_RIGHT                   equ 0x4D
 KBD_KEY_UP                      equ 0x48
@@ -164,30 +164,33 @@ os_main_loop:
       jmp .continue
 
     .no_command_key:
-    call os_interpret_kb
+      call os_interpret_kb
 
     .continue:
-    cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
-    je .print_splash
+      cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
+      je .print_splash
 
-    call os_cursor_pos_get
-    push dx
-    call os_print_header
-    pop dx
-    call os_cursor_pos_set
-    jmp .done
+    .print_header:
+      call os_cursor_pos_get
+      push dx
+      call os_print_header
+      pop dx
+      call os_cursor_pos_set
+      jmp .done
 
     .print_splash:
       call os_print_splash_screen
 
     .done:
-    xor ax, ax            ; Function 00h: Read system timer counter
-    int 0x1a              ; Returns tick count in CX:DX
-    mov bx, dx            ; Store the current tick count
-    .wait_loop:
-      int 0x1a            ; Read the tick count again
-      test dx, bx
-      jz .wait_loop
+
+    .cpu_delay:
+      xor ax, ax            ; Function 00h: Read system timer counter
+      int 0x1a              ; Returns tick count in CX:DX
+      mov bx, dx            ; Store the current tick count
+      .wait_loop:
+        int 0x1a            ; Read the tick count again
+        test dx, bx
+        jz .wait_loop
 
     inc dword [_OS_TICK_]
     call os_print_tick
@@ -272,7 +275,7 @@ os_print_header:
   ; new line
   mov al, GLYPH_MASCOT
   mov ah, CHR_SPACE
-  call os_print_chr2
+  call os_print_chr_double
 
   mov si, system_logo_msg
   call os_print_str
@@ -303,7 +306,7 @@ os_print_header:
 
   mov al, GLYPH_16BIT_1
   mov ah, GLYPH_16BIT_2
-  call os_print_chr2
+  call os_print_chr_double
   mov al, GLYPH_16BIT_3
   call os_print_chr
 
@@ -395,7 +398,7 @@ os_print_prompt:
   push ax
   ; New line
   mov ax, CHR_NEW_LINE
-  call os_print_chr2
+  call os_print_chr_double
   ; Space
   mov al, CHR_SPACE
   call os_print_chr
@@ -494,7 +497,7 @@ ret
 ; This function prints two characters to the screen.
 ; Expects: AL = first character, AH = second character
 ; Returns: None
-os_print_chr2:
+os_print_chr_double:
   ; AL = first character
   call os_print_chr
   ; AH = second character
@@ -596,8 +599,7 @@ os_load_glyph:
   movzx bx, al          ; Move character code to BX, clears AH
   push bx               ; Save character code
   shl bx, 1             ; Multiply by 2 (each entry is 2 bytes)
-  lea si, [glyph_table + bx]  ; Get pointer to the right entry
-  mov bp, [si]          ; Get address of glyph data
+  mov bp, [glyph_table + bx]  ; Get pointer to the right entry
   push ds
   pop es                ; Ensure ES = DS (BIOS expects ES:BP for font data)
   mov ax, 1100h         ; BIOS function to load 9×16 user-defined font
@@ -841,7 +843,23 @@ os_print_stats:
 
   mov ah, 0x0B
   int 0x1A
-  call os_print_num
+  jc .unsuported
+
+  movzx ax, cl
+  call os_print_bcd
+  mov al, CHR_SLASH
+  call os_print_chr
+  movzx ax, dh
+  call os_print_bcd
+  mov al, CHR_SLASH
+  call os_print_chr
+  movzx ax, dl
+  call os_print_bcd
+  jmp .supported
+  .unsuported:
+  mov si, unsupported_msg
+  call os_print_str
+  .supported:
 
   ; Battery status
   mov bx, GLYPH_BAT
@@ -852,14 +870,40 @@ os_print_stats:
   mov ax, 530Ah         ; Get Power Status
   mov bx, 0001h         ; All devices
   int 15h               ; Returns battery status in BL, BH
-  movzx ax, bl
+
+  cmp bl, 0xFF
+  je .apm_unsuported
+
+  test bl, bl
+  jz .ac_power
+
+  movzx ax, cl
   call os_print_num
-  mov ax, CHR_SPACE
-  call os_print_chr
-  movzx ax, bh
-  call os_print_num
+  mov si, apm_batt_life
+  call os_print_str
+  jmp .apm_done
+
+  .ac_power:
+    mov si, apm_batt_ac
+    call os_print_str
+    jmp .apm_done
+  .apm_unsuported:
+    mov si, unsupported_msg
+    call os_print_str
+  .apm_done:
 ret
 
+
+os_print_bcd:
+  push ax                ; Save the original BCD value
+  shr al, 4              ; Get high nibble
+  add al, '0'            ; Convert to ASCII
+  call os_print_chr      ; Print it
+  pop ax                 ; Restore the original BCD value
+  and al, 0x0F           ; Get low nibble
+  add al, '0'            ; Convert to ASCII
+  call os_print_chr      ; Print it
+ret
 
 ; Sound Initialization =========================================================
 ; This function initializes the sound system.
@@ -908,8 +952,11 @@ ret
 ; File System:
 os_fs_file_read:
   mov word [os_fs_file_pos], 0
+  cmp byte [os_fs_file_loaded], dl
+  je .already_loaded
   call os_fs_file_load
   call os_print_error_status
+  .already_loaded:
   mov word [os_fs_file_pos], 0
 ret
 
@@ -918,6 +965,8 @@ ret
 ; Expects: DL = File number
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_file_load:
+
+  mov byte [os_fs_file_loaded], dl
 
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
@@ -931,8 +980,7 @@ os_fs_file_load:
 
   movzx bx, dl
   shl bx, 1
-  lea si, [os_fs_directory_table + bx]       ; Load effective address with offset
-  mov dx, [si]
+  mov dx, [os_fs_directory_table + bx]       ; Load effective address with offset
 
   mov ax, ds
   mov es, ax              ; Make sure ES=DS for disk read
@@ -950,6 +998,7 @@ os_fs_file_load:
   ret
 
   .disk_error:
+    mov byte [os_fs_file_loaded], 0xFF
     stc                   ; Set carry flag (error)
     ret
 
@@ -970,14 +1019,14 @@ os_fs_file_display:
   ; Calculate end of buffer for bounds checking
   lea di, [_OS_FS_BUFFER_ + OS_FS_FILE_SIZE]
 
-  mov cx, OS_FS_FILE_LINES_ON_SCREEN  ; Number of lines to display
-  mov dl, OS_FS_FILE_CHARS_ON_LINE_80 ; Chars per line (default 80 col)
+  mov cx, OS_FS_FILE_LINES_ON_SCREEN
+  mov dl, OS_FS_FILE_CHARS_ON_LINE_80
   push si
   mov si, fs_ruler_80_msg
   .video_mode_adjust:
     cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
     jne .done_video_mode_adjust
-    mov dl, OS_FS_FILE_CHARS_ON_LINE_40 ; Adjust for 40 col
+    mov dl, OS_FS_FILE_CHARS_ON_LINE_40
     mov si, fs_ruler_40_msg
   .done_video_mode_adjust:
   call os_print_str
@@ -1013,7 +1062,7 @@ os_fs_file_display:
       jz .done                ; Last line
 
       mov ax, CHR_NEW_LINE
-      call os_print_chr2
+      call os_print_chr_double
     jmp .line_loop
 
   .done:
@@ -1120,8 +1169,7 @@ os_print_cpuid:
     mov bx, 0x9
   .known_cpu:
   shl bx, 1                 ; Table is word sized
-  lea si, [os_cpu_family_table + bx]
-  mov si, [si]
+  mov si, [os_cpu_family_table + bx]
   call os_print_str
 ret
 
@@ -1198,7 +1246,7 @@ os_print_splash_screen:
 
   mov al, GLYPH_16BIT_1
   mov ah, GLYPH_16BIT_2
-  call os_print_chr2
+  call os_print_chr_double
   mov al, GLYPH_16BIT_3
   call os_print_chr
 
@@ -1249,10 +1297,37 @@ os_toolbar_icon_change_active:
   cmp al, [_OS_TOOLBAR_STATE_]
   jne .bounded
   add word [_OS_TOOLBAR_SELECTED_], bx
+  call os_toolbar_print_hint
   clc
 ret
   .bounded:
   stc
+ret
+
+os_clear_line:
+  push dx
+  xor dl, dl
+  call os_cursor_pos_set
+  mov al, CHR_SPACE
+  mov ah, 80
+  call os_print_chr_mul
+  pop dx
+  call os_cursor_pos_set
+ret
+
+os_toolbar_print_hint:
+  mov si, [_OS_TOOLBAR_SELECTED_]
+  add si, OS_TOOLBAR_TABLE_ENTRY_SIZE-2
+  call os_cursor_pos_get
+  push dx
+  mov dx, 0x020A
+  call os_cursor_pos_set
+  call os_clear_line
+  lodsw
+  mov si, ax
+  call os_print_str
+  pop dx
+  call os_cursor_pos_set
 ret
 
 ; Executes icon command
@@ -1306,14 +1381,14 @@ os_print_toolbar:
       add dh, 0x01
       call os_cursor_pos_set
       mov ax, GLYPH_ICONS_SELECTOR
-      call os_print_chr2
+      call os_print_chr_double
       sub dh, 0x01
       call os_cursor_pos_set
     .skip_selector:
 
     inc si                        ; skip toolbar target state
     lodsw
-    call os_print_chr2
+    call os_print_chr_double
     mov al, CHR_SPACE
     call os_print_chr
 
@@ -1333,7 +1408,7 @@ os_toolbar_back:
   mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
 ret
 
-os_enter_shell:
+os_init_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
   call os_clear_screen
   call os_print_header
@@ -1342,9 +1417,16 @@ os_enter_shell:
   call os_print_prompt
 ret
 
+os_enter_shell:
+  mov byte [_OS_STATE_], OS_STATE_SHELL
+  call os_clear_screen
+  call os_print_header
+  mov bl, PROMPT_USR
+  call os_print_prompt
+ret
+
 os_enter_fs:
   mov byte [_OS_STATE_], OS_STATE_FS
-  mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_FS
   call os_clear_screen
   call os_print_header
   mov bl, PROMPT_USR
@@ -1384,9 +1466,9 @@ copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
 press_enter_msg       db 'Press ENTER to begin.', 0
 more_info_msg         db 'Type "h" for help.', 0
 help_line1_msg        db 'LEFT/RIGHT/ENTER to navigate toolbar', 0
-help_line3_msg        db 'List of text commands:', 0
+help_line3_msg        db 'Available commands:', 0
 unknown_cmd_msg       db 'Unknown command', 0
-unsupported_msg       db 'Unsupported hardware function', 0
+unsupported_msg       db 'Unsupported', 0
 hex_ruler_msg         db '0123456789ABCDEF', 0
 cpu_family_msg        db 'CPU Family: ', 0
 cpu_family_3          db 'Intel 386',0x0
@@ -1401,7 +1483,9 @@ kernel_size_msg       db 'Kernel size: ', 0
 kb_msg                db ' KB', 0
 byte_msg              db ' B', 0
 bios_date_msg         db 'BIOS date: ', 0
-apm_batt_msg          db 'Battery status: ', 0
+apm_batt_msg          db 'Battery: ', 0
+apm_batt_ac           db 'AC power', 0
+apm_batt_life         db '% charge', 0
 success_msg           db 'success.', 0
 failure_msg           db 'failure.', 0
 fs_reading_msg        db 'Reading data from disk...', 0
@@ -1438,7 +1522,8 @@ msg_cmd_fs_display    db GLYPH_FLOPPY, ' Display loaded file content', 0x0
 msg_cmd_fs_read       db GLYPH_FLOPPY, ' Read file [0]', 0x0
 msg_cmd_fs_write      db GLYPH_FLOPPY, ' Write current file', 0x0
 
-os_fs_file_pos        dw 0
+os_fs_file_loaded     db 0xFF
+os_fs_file_pos        dw 0x00
 
 os_cpu_family_table:
   dw cpu_family_other
@@ -1474,6 +1559,9 @@ os_toolbar_table:
   ; SHELL
   db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_MAIN
   dw GLYPH_ICON_BACK, os_void, msg_cmd_back
+
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_SHELL, os_clear_shell, msg_cmd_c
 
   db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
   dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
@@ -1560,13 +1648,15 @@ os_commands_table:
 
 os_keyboard_table:
   db OS_STATE_SPLASH_SCREEN, KBD_KEY_ENTER
-  dw os_enter_shell
+  dw os_init_shell
   db OS_STATE_SHELL, KBD_KEY_ESCAPE
   dw os_clear_shell
   db OS_STATE_SHELL, KBD_KEY_RIGHT
   dw os_toolbar_icon_next
   db OS_STATE_SHELL, KBD_KEY_LEFT
   dw os_toolbar_icon_prev
+  ;db OS_STATE_SHELL, KBD_KEY_ENTER
+  ;dw os_icon_execute
 
   db OS_STATE_FS, KBD_KEY_RIGHT
   dw os_toolbar_icon_next
