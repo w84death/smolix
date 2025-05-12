@@ -30,25 +30,25 @@ OS_TOOLBAR_STATE_MAIN           equ 0x01
 OS_TOOLBAR_STATE_SHELL          equ 0x02
 OS_TOOLBAR_STATE_FS             equ 0x03
 OS_TOOLBAR_STATE_HELP           equ 0x04
+OS_TOOLBAR_TABLE_ENTRY_SIZE     equ 0x08
 
-OS_NAV_START_POS                equ 0x00
-OS_NAV_LAST_POS                 equ 0x03
-OS_NAV_POS_SHELL                equ 0x0
-OS_NAV_POS_FS                   equ 0x2
-
-OS_FS_BLOCK_FIRST               equ 17
-OS_FS_BLOCK_SIZE                equ 16
+OS_FS_BLOCK_FIRST               equ 0x11
+OS_FS_BLOCK_SIZE                equ 0x10
 OS_FS_FILE_SIZE                 equ 8192
 OS_FS_FILE_LINES_ON_SCREEN      equ 0x15
 OS_FS_FILE_CHARS_ON_LINE_80     equ 80-1
 OS_FS_FILE_CHARS_ON_LINE_40     equ 40-1
 OS_FS_FILE_SCROLL_CHARS         equ 160
+OS_FS_FILE_ID_MANUAL            equ 0x00
+OS_FS_FILE_ID_LEM               equ 0x01
+
 OS_COLOR_PRIMARY                equ 0x1F
 OS_COLOR_SECONDARY              equ 0x2F
-OS_LENGTH_BYTE                  equ 1
-OS_LENGTH_WORD                  equ 2
-OS_LENGTH_WORD                  equ 2
-OS_LOGO_LENGTH                  equ 7
+OS_LENGTH_BYTE                  equ 0x01
+OS_LENGTH_WORD                  equ 0x02
+OS_LENGTH_WORD                  equ 0x02
+OS_LOGO_LENGTH                  equ 0x07
+
 OS_SOUND_STARTUP                equ 1500
 OS_SOUND_SUCCESS                equ 1700
 OS_SOUND_ERROR                  equ 2500
@@ -85,6 +85,7 @@ GLYPH_RULER_START               equ 0xAC
 GLYPH_RULER_MIDDLE              equ 0xAD
 GLYPH_RULER_END                 equ 0xAE
 GLYPH_RULER_NO                  equ 0xAF
+; Ruler numbers 10-70               0xB0 - 0xB5
 GLYPH_ICON_FS_READ              equ 0xB7B6
 GLYPH_ICON_FS_WRITE             equ 0xB9B8
 GLYPH_ICON_FS_LIST              equ 0xBBBA
@@ -95,6 +96,7 @@ GLYPH_16BIT_3                   equ 0xBE
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
 CHR_LF                          equ 0x0A
+CHR_NEW_LINE                    equ 0x0A0D
 CHR_LIST                        equ 0x1A
 
 KBD_KEY_LEFT                    equ 0x4B
@@ -105,27 +107,27 @@ KBD_KEY_ESCAPE                  equ 0x01
 KBD_KEY_ENTER                   equ 0x1C
 KBD_KEY_BACKSPACE               equ 0x0E
 
+; Initialize OS ================================================================
+; This is the main entry
 os_init:
+  mov byte [_OS_STATE_], OS_STATE_INIT
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  mov dword [_OS_TICK_], 0  ; Initialize tick count
+  call os_sound_init
 
 ; Entry point / System reset ===================================================
 ; This function resets the system.
 ; Expects: None
 ; Returns: None
 os_reset:
-  mov byte [_OS_STATE_], OS_STATE_INIT
-
   mov ah, 0x00		    ; Set video mode
 	mov al, [_OS_VIDEO_MODE_]
 	int 0x10            ; 80x25 text mode
+  call os_load_all_glyphs
 
-  mov dword [_OS_TICK_], 0  ; Initialize tick count
-  mov byte [_OS_NAV_POSITION_], OS_NAV_START_POS
   mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
   mov word [_OS_TOOLBAR_SELECTED_], os_toolbar_table
 
-  call os_load_all_glyphs
-  call os_sound_init
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
   call os_clear_screen
@@ -392,8 +394,7 @@ ret
 os_print_prompt:
   push ax
   ; New line
-  mov al, CHR_CR
-  mov ah, CHR_LF
+  mov ax, CHR_NEW_LINE
   call os_print_chr2
   ; Space
   mov al, CHR_SPACE
@@ -458,7 +459,7 @@ ret
 ; This function prints the welcome message to the screen.
 ; Expects: None
 ; Returns: None
-os_print_welcome:
+os_print_welcome_shell:
   mov bl, PROMPT_SYS_MSG
   call os_print_prompt
   mov si, welcome_msg
@@ -904,6 +905,7 @@ os_fs_file1_read:
   call os_fs_file_read
 ret
 
+; File System:
 os_fs_file_read:
   mov word [os_fs_file_pos], 0
   call os_fs_file_load
@@ -911,8 +913,8 @@ os_fs_file_read:
   mov word [os_fs_file_pos], 0
 ret
 
-; File System: read file =======================================================
-; This function reads a file from the floppy disk and displays it on the screen
+; File System: load file =======================================================
+; This function loads a file from the floppy disk to a memory
 ; Expects: DL = File number
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_file_load:
@@ -952,7 +954,7 @@ os_fs_file_load:
     ret
 
 ; File System: display file ====================================================
-; This function displays the contents of a file on the screen
+; This function displays the loaded file contents from memory to the screen
 ; Expects: None
 ; Returns: None
 os_fs_file_display:
@@ -963,7 +965,6 @@ os_fs_file_display:
   je .empty_file
 
   mov byte [_OS_STATE_], OS_STATE_FS
-  mov byte [_OS_NAV_POSITION_], OS_NAV_POS_FS
   call os_clear_shell
 
   ; Calculate end of buffer for bounds checking
@@ -1011,8 +1012,7 @@ os_fs_file_display:
       dec cx                  ; Decrement line counter (one line finished)
       jz .done                ; Last line
 
-      mov al, CHR_CR
-      mov ah, CHR_LF
+      mov ax, CHR_NEW_LINE
       call os_print_chr2
     jmp .line_loop
 
@@ -1095,6 +1095,10 @@ os_fs_file_write:
     ret
 
 
+; CPUID ========================================================================
+; This function detects and prints the CPU family
+; Expects: None
+; Return: None
 os_print_cpuid:
   mov ax, 1                  ; ax = 1 for processor info
   cpuid
@@ -1119,9 +1123,12 @@ os_print_cpuid:
   lea si, [os_cpu_family_table + bx]
   mov si, [si]
   call os_print_str
-
 ret
 
+; Splash screen ================================================================
+; This function prints the system splash screen
+; Expects: None
+; Return: None
 os_print_splash_screen:
   mov cx, 0x25
   mov dx, 0x0A27
@@ -1206,53 +1213,34 @@ os_print_splash_screen:
   sub ah, 0x2
   call os_print_chr_mul
 
-
   ; Set position for printing OS tick
   mov dx, 0x1802
   call os_cursor_pos_set
 ret
 
-
-; Print Icons Toolbar ==========================================================
-; This function prints the icons in the toolbar.
-; Expects: None
-; Returns: None
-os_print_icons_toolbar:
-  push si
-  mov si, os_icons_table
-  .icons_loop:
-    lodsw                     ; Load the next icon character into AL
-    test ax, ax               ; Test if 0, terminator
-    jz .done_icons            ; If zero, end of icons
-    call os_print_chr2         ; Print the icon character
-    mov al, CHR_SPACE          ; Move space character to AL
-    call os_print_chr
-    add si, 0x4             ; Skip function pointer, description pointer
-    jmp .icons_loop          ; Repeat for the next icon
-  .done_icons:
-  pop si
-ret
-
-OS_TOOLBAR_TABLE_ENTRY_SIZE equ 8
-; Selects next icon
+; Toolbar: Selects next icon ===================================================
 ; This function selects the next icon in the navigation
 ; Expects: None
 ; Returns: None
-os_icon_next:
+os_toolbar_icon_next:
   mov bx, OS_TOOLBAR_TABLE_ENTRY_SIZE
-  call os_icon_test_bound
+  call os_toolbar_icon_change_active
 ret
 
-; Selects previous icon
+; Toolbar: Selects previous icon ===============================================
 ; This function selects the previous icon in the navigation
 ; Expects: None
 ; Returns: None
-os_icon_prev:
+os_toolbar_icon_prev:
   mov bx, -OS_TOOLBAR_TABLE_ENTRY_SIZE
-  call os_icon_test_bound
+  call os_toolbar_icon_change_active
 ret
 
-os_icon_test_bound:
+; Toolbar: Change active icon ==================================================
+; This function tests if possible and change the active icon to new position
+; Expects: BX = new position (+/-)
+; Return: CF = out of bouds
+os_toolbar_icon_change_active:
   mov si, [_OS_TOOLBAR_SELECTED_]
   add si, bx
   lodsb
@@ -1267,44 +1255,32 @@ ret
   stc
 ret
 
-
-; Print icon description
-; This function prints the description of the currently selected icon
-; Expects: AX - icon index
-; Returns: None
-os_icon_print_desc:
-  ; AX - icon index
-  imul ax, 0x6
-  mov bx, ax
-  lea si, [os_icons_table + bx + 4]
-  mov si, [si]
-
-  call os_cursor_pos_get
-  push dx
-  mov dx, 0x0200
-  call os_cursor_pos_set
-  mov al, CHR_SPACE
-  mov ah, 40
-  call os_print_chr_mul
-  mov dx, 0x0202
-  call os_cursor_pos_set
-  call os_print_str
-
-  pop dx
-  call os_cursor_pos_set
-
-ret
-
 ; Executes icon command
 ; This function executes the command associated with the currently selected icon
 ; Expects: None
 ; Returns: None
 os_icon_execute:
-  movzx bx, [_OS_NAV_POSITION_]
-  imul bx, 0x6          ; Calculate the icon index
-  lea si, [os_icons_table + bx]
-  mov ax, [si+2]        ; Load the command pointer
-  call ax               ; Execute the command
+  mov si, [_OS_TOOLBAR_SELECTED_]
+  inc si
+  lodsb
+  mov byte [_OS_TOOLBAR_STATE_], al
+
+  push si
+  mov si, os_toolbar_table
+  .loop_table:
+    lodsb
+    cmp al, [_OS_TOOLBAR_STATE_]
+    je .position_found
+    add si, OS_TOOLBAR_TABLE_ENTRY_SIZE-1
+    jmp .loop_table
+    .position_found:
+      dec si
+      mov [_OS_TOOLBAR_SELECTED_], si
+  pop si
+
+  add si, 2
+  lodsw
+  call ax
 ret
 
 os_print_toolbar:
@@ -1359,21 +1335,30 @@ ret
 
 os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
-  ;mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_SHELL
   call os_clear_screen
   call os_print_header
-  call os_print_welcome
+  call os_print_welcome_shell
   mov bl, PROMPT_USR
   call os_print_prompt
 ret
 
 os_enter_fs:
-  mov byte [_OS_STATE_], OS_STATE_SHELL
+  mov byte [_OS_STATE_], OS_STATE_FS
   mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_FS
+  call os_clear_screen
+  call os_print_header
+  mov bl, PROMPT_USR
+  call os_print_prompt
 ret
 
 os_enter_help:
-  mov byte [_OS_STATE_], OS_STATE_SHELL
+  mov byte [_OS_STATE_], OS_STATE_FS
+  call os_clear_screen
+  call os_print_header
+
+  mov dl, OS_FS_FILE_ID_MANUAL
+  call os_fs_file_read
+  call os_fs_file_display
 ret
 
 ; Void =========================================================================
@@ -1473,15 +1458,6 @@ os_fs_directory_table:
   dw 0x010B
   dw 0x0
 
-; Icons table ==================================================================
-; pointer to icon (2b) | pointer to function (2b) | pointer to description (2b)
-os_icons_table:
-  dw GLYPH_ICON_SHELL, os_clear_shell, msg_cmd_c
-  dw GLYPH_ICON_HELP, os_print_help, msg_cmd_h
-  dw GLYPH_ICON_FLOPPY, os_fs_file1_read, msg_cmd_fs_read
-  dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
-  dw 0x0
-
 ; current state, target state
 ; icon, function, description
 os_toolbar_table:
@@ -1490,7 +1466,7 @@ os_toolbar_table:
   dw GLYPH_ICON_SHELL, os_enter_shell, msg_cmd_c
 
   db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_FS
-  dw GLYPH_ICON_FLOPPY, os_void, msg_cmd_c
+  dw GLYPH_ICON_FLOPPY, os_enter_fs, msg_cmd_c
 
   db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_MAIN
   dw GLYPH_ICON_HELP, os_enter_help, msg_cmd_c
@@ -1500,10 +1476,35 @@ os_toolbar_table:
   dw GLYPH_ICON_BACK, os_void, msg_cmd_back
 
   db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_FS_READ, os_fs_file0_read, msg_cmd_fs_read
+  dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
 
   db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
+  dw GLYPH_ICON_X, os_toggle_video_mode, msg_cmd_x
+
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_RESET, os_reset, msg_cmd_r
+
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_REBOOT, os_reboot, msg_cmd_R
+
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_DOWN, os_down, msg_cmd_D
+
+  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
+  dw GLYPH_ICON_HELP, os_print_help, msg_cmd_h
+
+  ; FILE SYSTEM
+  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_MAIN
+  dw GLYPH_ICON_BACK, os_void, msg_cmd_back
+
+  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_FS
+  dw GLYPH_ICON_FS_READ, os_void, msg_cmd_void
+
+  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_FS
+  dw GLYPH_ICON_FS_LIST, os_void, msg_cmd_void
+
+  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_FS
+  dw GLYPH_ICON_FS_WRITE, os_void, msg_cmd_void
 
   db 0x0 ; Terminator
 
@@ -1563,9 +1564,17 @@ os_keyboard_table:
   db OS_STATE_SHELL, KBD_KEY_ESCAPE
   dw os_clear_shell
   db OS_STATE_SHELL, KBD_KEY_RIGHT
-  dw os_icon_next
+  dw os_toolbar_icon_next
   db OS_STATE_SHELL, KBD_KEY_LEFT
-  dw os_icon_prev
+  dw os_toolbar_icon_prev
+
+  db OS_STATE_FS, KBD_KEY_RIGHT
+  dw os_toolbar_icon_next
+  db OS_STATE_FS, KBD_KEY_LEFT
+  dw os_toolbar_icon_prev
+  db OS_STATE_FS, KBD_KEY_ENTER
+  dw os_icon_execute
+
   db OS_STATE_FS, KBD_KEY_UP
   dw os_fs_scroll_up
   db OS_STATE_FS, KBD_KEY_DOWN
