@@ -15,8 +15,8 @@ _OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00
 _OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04
 _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05
 _OS_TOOLBAR_STATE_              equ _OS_MEMORY_BASE_ + 0x06
-_OS_NAV_POSITION_               equ _OS_MEMORY_BASE_ + 0x07
-_OS_TOOLBAR_SELECTED_           equ _OS_MEMORY_BASE_ + 0x08   ; 2b
+_OS_TOOLBAR_SELECTED_           equ _OS_MEMORY_BASE_ + 0x07   ; 2b
+_OS_MOUSE_                      equ _OS_MEMORY_BASE_ + 0x09   ; 6b
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x10
 
 OS_STATE_INIT                   equ 0x01
@@ -26,6 +26,7 @@ OS_STATE_FS                     equ 0x04
 OS_STATE_SETTINGS               equ 0x05
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
+
 OS_TOOLBAR_STATE_MAIN           equ 0x01
 OS_TOOLBAR_STATE_SHELL          equ 0x02
 OS_TOOLBAR_STATE_FS             equ 0x03
@@ -52,6 +53,12 @@ OS_LOGO_LENGTH                  equ 0x07
 OS_SOUND_STARTUP                equ 1500
 OS_SOUND_SUCCESS                equ 1700
 OS_SOUND_ERROR                  equ 2500
+
+OS_MOUSE_SLOWDOWN               equ 0x02
+OS_MOUSE_ENABLED                equ 0x00
+OS_MOUSE_X                      equ 0x01
+OS_MOUSE_Y                      equ 0x03
+OS_MOUSE_BTN                    equ 0x05
 
 OS_GLYPH_ADDRESS                equ 0x80
 ; LOGO                              0x80 - 0x86
@@ -128,6 +135,9 @@ os_reset:
   mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
   mov word [_OS_TOOLBAR_SELECTED_], os_toolbar_table
 
+  call os_mouse_init
+  adc byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 1
+
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
   call os_clear_screen
@@ -183,6 +193,21 @@ os_main_loop:
 
     .done:
 
+    .mouse:
+      call os_cursor_pos_get
+      push dx
+      mov ax, [_OS_MOUSE_+OS_MOUSE_X]
+      shr ax, OS_MOUSE_SLOWDOWN
+      mov bx, [_OS_MOUSE_+OS_MOUSE_Y]
+      shr bx, OS_MOUSE_SLOWDOWN
+      mov dl, al
+      mov dh, bl
+      call os_cursor_pos_set
+      mov al, GLYPH_MASCOT
+      call os_print_chr
+      pop dx
+      call os_cursor_pos_set
+
     .cpu_delay:
       xor ax, ax            ; Function 00h: Read system timer counter
       int 0x1a              ; Returns tick count in CX:DX
@@ -195,6 +220,10 @@ os_main_loop:
     inc dword [_OS_TICK_]
     call os_print_tick
     call os_sound_stop
+    cmp byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 0x0
+    jz .skip_mouse_poll
+      call os_mouse_poll
+    .skip_mouse_poll:
   jmp os_main_loop  ; Return to the main loop
 
 ; Print System Tick
@@ -891,6 +920,25 @@ os_print_stats:
     mov si, unsupported_msg
     call os_print_str
   .apm_done:
+
+  mov bx, GLYPH_BAT
+  call os_print_prompt
+  mov si, mouse_msg
+  call os_print_str
+
+  cmp byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 0x0
+  jz .mouse_unsupported
+  mov ax, [_OS_MOUSE_+OS_MOUSE_X]
+  call os_print_num
+  mov al, CHR_SLASH
+  call os_print_chr
+  mov ax, [_OS_MOUSE_+OS_MOUSE_Y]
+  call os_print_num
+  jmp .mouse_done
+  .mouse_unsupported:
+    mov si, unsupported_msg
+    call os_print_str
+  .mouse_done:
 ret
 
 
@@ -1304,12 +1352,20 @@ ret
   stc
 ret
 
+; Clear line
+; This function clears whole line with spaces
+; Expects: DX position
+; Returns: None
 os_clear_line:
   push dx
   xor dl, dl
   call os_cursor_pos_set
   mov al, CHR_SPACE
   mov ah, 80
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  je .skip_40
+    mov ah, 40
+  .skip_40:
   call os_print_chr_mul
   pop dx
   call os_cursor_pos_set
@@ -1320,9 +1376,12 @@ os_toolbar_print_hint:
   add si, OS_TOOLBAR_TABLE_ENTRY_SIZE-2
   call os_cursor_pos_get
   push dx
-  mov dx, 0x020A
+  mov dx, 0x0201
   call os_cursor_pos_set
   call os_clear_line
+  mov al, GLYPH_PC
+  mov ah, CHR_SPACE
+  call os_print_chr_double
   lodsw
   mov si, ax
   call os_print_str
@@ -1443,6 +1502,117 @@ os_enter_help:
   call os_fs_file_display
 ret
 
+os_mouse_init:
+  ; Enable auxiliary mouse device
+  call os_mouse_wait_input
+  mov al, 0xA8
+  out 0x64, al
+
+  ; Enable packet streaming
+  call os_mouse_send_cmd
+  mov al, 0xF4
+  out 0x60, al
+
+  ; Read and discard ACK
+  call os_mouse_wait_output
+  in al, 0x60
+
+  ; Initialize position to splashcreen logo mascot
+  mov ax, 39
+  mov bx, 10
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  jz .skip_40
+    mov ax, 19
+  .skip_40:
+  mov word [_OS_MOUSE_+OS_MOUSE_X], ax
+  shl word [_OS_MOUSE_+OS_MOUSE_X], OS_MOUSE_SLOWDOWN
+  mov word [_OS_MOUSE_+OS_MOUSE_Y], bx
+  shl word [_OS_MOUSE_+OS_MOUSE_Y], OS_MOUSE_SLOWDOWN
+ret
+
+; Wait for controller ready for command
+os_mouse_wait_input:
+  in al, 0x64
+  test al, 2
+  jnz os_mouse_wait_input
+ret
+
+; Wait for data available
+os_mouse_wait_output:
+  in al, 0x64
+  test al, 1
+  jz os_mouse_wait_output
+ret
+
+; Send command to mouse
+os_mouse_send_cmd:
+  call os_mouse_wait_input
+  mov al, 0xD4
+  out 0x64, al
+  call os_mouse_wait_input
+ret
+
+os_mouse_poll:
+  ; Check if mouse has data
+  in al, 0x64
+  test al, 0x20
+  jz .no_data
+
+  ; Read all 3 bytes when available
+  call os_mouse_wait_output
+  in al, 0x60       ; First byte (buttons and flags)
+  mov ah, al        ; Save first byte
+
+  call os_mouse_wait_output
+  in al, 0x60       ; Second byte (X movement)
+  movsx cx, al      ; Sign-extend X
+
+  call os_mouse_wait_output
+  in al, 0x60       ; Third byte (Y movement)
+  movsx dx, al      ; Sign-extend Y
+
+  mov al, ah
+  and al, 0x07      ; Keep only button bits
+  mov [_OS_MOUSE_+OS_MOUSE_BTN], al
+
+  ; Update X position
+  add [_OS_MOUSE_+OS_MOUSE_X], cx
+
+  ; Update Y position (invert Y movement)
+  neg dx
+  add [_OS_MOUSE_+OS_MOUSE_Y], dx
+
+  mov ax, 78
+  mov bx, 23
+  shl bx, OS_MOUSE_SLOWDOWN
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  je .skip_40
+    mov ax, 38
+  .skip_40:
+  shl ax, OS_MOUSE_SLOWDOWN
+
+  cmp word [_OS_MOUSE_+OS_MOUSE_X], 4
+  jg .check_x_max
+  mov word [_OS_MOUSE_+OS_MOUSE_X], 4
+  .check_x_max:
+    cmp word [_OS_MOUSE_+OS_MOUSE_X], ax
+    jle .check_y_min
+    mov word [_OS_MOUSE_+OS_MOUSE_X], ax
+  .check_y_min:
+    cmp word [_OS_MOUSE_+OS_MOUSE_Y], 8
+    jg .check_y_max
+    mov word [_OS_MOUSE_+OS_MOUSE_Y], 8
+  .check_y_max:
+    cmp word [_OS_MOUSE_+OS_MOUSE_Y], bx
+    jle .no_data
+    mov word [_OS_MOUSE_+OS_MOUSE_Y], bx
+
+  clc
+  ret
+  .no_data:
+    stc
+    ret
+
 ; Void =========================================================================
 ; This is a placeholder function
 ; Expects: None
@@ -1461,16 +1631,17 @@ system_logo_msg       db OS_GLYPH_ADDRESS+0x0
                       db OS_GLYPH_ADDRESS+0x5
                       db OS_GLYPH_ADDRESS+0x6
                       db 0x0
-welcome_msg           db 'Welcome to SMOLiX Operating System', 0
-copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0
-press_enter_msg       db 'Press ENTER to begin.', 0
-more_info_msg         db 'Type "h" for help.', 0
-help_line1_msg        db 'LEFT/RIGHT/ENTER to navigate toolbar', 0
-help_line3_msg        db 'Available commands:', 0
-unknown_cmd_msg       db 'Unknown command', 0
-unsupported_msg       db 'Unsupported', 0
-hex_ruler_msg         db '0123456789ABCDEF', 0
-cpu_family_msg        db 'CPU Family: ', 0
+welcome_msg           db 'Welcome to SMOLiX Operating System', 0x0
+copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0x0
+press_enter_msg       db 'Press ENTER to begin.', 0x0
+more_info_msg         db 'Type "h" for help.', 0x0
+help_line1_msg        db 'LEFT/RIGHT/ENTER to navigate toolbar', 0x0
+help_line3_msg        db 'Available commands:', 0x0
+unknown_cmd_msg       db 'Unknown command', 0x0
+unsupported_msg       db 'Unsupported', 0x0
+supported_msg         db 'Supported', 0x0
+hex_ruler_msg         db '0123456789ABCDEF', 0x0
+cpu_family_msg        db 'CPU Family: ', 0x0
 cpu_family_3          db 'Intel 386',0x0
 cpu_family_4          db 'Intel 486',0x0
 cpu_family_5          db 'Intel Pentium/MMX',0x0
@@ -1478,20 +1649,21 @@ cpu_family_6          db 'Intel Pentium Pro+',0x0
 cpu_family_7          db 'Intel Itanium',0x0
 cpu_family_8          db 'AMD Athlon 64',0x0
 cpu_family_other      db 'Unknown CPU Vendor',0x0
-memory_installed_msg  db 'Memory installed: ', 0
-kernel_size_msg       db 'Kernel size: ', 0
-kb_msg                db ' KB', 0
-byte_msg              db ' B', 0
-bios_date_msg         db 'BIOS date: ', 0
-apm_batt_msg          db 'Battery: ', 0
-apm_batt_ac           db 'AC power', 0
-apm_batt_life         db '% charge', 0
-success_msg           db 'success.', 0
-failure_msg           db 'failure.', 0
-fs_reading_msg        db 'Reading data from disk...', 0
-fs_writing_msg        db 'Writing data to disk...', 0
-fs_nav_msg            db 'Use UP/DOWN to scroll.', 0
-fs_empty_msg          db 'No/empty file. Read data first.', 0
+memory_installed_msg  db 'Memory installed: ', 0x0
+kernel_size_msg       db 'Kernel size: ', 0x0
+kb_msg                db ' KB', 0x0
+byte_msg              db ' B', 0x0
+bios_date_msg         db 'BIOS date: ', 0x0
+mouse_msg             db 'Mouse: ', 0x0
+apm_batt_msg          db 'Battery: ', 0x0
+apm_batt_ac           db 'AC power', 0x0
+apm_batt_life         db '% charge', 0x0
+success_msg           db 'success.', 0x0
+failure_msg           db 'failure.', 0x0
+fs_reading_msg        db 'Reading data from disk...', 0x0
+fs_writing_msg        db 'Writing data to disk...', 0x0
+fs_nav_msg            db 'Use UP/DOWN to scroll.', 0x0
+fs_empty_msg          db 'No/empty file. Read data first.', 0x0
 fs_ruler_80_msg:
 db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAF
 db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
