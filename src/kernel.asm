@@ -72,7 +72,7 @@ GLYPH_FLOPPY                    equ 0x8D
 GLYPH_CAL                       equ 0x8E
 GLYPH_MEM                       equ 0x8F
 GLYPH_BAT                       equ 0x90
-GLYPH_BLOCK                     equ 0x91
+GLYPH_CURSOR                    equ 0x91
 GLYPH_CEILING                   equ 0x92
 GLYPH_FLOOR                     equ 0x93
 GLYPH_RAMP_UP                   equ 0x94
@@ -84,7 +84,6 @@ GLYPH_ICON_DOWN                 equ 0x9D9C
 GLYPH_ICON_BACK                 equ 0x9F9E
 GLYPH_ICON_EDIT                 equ 0xA1A0
 GLYPH_ICON_CONF                 equ 0xA3A2
-GLYPH_ICON_SHELL                equ 0xA5A4
 GLYPH_ICON_X                    equ 0xA7A6
 GLYPH_ICON_HELP                 equ 0xA9A8
 GLYPH_ICON_FLOPPY               equ 0xABAA
@@ -96,9 +95,11 @@ GLYPH_RULER_NO                  equ 0xAF
 GLYPH_ICON_FS_READ              equ 0xB7B6
 GLYPH_ICON_FS_WRITE             equ 0xB9B8
 GLYPH_ICON_FS_LIST              equ 0xBBBA
-GLYPH_16BIT_1                   equ 0xBC
-GLYPH_16BIT_2                   equ 0xBD
-GLYPH_16BIT_3                   equ 0xBE
+GLYPH_ICON_PAINT                equ 0xBDBC
+GLYPH_16BIT_1                   equ 0xBE
+GLYPH_16BIT_2                   equ 0xBF
+GLYPH_16BIT_3                   equ 0xC0
+; C1-C5 game sprites
 
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
@@ -118,7 +119,7 @@ KBD_KEY_BACKSPACE               equ 0x0E
 ; This is the main entry
 os_init:
   mov byte [_OS_STATE_], OS_STATE_INIT
-  mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   mov dword [_OS_TICK_], 0  ; Initialize tick count
   call os_sound_init
 
@@ -203,7 +204,7 @@ os_main_loop:
       mov dl, al
       mov dh, bl
       call os_cursor_pos_set
-      mov al, GLYPH_MASCOT
+      mov al, GLYPH_CURSOR
       call os_print_chr
       pop dx
       call os_cursor_pos_set
@@ -747,37 +748,30 @@ os_interpret_kb:
 ; Expects: None
 ; Returns: None
 os_print_debug:
-  ; First row
-  mov bl, PROMPT_MSG
-  call os_print_prompt
-  mov al, OS_GLYPH_ADDRESS
-  call os_print_chr
-  mov cx, 0x1F            ; 32 glyphs
-  .loop_chars:
-    inc al
+mov dx, 0
+mov cx, 0x03
+  .looper:
+    push cx
+    mov bl, PROMPT_MSG
+    call os_print_prompt
+    mov al, OS_GLYPH_ADDRESS
+    add al, dl
     call os_print_chr
-  loop .loop_chars
+    mov cx, 0x1F            ; 32 glyphs
+    .loop_chars:
+      inc al
+      call os_print_chr
+    loop .loop_chars
 
-  mov bl, PROMPT_MSG
-  call os_print_prompt
-  mov si, hex_ruler_msg
-  call os_print_str
-  call os_print_str
+    mov bl, PROMPT_MSG
+    call os_print_prompt
+    mov si, hex_ruler_msg
+    call os_print_str
+    call os_print_str
 
-  ; Second row
-  mov bl, PROMPT_MSG
-  call os_print_prompt
-  mov cx, 0x1F          ; 32 glyphs
-  .loop_chars2:
-    inc al
-    call os_print_chr
-  loop .loop_chars2
-
-  mov bl, PROMPT_MSG
-  call os_print_prompt
-  mov si, hex_ruler_msg
-  call os_print_str
-  call os_print_str
+    add dx, 0x20
+    pop cx
+  loop .looper
 ret
 
 ; Print Number =================================================================
