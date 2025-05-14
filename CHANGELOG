@@ -1,13 +1,15 @@
   future:
-    - [todo] polish characters (own custom encoding)
+    - [todo] simple game to test mouse
     - [todo] file system update (metadata)
     - [todo] listing and selecting files to read/write
+    - [todo] polish characters (own custom encoding)
     - [todo] virtual pages for fake-multi tasking
   alpha8:
-    - updated status [s] reporting (date/battery)
+    - native ps/2 mouse support
+    - updated status [s] reporting (date/battery/mouse)
     - refactored toolbar backend with secondary menus
     - code golf and optimizations
-    - cpuid (brakes emulators)
+    - cpuid added with fallback for 386
     - updated logo
     - splash screen
 alpha7 [RELEASED]:

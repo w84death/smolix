@@ -5,8 +5,13 @@
 
 ; Tested hardware:
 ; CPU: 486 DX4, 100Mhz
-; Graphics: VGA (works on EGA)
-; RAM: 16MB (doesnt recognize more than 1MB)
+; Graphics: VGA
+; RAM: 24MB
+;
+; Teoretical minimum requirements:
+; CPU: 386 SX, 20Mhz
+; Graphics: EGA Enchanced (8x16)
+; RAM: 512KB
 
 org 0x0000
 
@@ -63,11 +68,11 @@ OS_MOUSE_BTN                    equ 0x05
 OS_GLYPH_ADDRESS                equ 0x80
 ; LOGO                              0x80 - 0x86
 GLYPH_MASCOT                    equ 0x87
-PROMPT_SYS_MSG                  equ 0x88
-PROMPT_ERR                      equ 0x89
-PROMPT_MSG                      equ 0x8A
-PROMPT_USR                      equ 0x8B
-GLYPH_PC                        equ 0x8C
+GLYPH_SYSTEM                    equ 0x88
+GLYPH_ERROR                     equ 0x89
+GLYPH_MSG                       equ 0x8A
+GLYPH_PROMPT                    equ 0x8B
+GLYPH_MOUSE                     equ 0x8C
 GLYPH_FLOPPY                    equ 0x8D
 GLYPH_CAL                       equ 0x8E
 GLYPH_MEM                       equ 0x8F
@@ -84,6 +89,7 @@ GLYPH_ICON_DOWN                 equ 0x9D9C
 GLYPH_ICON_BACK                 equ 0x9F9E
 GLYPH_ICON_EDIT                 equ 0xA1A0
 GLYPH_ICON_CONF                 equ 0xA3A2
+GLYPH_ICON_SHELL                equ 0xA5A4
 GLYPH_ICON_X                    equ 0xA7A6
 GLYPH_ICON_HELP                 equ 0xA9A8
 GLYPH_ICON_FLOPPY               equ 0xABAA
@@ -137,7 +143,7 @@ os_reset:
   mov word [_OS_TOOLBAR_SELECTED_], os_toolbar_table
 
   call os_mouse_init
-  adc byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 1
+  setc [_OS_MOUSE_+OS_MOUSE_ENABLED]
 
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
@@ -170,7 +176,7 @@ os_main_loop:
       call os_print_chr
       call os_interpret_char
 
-      mov bl, PROMPT_USR
+      mov bl, GLYPH_PROMPT
       call os_print_prompt
       jmp .continue
 
@@ -195,19 +201,12 @@ os_main_loop:
     .done:
 
     .mouse:
-      call os_cursor_pos_get
-      push dx
-      mov ax, [_OS_MOUSE_+OS_MOUSE_X]
-      shr ax, OS_MOUSE_SLOWDOWN
-      mov bx, [_OS_MOUSE_+OS_MOUSE_Y]
-      shr bx, OS_MOUSE_SLOWDOWN
-      mov dl, al
-      mov dh, bl
-      call os_cursor_pos_set
-      mov al, GLYPH_CURSOR
-      call os_print_chr
-      pop dx
-      call os_cursor_pos_set
+      cmp byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 0x0
+      je .skip_mouse
+        call os_mouse_poll
+        call os_print_mouse_cursor
+      .skip_mouse:
+
 
     .cpu_delay:
       xor ax, ax            ; Function 00h: Read system timer counter
@@ -221,10 +220,6 @@ os_main_loop:
     inc dword [_OS_TICK_]
     call os_print_tick
     call os_sound_stop
-    cmp byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 0x0
-    jz .skip_mouse_poll
-      call os_mouse_poll
-    .skip_mouse_poll:
   jmp os_main_loop  ; Return to the main loop
 
 ; Print System Tick
@@ -253,6 +248,24 @@ os_print_tick:
   pop dx
   call os_cursor_pos_set
 ret
+
+
+os_print_mouse_cursor:
+  call os_cursor_pos_get
+  push dx
+  mov ax, [_OS_MOUSE_+OS_MOUSE_X]
+  shr ax, OS_MOUSE_SLOWDOWN
+  mov bx, [_OS_MOUSE_+OS_MOUSE_Y]
+  shr bx, OS_MOUSE_SLOWDOWN
+  mov dl, al
+  mov dh, bl
+  call os_cursor_pos_set
+  mov al, GLYPH_CURSOR
+  call os_print_chr
+  pop dx
+  call os_cursor_pos_set
+ret
+
 
 ; Gets Cursor Position
 ; This function gets the current cursor position on the screen.
@@ -379,7 +392,7 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_help:
-  mov bl, PROMPT_MSG
+  mov bl, GLYPH_MSG
   call os_print_prompt
   mov si, help_line1_msg
   call os_print_str
@@ -464,7 +477,7 @@ os_down:
   mov cx, 0003h     ; Power off
   int 15h
 
-  mov bl, PROMPT_ERR
+  mov bl, GLYPH_ERROR
   call os_print_prompt
   mov si, unsupported_msg
   call os_print_str
@@ -482,7 +495,7 @@ os_reboot:
 ; Expects: None
 ; Returns: None
 os_print_ver:
-  mov bl, PROMPT_SYS_MSG
+  mov bl, GLYPH_SYSTEM
   call os_print_prompt
   mov si, version_msg
   call os_print_str
@@ -493,19 +506,19 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_welcome_shell:
-  mov bl, PROMPT_SYS_MSG
+  mov bl, GLYPH_SYSTEM
   call os_print_prompt
   mov si, welcome_msg
   call os_print_str
 
   ; Print the copyright message
-  mov bl, PROMPT_MSG
+  mov bl, GLYPH_MSG
   call os_print_prompt
   mov si, copyright_msg
   call os_print_str
 
   ; Print the more info message
-  mov bl, PROMPT_MSG
+  mov bl, GLYPH_MSG
   call os_print_prompt
   mov si, more_info_msg
   call os_print_str
@@ -700,7 +713,7 @@ os_interpret_char:
     mov ax, OS_SOUND_ERROR
     call os_sound_play
     movzx dx, bl
-    mov bl, PROMPT_ERR
+    mov bl, GLYPH_ERROR
     call os_print_prompt
     mov si, unknown_cmd_msg
     call os_print_str
@@ -752,7 +765,7 @@ mov dx, 0
 mov cx, 0x03
   .looper:
     push cx
-    mov bl, PROMPT_MSG
+    mov bl, GLYPH_MSG
     call os_print_prompt
     mov al, OS_GLYPH_ADDRESS
     add al, dl
@@ -763,7 +776,7 @@ mov cx, 0x03
       call os_print_chr
     loop .loop_chars
 
-    mov bl, PROMPT_MSG
+    mov bl, GLYPH_MSG
     call os_print_prompt
     mov si, hex_ruler_msg
     call os_print_str
@@ -832,6 +845,10 @@ os_toggle_video_mode:
 ; Returns: None
 os_print_stats:
 
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+  mov si, cpu_family_msg
+  call os_print_str
   call os_print_cpuid
 
   ; Get conventional memory size (first 640KB)
@@ -915,7 +932,7 @@ os_print_stats:
     call os_print_str
   .apm_done:
 
-  mov bx, GLYPH_BAT
+  mov bx, GLYPH_MOUSE
   call os_print_prompt
   mov si, mouse_msg
   call os_print_str
@@ -1116,7 +1133,7 @@ os_fs_file_display:
     call os_print_str
 ret
   .empty_file:
-    mov bl, PROMPT_ERR
+    mov bl, GLYPH_ERROR
     call os_print_prompt
     mov si, fs_empty_msg
     call os_print_str
@@ -1191,13 +1208,25 @@ os_fs_file_write:
 ; Expects: None
 ; Return: None
 os_print_cpuid:
+
+  pushfd                      ; Save EFLAGS
+  pop eax                     ; Get EFLAGS into EAX
+  mov ecx, eax                ; Save original EFLAGS in ECX
+  xor eax, 0x200000           ; Toggle bit 21 (ID flag)
+  push eax                    ; Push modified value
+  popfd                       ; Try to load modified EFLAGS
+  pushfd                      ; Get EFLAGS back
+  pop eax                     ; into EAX
+  push ecx                    ; Restore original EFLAGS
+  popfd
+
+  ; Compare bit 21 to see if it changed
+  xor eax, ecx                ; If we couldn't change it, EAX will be 0
+  test eax, 0x200000          ; Test bit 21
+  jz .no_cpuid                ; CPUID not supported
+
   mov ax, 1                  ; ax = 1 for processor info
   cpuid
-
-  mov bl, PROMPT_SYS_MSG
-  call os_print_prompt
-  mov si, cpu_family_msg
-  call os_print_str
 
   ; Extract family ID (bits 8-11 of ax)
   mov bx, ax
@@ -1213,6 +1242,10 @@ os_print_cpuid:
   shl bx, 1                 ; Table is word sized
   mov si, [os_cpu_family_table + bx]
   call os_print_str
+ret
+  .no_cpuid:
+    mov si, cpu_family_3
+    call os_print_str
 ret
 
 ; Splash screen ================================================================
@@ -1373,7 +1406,7 @@ os_toolbar_print_hint:
   mov dx, 0x0201
   call os_cursor_pos_set
   call os_clear_line
-  mov al, GLYPH_PC
+  mov al, GLYPH_MSG
   mov ah, CHR_SPACE
   call os_print_chr_double
   lodsw
@@ -1466,7 +1499,7 @@ os_init_shell:
   call os_clear_screen
   call os_print_header
   call os_print_welcome_shell
-  mov bl, PROMPT_USR
+  mov bl, GLYPH_PROMPT
   call os_print_prompt
 ret
 
@@ -1474,7 +1507,7 @@ os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
   call os_clear_screen
   call os_print_header
-  mov bl, PROMPT_USR
+  mov bl, GLYPH_PROMPT
   call os_print_prompt
 ret
 
@@ -1482,7 +1515,7 @@ os_enter_fs:
   mov byte [_OS_STATE_], OS_STATE_FS
   call os_clear_screen
   call os_print_header
-  mov bl, PROMPT_USR
+  mov bl, GLYPH_PROMPT
   call os_print_prompt
 ret
 
