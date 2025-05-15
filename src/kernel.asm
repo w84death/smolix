@@ -1,5 +1,5 @@
 ; SMOLiX: Real Mode, Raw Power.
-; It is a simple kernel that runs in real mode as god intended.
+; It is a simple kernel that runs in real mode as God intended.
 ; Copyright (C) 2025 Krzysztof Krystian Jankowski
 ; This is free and open software. See LICENSE for details.
 
@@ -236,13 +236,8 @@ os_print_tick:
     mov dl, 0x1C
   .skip_40:
   call os_cursor_pos_set
-  mov ax, [_OS_TICK_+2]
-  call os_print_num
-
-  mov al, CHR_SPACE
-  call os_print_chr
-
-  mov ax, [_OS_TICK_]
+  mov eax, [_OS_TICK_]
+  mov cx, 0x08
   call os_print_num
 
   pop dx
@@ -789,37 +784,57 @@ ret
 
 ; Print Number =================================================================
 ; This function prints a number in decimal format
-; Expects: AX - number to print
+; Expects: EAX - number to print
 ; Returns: None
 os_print_num:
   pusha
-  mov cx, 10000  ; Divisor starting with 10000 (for 5 digits)
+  mov ecx, 1000000000
+  ; Skip leading zeros
+   mov ebx, 0          ; Flag to track if we've started printing
 
   .next_digit:
-    xor dx, dx     ; Clear DX for division
-    ; AX - number to print
-    div cx         ; Divide AX by CX, quotient in AX, remainder in DX
+    xor edx, edx     ; Clear EDX for division
+    ; EAX - number to print
+    div ecx         ; Divide EAX by ECX, quotient in EAX, remainder in EDX
 
-    ; Convert digit to ASCII
+    ; Handle leading zeros (skip them until first non-zero digit)
+    test ebx, ebx     ; Check if we've started printing digits
+    jnz .print_digit  ; If yes, print this digit
+
+    test eax, eax     ; Is the quotient zero?
+    jz .skip_zero     ; If it's a leading zero, skip it
+    mov ebx, 1        ; Set flag to start printing digits
+
+  .print_digit:
     add al, '0'    ; Convert to ASCII
+    push edx          ; Save remainder
     call os_print_chr
+    pop edx           ; Restore remainder
 
-    ; Move remainder to AX for next iteration
-    mov ax, dx
+  .skip_zero:
+    mov eax, edx      ; Move remainder to EAX for next iteration
 
     ; Update divisor
-    push ax        ; Save current remainder
-    mov ax, cx     ; Get current divisor in AX
-    xor dx, dx     ; Clear DX for division
-    push bx
-    mov bx, 10     ; Divide by 10
-    div bx         ; AX = AX/10
-    pop bx
-    mov cx, ax     ; Set new divisor
-    pop ax         ; Restore current remainder
+    push eax        ; Save current remainder
+    mov eax, ecx     ; Get current divisor in EAX
+    xor edx, edx     ; Clear EDX for division
+    push ebx
+    mov ebx, 10     ; Divide by 10
+    div ebx         ; EAX = EAX/10
+    pop ebx
+    mov ecx, eax     ; Set new divisor
+    pop eax         ; Restore current remainder
 
-    cmp cx, 0      ; If divisor is 0, we're done
-  jne .next_digit
+    test ecx, ecx      ; If divisor is 0, we're done
+    jne .next_digit
+
+  .print_zero_value:
+    test ebx, ebx
+    jnz .done
+    mov al, '0'
+    call os_print_chr
+
+  .done:
   popa
 ret
 
@@ -1109,11 +1124,11 @@ os_fs_file_display:
       cmp al, CHR_LF          ; Check for Line Feed (LF)
       je .newline             ; LF found, handle end of line
 
-      call os_print_chr      ; Print the character
+      call os_print_chr       ; Print the character
       inc dh
 
-      cmp dh, dl   ; Check if line is full
-      jl .char_loop               ; Line not full, continue reading chars
+      cmp dh, dl              ; Check if line is full
+      jl .char_loop           ; Line not full, continue reading chars
       jmp .newline
 
     .newline:
@@ -1128,6 +1143,7 @@ os_fs_file_display:
     mov bl, GLYPH_FLOPPY
     call os_print_prompt
     mov ax, [os_fs_file_pos]
+    mov cx, 0x03
     call os_print_num
     mov si, byte_msg
     call os_print_str
@@ -1225,7 +1241,7 @@ os_print_cpuid:
   test eax, 0x200000          ; Test bit 21
   jz .no_cpuid                ; CPUID not supported
 
-  mov ax, 1                  ; ax = 1 for processor info
+  mov eax, 1                  ; eax = 1 for processor info
   cpuid
 
   ; Extract family ID (bits 8-11 of ax)
