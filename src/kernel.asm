@@ -6,22 +6,25 @@
 ; Tested hardware:
 ; CPU: 486 DX4, 100Mhz
 ; Graphics: VGA
-; RAM: 24MB
+; RAM: 24MB (OS recognize up to 640KB only)
 ;
 ; Teoretical minimum requirements:
-; CPU: 386 SX, 20Mhz
+; CPU: 386 SX, 16Mhz
 ; Graphics: EGA Enchanced (8x16)
 ; RAM: 512KB
 
 org 0x0000
 
 _OS_MEMORY_BASE_                equ 0x2000    ; Define memory base address
-_OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00
-_OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04
-_OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05
-_OS_TOOLBAR_STATE_              equ _OS_MEMORY_BASE_ + 0x06
+_OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00   ; 4b
+_OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04   ; 1b
+_OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
+_OS_TOOLBAR_STATE_              equ _OS_MEMORY_BASE_ + 0x06   ; 1b
 _OS_TOOLBAR_SELECTED_           equ _OS_MEMORY_BASE_ + 0x07   ; 2b
-_OS_MOUSE_                      equ _OS_MEMORY_BASE_ + 0x09   ; 6b
+_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x09   ; 1b
+_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x0A   ; 2b
+                                          ; next free: 0x0C
+                                          ; last free: 0x0F
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x10
 
 OS_STATE_INIT                   equ 0x01
@@ -41,6 +44,7 @@ OS_TOOLBAR_TABLE_ENTRY_SIZE     equ 0x08
 OS_FS_BLOCK_FIRST               equ 0x11
 OS_FS_BLOCK_SIZE                equ 0x10
 OS_FS_FILE_SIZE                 equ 8192
+OS_FS_FILE_NOT_LOADED           equ 0xFF
 OS_FS_FILE_LINES_ON_SCREEN      equ 0x15
 OS_FS_FILE_CHARS_ON_LINE_80     equ 80-1
 OS_FS_FILE_CHARS_ON_LINE_40     equ 40-1
@@ -72,12 +76,12 @@ GLYPH_SYSTEM                    equ 0x88
 GLYPH_ERROR                     equ 0x89
 GLYPH_MSG                       equ 0x8A
 GLYPH_PROMPT                    equ 0x8B
-GLYPH_MOUSE                     equ 0x8C
+GLYPH_FREE1                     equ 0x8C
 GLYPH_FLOPPY                    equ 0x8D
 GLYPH_CAL                       equ 0x8E
 GLYPH_MEM                       equ 0x8F
 GLYPH_BAT                       equ 0x90
-GLYPH_CURSOR                    equ 0x91
+GLYPH_FREE2                     equ 0x91
 GLYPH_CEILING                   equ 0x92
 GLYPH_FLOOR                     equ 0x93
 GLYPH_RAMP_UP                   equ 0x94
@@ -101,11 +105,11 @@ GLYPH_RULER_NO                  equ 0xAF
 GLYPH_ICON_FS_READ              equ 0xB7B6
 GLYPH_ICON_FS_WRITE             equ 0xB9B8
 GLYPH_ICON_FS_LIST              equ 0xBBBA
-GLYPH_ICON_PAINT                equ 0xBDBC
+GLYPH_ICON_GAME                 equ 0xBDBC
 GLYPH_16BIT_1                   equ 0xBE
 GLYPH_16BIT_2                   equ 0xBF
 GLYPH_16BIT_3                   equ 0xC0
-; C1-C5 game sprites
+; Game sprites                      0xC1 - 0xCE
 
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
@@ -126,7 +130,8 @@ KBD_KEY_BACKSPACE               equ 0x0E
 os_init:
   mov byte [_OS_STATE_], OS_STATE_INIT
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
-  mov dword [_OS_TICK_], 0  ; Initialize tick count
+  mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
+  mov dword [_OS_TICK_], 0
   call os_sound_init
 
 ; Entry point / System reset ===================================================
@@ -142,14 +147,11 @@ os_reset:
   mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
   mov word [_OS_TOOLBAR_SELECTED_], os_toolbar_table
 
-  call os_mouse_init
-  setc [_OS_MOUSE_+OS_MOUSE_ENABLED]
-
+  mov byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
   call os_clear_screen
   call os_print_splash_screen
-  mov byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
 
 ; Main system loop =============================================================
 ; This is the main loop of the operating system.
@@ -158,7 +160,7 @@ os_reset:
 ; Returns: None
 os_main_loop:
 
-  check_keyboard:
+  .check_keyboard:
     mov ah, 01h         ; BIOS keyboard status function
     int 16h             ; Call BIOS interrupt
     jz .done
@@ -166,61 +168,57 @@ os_main_loop:
     mov ah, 00h         ; BIOS keyboard read function
     int 16h
 
+    ; Do not interpret system commands in those states
     cmp byte [_OS_STATE_], OS_STATE_FS
     je .no_command_key
     cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
     je .no_command_key
 
+  .check_system_command:
     test al, al
     jz .no_command_key
-      call os_print_chr
-      call os_interpret_char
 
-      mov bl, GLYPH_PROMPT
-      call os_print_prompt
-      jmp .continue
+    call os_print_chr
+    call os_interpret_char
 
-    .no_command_key:
-      call os_interpret_kb
+    mov bl, GLYPH_PROMPT
+    call os_print_prompt
+    jmp .continue
 
-    .continue:
-      cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
-      je .print_splash
+  .no_command_key:
+    call os_interpret_kb
 
-    .print_header:
-      call os_cursor_pos_get
-      push dx
-      call os_print_header
-      pop dx
-      call os_cursor_pos_set
-      jmp .done
+  .continue:
+    cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
+    je .print_splash
 
-    .print_splash:
-      call os_print_splash_screen
+  .print_header:
+    call os_cursor_pos_get
+    push dx
+    call os_print_header
+    pop dx
+    call os_cursor_pos_set
+    jmp .done
 
-    .done:
+  .print_splash:
+    call os_print_splash_screen
 
-    .mouse:
-      cmp byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 0x0
-      je .skip_mouse
-        call os_mouse_poll
-        call os_print_mouse_cursor
-      .skip_mouse:
+  .done:
 
+  .cpu_delay:
+    xor ax, ax            ; Function 00h: Read system timer counter
+    int 0x1a              ; Returns tick count in CX:DX
+    mov bx, dx            ; Store the current tick count
+    .wait_loop:
+      int 0x1a            ; Read the tick count again
+      test dx, bx
+      jz .wait_loop
 
-    .cpu_delay:
-      xor ax, ax            ; Function 00h: Read system timer counter
-      int 0x1a              ; Returns tick count in CX:DX
-      mov bx, dx            ; Store the current tick count
-      .wait_loop:
-        int 0x1a            ; Read the tick count again
-        test dx, bx
-        jz .wait_loop
+  inc dword [_OS_TICK_]
+  call os_print_tick
+  call os_sound_stop
 
-    inc dword [_OS_TICK_]
-    call os_print_tick
-    call os_sound_stop
-  jmp os_main_loop  ; Return to the main loop
+jmp os_main_loop
 
 ; Print System Tick
 ; This function prints the current system tick count to the screen.
@@ -243,24 +241,6 @@ os_print_tick:
   pop dx
   call os_cursor_pos_set
 ret
-
-
-os_print_mouse_cursor:
-  call os_cursor_pos_get
-  push dx
-  mov ax, [_OS_MOUSE_+OS_MOUSE_X]
-  shr ax, OS_MOUSE_SLOWDOWN
-  mov bx, [_OS_MOUSE_+OS_MOUSE_Y]
-  shr bx, OS_MOUSE_SLOWDOWN
-  mov dl, al
-  mov dh, bl
-  call os_cursor_pos_set
-  mov al, GLYPH_CURSOR
-  call os_print_chr
-  pop dx
-  call os_cursor_pos_set
-ret
-
 
 ; Gets Cursor Position
 ; This function gets the current cursor position on the screen.
@@ -362,8 +342,7 @@ os_print_header:
   mov ah, dh
   call os_print_chr_mul
 
-
-  call os_print_toolbar
+  call os_toolbar_print
 ret
 
 ; Print Error Status ===========================================================
@@ -389,11 +368,11 @@ ret
 os_print_help:
   mov bl, GLYPH_MSG
   call os_print_prompt
-  mov si, help_line1_msg
+  mov si, help_toolbar_msg
   call os_print_str
 
   call os_print_prompt
-  mov si, help_line3_msg
+  mov si, available_cmds_msg
   call os_print_str
 
   ; Listing of all commands
@@ -423,6 +402,10 @@ os_print_help:
 .done:
 ret
 
+; Load and read manual =========================================================
+; This function loads and reads the manual file.
+; Expects: None
+; Returns: None
 os_load_and_read_manual:
   call os_fs_file0_read
   call os_fs_file_display
@@ -434,19 +417,13 @@ ret
 ; Returns: None
 os_print_prompt:
   push ax
-  ; New line
   mov ax, CHR_NEW_LINE
   call os_print_chr_double
-  ; Space
   mov al, CHR_SPACE
   call os_print_chr
-  ; Icon
-  ; BL = type of glyph
-  mov al, bl
-  call os_print_chr
-  ; Space
-  mov al, CHR_SPACE
-  call os_print_chr
+  mov al, bl                ; The glyph
+  MOV AH, CHR_SPACE
+  call os_print_chr_double
   pop ax
 ret
 
@@ -526,7 +503,6 @@ ret
 os_print_chr:
   push ax
   mov ah, 0x0e    ; BIOS teletype output function
-  ; AL = character to print
   int 0x10        ; BIOS teletype output function
   pop ax
 ret
@@ -536,9 +512,7 @@ ret
 ; Expects: AL = first character, AH = second character
 ; Returns: None
 os_print_chr_double:
-  ; AL = first character
   call os_print_chr
-  ; AH = second character
   mov al, ah
   call os_print_chr
 ret
@@ -550,10 +524,8 @@ ret
 ; Returns: None
 os_print_chr_mul:
   push cx
-  ; AH = number of times to print
   movzx cx, ah
   .char_loop:
-    ; AL = character
     call os_print_chr
   loop .char_loop
   pop cx
@@ -623,7 +595,6 @@ ret
 os_set_color:
   mov ah, 0x0B
   mov bh, 0x00
-  ; BL = color attribute
   int 0x10
 ret
 
@@ -633,7 +604,6 @@ ret
 ; Returns: None
 os_load_glyph:
   pusha
-  ; AL = character code to replace
   movzx bx, al          ; Move character code to BX, clears AH
   push bx               ; Save character code
   shl bx, 1             ; Multiply by 2 (each entry is 2 bytes)
@@ -662,7 +632,6 @@ os_load_all_glyphs:
     cmp ax, 0x0
     je .done
     mov ax, cx
-    ; AX = character code to replace
     call os_load_glyph
     inc cx
     jmp .loop_glyphs
@@ -676,7 +645,6 @@ ret
 os_get_key:
   xor ax, ax      ; Clear AX (any key)
   int 0x16        ; Wait for key press
-  ; AL = key code
 ret
 
 ; Interpret character ==========================================================
@@ -685,26 +653,25 @@ ret
 ; Returns: None
 os_interpret_char:
   mov si, os_commands_table
-  ; AL = character to interpret
   mov bl, al
   .loop_commands:
     lodsb           ; Load next command character
     test al, al     ; Check for end of table
-    jz .unknown
+    jz .unknown_cmd
     ; BL = character to interpret
     cmp bl, al
-    je .found
+    je .found_cmd
     lea si, [si + OS_LENGTH_WORD+OS_LENGTH_WORD]
     jmp .loop_commands
 
-  .found:
+  .found_cmd:
     lodsw           ; Load next command address
     call ax         ; call the command address
     mov ax, OS_SOUND_SUCCESS
     call os_sound_play
-  ret
+ret
 
-  .unknown:
+  .unknown_cmd:
     mov ax, OS_SOUND_ERROR
     call os_sound_play
     movzx dx, bl
@@ -716,11 +683,14 @@ os_interpret_char:
     call os_print_chr
     mov ax, dx
     call os_print_num
-  ret
+ret
 
+; Interpret keyboard input =====================================================
+; This function interprets the keyboard input and performs the appropriate action.
+; Expects: AH = character to interpret (control)
+; Returns: None
 os_interpret_kb:
   mov si, os_keyboard_table
-  ; AH = character to interpret (control)
   mov bl, ah
   mov bh, [_OS_STATE_]
   .loop_kbd:
@@ -744,12 +714,12 @@ os_interpret_kb:
     call ax         ; call the command address
     mov ax, OS_SOUND_SUCCESS
     call os_sound_play
-  ret
+ret
 
   .unknown:
     mov ax, OS_SOUND_ERROR
     call os_sound_play
-  ret
+ret
 
 ; Print debug info =============================================================
 ; This function prints debug information.
@@ -859,7 +829,6 @@ os_toggle_video_mode:
 ; Expects: None
 ; Returns: None
 os_print_stats:
-
   mov bl, GLYPH_SYSTEM
   call os_print_prompt
   mov si, cpu_family_msg
@@ -946,28 +915,12 @@ os_print_stats:
     mov si, unsupported_msg
     call os_print_str
   .apm_done:
-
-  mov bx, GLYPH_MOUSE
-  call os_print_prompt
-  mov si, mouse_msg
-  call os_print_str
-
-  cmp byte [_OS_MOUSE_+OS_MOUSE_ENABLED], 0x0
-  jz .mouse_unsupported
-  mov ax, [_OS_MOUSE_+OS_MOUSE_X]
-  call os_print_num
-  mov al, CHR_SLASH
-  call os_print_chr
-  mov ax, [_OS_MOUSE_+OS_MOUSE_Y]
-  call os_print_num
-  jmp .mouse_done
-  .mouse_unsupported:
-    mov si, unsupported_msg
-    call os_print_str
-  .mouse_done:
 ret
 
-
+; Print a BCD value ============================================================
+; This function prints a BCD value to the console.
+; Expects: AX = BCD value
+; Returns: None
 os_print_bcd:
   push ax                ; Save the original BCD value
   shr al, 4              ; Get high nibble
@@ -1013,25 +966,25 @@ os_sound_stop:
   out 61h, al
 ret
 
+; Temporary function - will be replaced by propoer listing and selecting files
+;
 os_fs_file0_read:
   mov dl, 0
   call os_fs_file_read
 ret
 
-os_fs_file1_read:
-  mov dl, 1
-  call os_fs_file_read
-ret
-
-; File System:
+; File System: Read file =======================================================
+; This function reads a file from the floppy disk to a memory
+; Expects: DL = File number
+; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_file_read:
-  mov word [os_fs_file_pos], 0
-  cmp byte [os_fs_file_loaded], dl
+  mov word [_OS_FS_FILE_POS_], 0
+  cmp byte [_OS_FS_FILE_LOADED_], dl
   je .already_loaded
   call os_fs_file_load
   call os_print_error_status
   .already_loaded:
-  mov word [os_fs_file_pos], 0
+  mov word [_OS_FS_FILE_POS_], 0
 ret
 
 ; File System: load file =======================================================
@@ -1039,8 +992,7 @@ ret
 ; Expects: DL = File number
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_file_load:
-
-  mov byte [os_fs_file_loaded], dl
+  mov byte [_OS_FS_FILE_LOADED_], dl
 
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
@@ -1054,7 +1006,7 @@ os_fs_file_load:
 
   movzx bx, dl
   shl bx, 1
-  mov dx, [os_fs_directory_table + bx]       ; Load effective address with offset
+  mov dx, [os_fs_directory_table + bx]
 
   mov ax, ds
   mov es, ax              ; Make sure ES=DS for disk read
@@ -1069,12 +1021,12 @@ os_fs_file_load:
   jc .disk_error          ; Error if carry flag set
 
   clc                     ; Clear carry flag (success)
-  ret
+ret
 
   .disk_error:
-    mov byte [os_fs_file_loaded], 0xFF
+    mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
     stc                   ; Set carry flag (error)
-    ret
+ret
 
 ; File System: display file ====================================================
 ; This function displays the loaded file contents from memory to the screen
@@ -1082,7 +1034,7 @@ os_fs_file_load:
 ; Returns: None
 os_fs_file_display:
   mov si, _OS_FS_BUFFER_
-  add si, [os_fs_file_pos]  ; Add current scroll position
+  add si, [_OS_FS_FILE_POS_]  ; Add current scroll position
 
   cmp byte [si], 0          ; Check if the current character is null
   je .empty_file
@@ -1142,7 +1094,7 @@ os_fs_file_display:
   .done:
     mov bl, GLYPH_FLOPPY
     call os_print_prompt
-    mov ax, [os_fs_file_pos]
+    mov ax, [_OS_FS_FILE_POS_]
     mov cx, 0x03
     call os_print_num
     mov si, byte_msg
@@ -1157,25 +1109,25 @@ ret
 
 ; File System: scroll up =======================================================
 os_fs_scroll_up:
-  cmp word [os_fs_file_pos], OS_FS_FILE_SCROLL_CHARS
+  cmp word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
   jl .done
-  sub word [os_fs_file_pos], OS_FS_FILE_SCROLL_CHARS
+  sub word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
   call os_fs_file_display
   .done:
 ret
 
 ; File System: scroll Down =====================================================
 os_fs_scroll_down:
-  cmp word [os_fs_file_pos], OS_FS_FILE_SIZE-OS_FS_FILE_SCROLL_CHARS
+  cmp word [_OS_FS_FILE_POS_], OS_FS_FILE_SIZE-OS_FS_FILE_SCROLL_CHARS
   jg .done
 
   mov si, _OS_FS_BUFFER_
-  add si, [os_fs_file_pos]
+  add si, [_OS_FS_FILE_POS_]
   add si, OS_FS_FILE_SCROLL_CHARS
   cmp byte [si], 0          ; Check if the current character is null
   je .done
 
-  add word [os_fs_file_pos], OS_FS_FILE_SCROLL_CHARS
+  add word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
   call os_fs_file_display
   .done:
 ret
@@ -1224,7 +1176,7 @@ os_fs_file_write:
 ; Expects: None
 ; Return: None
 os_print_cpuid:
-
+  ; Check for CPUID support before executing to not crash 386 PCs
   pushfd                      ; Save EFLAGS
   pop eax                     ; Get EFLAGS into EAX
   mov ecx, eax                ; Save original EFLAGS in ECX
@@ -1241,6 +1193,7 @@ os_print_cpuid:
   test eax, 0x200000          ; Test bit 21
   jz .no_cpuid                ; CPUID not supported
 
+  ; Safe to execute CPUID instruction
   mov eax, 1                  ; eax = 1 for processor info
   cpuid
 
@@ -1395,7 +1348,7 @@ ret
   stc
 ret
 
-; Clear line
+; Clear line ===================================================================
 ; This function clears whole line with spaces
 ; Expects: DX position
 ; Returns: None
@@ -1414,6 +1367,10 @@ os_clear_line:
   call os_cursor_pos_set
 ret
 
+; Print toolbar hint ===========================================================
+; This function prints the hint for the currently selected toolbar icon
+; Expects: None
+; Returns: None
 os_toolbar_print_hint:
   mov si, [_OS_TOOLBAR_SELECTED_]
   add si, OS_TOOLBAR_TABLE_ENTRY_SIZE-2
@@ -1432,11 +1389,11 @@ os_toolbar_print_hint:
   call os_cursor_pos_set
 ret
 
-; Executes icon command
+; Executes toolbar icon command
 ; This function executes the command associated with the currently selected icon
 ; Expects: None
 ; Returns: None
-os_icon_execute:
+os_toolbar_execute:
   mov si, [_OS_TOOLBAR_SELECTED_]
   inc si
   lodsb
@@ -1460,7 +1417,11 @@ os_icon_execute:
   call ax
 ret
 
-os_print_toolbar:
+; Prints toolbar icons =========================================================
+; This function prints the icons associated with the toolbar
+; Expects: None
+; Returns: None
+os_toolbar_print:
   call os_cursor_pos_get
   push dx
 
@@ -1506,11 +1467,19 @@ os_print_toolbar:
   call os_cursor_pos_set
 ret
 
+; Toolbar back ================================================================
+; This function returns to the main toolbar state
+; Expects: None
+; Returns: None
 os_toolbar_back:
   mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
 ret
 
-os_init_shell:
+; Enter shell first time =======================================================
+; This function initializes the shell state and prints welcome message
+; Expects: None
+; Returns: None
+os_enter_from_splash_screen:
   mov byte [_OS_STATE_], OS_STATE_SHELL
   call os_clear_screen
   call os_print_header
@@ -1519,6 +1488,10 @@ os_init_shell:
   call os_print_prompt
 ret
 
+; Enter shell ==================================================================
+; This function initializes the shell state
+; Expects: None
+; Returns: None
 os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
   call os_clear_screen
@@ -1527,6 +1500,10 @@ os_enter_shell:
   call os_print_prompt
 ret
 
+; Enter File System ============================================================
+; This function initializes the file system state
+; Expects: None
+; Returns: None
 os_enter_fs:
   mov byte [_OS_STATE_], OS_STATE_FS
   call os_clear_screen
@@ -1535,6 +1512,10 @@ os_enter_fs:
   call os_print_prompt
 ret
 
+; Enter Help ===================================================================
+; This function initializes the help state
+; Expects: None
+; Returns: None
 os_enter_help:
   mov byte [_OS_STATE_], OS_STATE_FS
   call os_clear_screen
@@ -1544,117 +1525,6 @@ os_enter_help:
   call os_fs_file_read
   call os_fs_file_display
 ret
-
-os_mouse_init:
-  ; Enable auxiliary mouse device
-  call os_mouse_wait_input
-  mov al, 0xA8
-  out 0x64, al
-
-  ; Enable packet streaming
-  call os_mouse_send_cmd
-  mov al, 0xF4
-  out 0x60, al
-
-  ; Read and discard ACK
-  call os_mouse_wait_output
-  in al, 0x60
-
-  ; Initialize position to splashcreen logo mascot
-  mov ax, 39
-  mov bx, 10
-  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  jz .skip_40
-    mov ax, 19
-  .skip_40:
-  mov word [_OS_MOUSE_+OS_MOUSE_X], ax
-  shl word [_OS_MOUSE_+OS_MOUSE_X], OS_MOUSE_SLOWDOWN
-  mov word [_OS_MOUSE_+OS_MOUSE_Y], bx
-  shl word [_OS_MOUSE_+OS_MOUSE_Y], OS_MOUSE_SLOWDOWN
-ret
-
-; Wait for controller ready for command
-os_mouse_wait_input:
-  in al, 0x64
-  test al, 2
-  jnz os_mouse_wait_input
-ret
-
-; Wait for data available
-os_mouse_wait_output:
-  in al, 0x64
-  test al, 1
-  jz os_mouse_wait_output
-ret
-
-; Send command to mouse
-os_mouse_send_cmd:
-  call os_mouse_wait_input
-  mov al, 0xD4
-  out 0x64, al
-  call os_mouse_wait_input
-ret
-
-os_mouse_poll:
-  ; Check if mouse has data
-  in al, 0x64
-  test al, 0x20
-  jz .no_data
-
-  ; Read all 3 bytes when available
-  call os_mouse_wait_output
-  in al, 0x60       ; First byte (buttons and flags)
-  mov ah, al        ; Save first byte
-
-  call os_mouse_wait_output
-  in al, 0x60       ; Second byte (X movement)
-  movsx cx, al      ; Sign-extend X
-
-  call os_mouse_wait_output
-  in al, 0x60       ; Third byte (Y movement)
-  movsx dx, al      ; Sign-extend Y
-
-  mov al, ah
-  and al, 0x07      ; Keep only button bits
-  mov [_OS_MOUSE_+OS_MOUSE_BTN], al
-
-  ; Update X position
-  add [_OS_MOUSE_+OS_MOUSE_X], cx
-
-  ; Update Y position (invert Y movement)
-  neg dx
-  add [_OS_MOUSE_+OS_MOUSE_Y], dx
-
-  mov ax, 78
-  mov bx, 23
-  shl bx, OS_MOUSE_SLOWDOWN
-  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  je .skip_40
-    mov ax, 38
-  .skip_40:
-  shl ax, OS_MOUSE_SLOWDOWN
-
-  cmp word [_OS_MOUSE_+OS_MOUSE_X], 4
-  jg .check_x_max
-  mov word [_OS_MOUSE_+OS_MOUSE_X], 4
-  .check_x_max:
-    cmp word [_OS_MOUSE_+OS_MOUSE_X], ax
-    jle .check_y_min
-    mov word [_OS_MOUSE_+OS_MOUSE_X], ax
-  .check_y_min:
-    cmp word [_OS_MOUSE_+OS_MOUSE_Y], 8
-    jg .check_y_max
-    mov word [_OS_MOUSE_+OS_MOUSE_Y], 8
-  .check_y_max:
-    cmp word [_OS_MOUSE_+OS_MOUSE_Y], bx
-    jle .no_data
-    mov word [_OS_MOUSE_+OS_MOUSE_Y], bx
-
-  clc
-  ret
-  .no_data:
-    stc
-    ret
 
 ; Void =========================================================================
 ; This is a placeholder function
@@ -1666,20 +1536,21 @@ ret
 
 ; Data section =================================================================
 version_msg           db 'Version alpha8', 0
-system_logo_msg       db OS_GLYPH_ADDRESS+0x0
-                      db OS_GLYPH_ADDRESS+0x1
-                      db OS_GLYPH_ADDRESS+0x2
-                      db OS_GLYPH_ADDRESS+0x3
-                      db OS_GLYPH_ADDRESS+0x4
-                      db OS_GLYPH_ADDRESS+0x5
-                      db OS_GLYPH_ADDRESS+0x6
-                      db 0x0
+system_logo_msg:
+db OS_GLYPH_ADDRESS+0x0
+db OS_GLYPH_ADDRESS+0x1
+db OS_GLYPH_ADDRESS+0x2
+db OS_GLYPH_ADDRESS+0x3
+db OS_GLYPH_ADDRESS+0x4
+db OS_GLYPH_ADDRESS+0x5
+db OS_GLYPH_ADDRESS+0x6
+db 0x0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0x0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0x0
 press_enter_msg       db 'Press ENTER to begin.', 0x0
 more_info_msg         db 'Type "h" for help.', 0x0
-help_line1_msg        db 'LEFT/RIGHT/ENTER to navigate toolbar', 0x0
-help_line3_msg        db 'Available commands:', 0x0
+help_toolbar_msg      db 'LEFT/RIGHT/ENTER to navigate toolbar', 0x0
+available_cmds_msg    db 'Available commands:', 0x0
 unknown_cmd_msg       db 'Unknown command', 0x0
 unsupported_msg       db 'Unsupported', 0x0
 supported_msg         db 'Supported', 0x0
@@ -1694,10 +1565,9 @@ cpu_family_8          db 'AMD Athlon 64',0x0
 cpu_family_other      db 'Unknown CPU Vendor',0x0
 memory_installed_msg  db 'Memory installed: ', 0x0
 kernel_size_msg       db 'Kernel size: ', 0x0
-kb_msg                db ' KB', 0x0
-byte_msg              db ' B', 0x0
+kb_msg                db 'KB', 0x0
+byte_msg              db 'B', 0x0
 bios_date_msg         db 'BIOS date: ', 0x0
-mouse_msg             db 'Mouse: ', 0x0
 apm_batt_msg          db 'Battery: ', 0x0
 apm_batt_ac           db 'AC power', 0x0
 apm_batt_life         db '% charge', 0x0
@@ -1705,7 +1575,6 @@ success_msg           db 'success.', 0x0
 failure_msg           db 'failure.', 0x0
 fs_reading_msg        db 'Reading data from disk...', 0x0
 fs_writing_msg        db 'Writing data to disk...', 0x0
-fs_nav_msg            db 'Use UP/DOWN to scroll.', 0x0
 fs_empty_msg          db 'No/empty file. Read data first.', 0x0
 fs_ruler_80_msg:
 db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAF
@@ -1722,6 +1591,10 @@ db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
 db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
 db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
 msg_cmd_back          db 'Back', 0x0
+msg_cmd_enter_shell   db 'Enter shell', 0x0
+msg_cmd_enter_fs      db 'Enter filesystem', 0x0
+msg_cmd_enter_help    db 'Read full system manual', 0x0
+msg_cmd_play_game     db 'Play "Dirty Rat" game', 0x0
 msg_cmd_h             db 'Quick help', 0x0
 msg_cmd_manual        db 'Full system manual', 0x0
 msg_cmd_v             db 'System version', 0x0
@@ -1736,9 +1609,6 @@ msg_cmd_void          db 0x0 ; Nothing
 msg_cmd_fs_display    db GLYPH_FLOPPY, ' Display loaded file content', 0x0
 msg_cmd_fs_read       db GLYPH_FLOPPY, ' Read file [0]', 0x0
 msg_cmd_fs_write      db GLYPH_FLOPPY, ' Write current file', 0x0
-
-os_fs_file_loaded     db 0xFF
-os_fs_file_pos        dw 0x00
 
 os_cpu_family_table:
   dw cpu_family_other
@@ -1758,18 +1628,19 @@ os_fs_directory_table:
   dw 0x010B
   dw 0x0
 
-; current state, target state
-; icon, function, description
 os_toolbar_table:
   ; MAIN
   db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_SHELL, os_enter_shell, msg_cmd_c
+  dw GLYPH_ICON_SHELL, os_enter_shell, msg_cmd_enter_shell
 
   db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_FS
-  dw GLYPH_ICON_FLOPPY, os_enter_fs, msg_cmd_c
+  dw GLYPH_ICON_FLOPPY, os_enter_fs, msg_cmd_enter_fs
 
   db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_MAIN
-  dw GLYPH_ICON_HELP, os_enter_help, msg_cmd_c
+  dw GLYPH_ICON_GAME, os_void, msg_cmd_play_game
+
+  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_MAIN
+  dw GLYPH_ICON_HELP, os_enter_help, msg_cmd_enter_help
 
   ; SHELL
   db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_MAIN
@@ -1811,8 +1682,6 @@ os_toolbar_table:
 
   db 0x0 ; Terminator
 
-; Commands table ===============================================================
-; character (1b) | pointer to function (2b) | description (24b/chars)
 os_commands_table:
   db 'h'
   dw os_print_help, msg_cmd_h
@@ -1854,7 +1723,7 @@ os_commands_table:
   dw os_fs_file_write, msg_cmd_fs_write
 
   db 13
-  dw os_icon_execute, msg_cmd_void
+  dw os_toolbar_execute, msg_cmd_void
 
   db 27
   dw os_clear_shell, msg_cmd_void
@@ -1863,7 +1732,7 @@ os_commands_table:
 
 os_keyboard_table:
   db OS_STATE_SPLASH_SCREEN, KBD_KEY_ENTER
-  dw os_init_shell
+  dw os_enter_from_splash_screen
   db OS_STATE_SHELL, KBD_KEY_ESCAPE
   dw os_clear_shell
   db OS_STATE_SHELL, KBD_KEY_RIGHT
@@ -1871,14 +1740,14 @@ os_keyboard_table:
   db OS_STATE_SHELL, KBD_KEY_LEFT
   dw os_toolbar_icon_prev
   ;db OS_STATE_SHELL, KBD_KEY_ENTER
-  ;dw os_icon_execute
+  ;dw os_toolbar_execute
 
   db OS_STATE_FS, KBD_KEY_RIGHT
   dw os_toolbar_icon_next
   db OS_STATE_FS, KBD_KEY_LEFT
   dw os_toolbar_icon_prev
   db OS_STATE_FS, KBD_KEY_ENTER
-  dw os_icon_execute
+  dw os_toolbar_execute
 
   db OS_STATE_FS, KBD_KEY_UP
   dw os_fs_scroll_up
@@ -1889,7 +1758,7 @@ os_keyboard_table:
   db 0x0
 
 ; Glyphs =======================================================================
-; This section includes the glyph definitions
+; This section includes the glyphs definitions
 include 'glyphs.asm'
 
 db "P1X"            ; Use HEX viewer to see `P1X` at the end of binary

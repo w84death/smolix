@@ -1,11 +1,12 @@
   future:
-    - [todo] simple game to test mouse
+    - [todo] simple game ?
     - [todo] file system update (metadata)
     - [todo] listing and selecting files to read/write
     - [todo] polish characters (own custom encoding)
     - [todo] virtual pages for fake-multi tasking
   alpha8:
-    - native ps/2 mouse support
+    - new mascot
+    - lot of bugfixes
     - updated status [s] reporting (date/battery/mouse)
     - refactored toolbar backend with secondary menus
     - code golf and optimizations
