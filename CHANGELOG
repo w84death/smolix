@@ -1,9 +1,14 @@
   future:
-    - [todo] simple game ?
     - [todo] file system update (metadata)
     - [todo] listing and selecting files to read/write
     - [todo] polish characters (own custom encoding)
     - [todo] virtual pages for fake-multi tasking
+  alpha9:
+    - start of a Dirty Rat mini game
+    - list and select files to read/write
+    - removed toolbar
+    - reduced tileset
+    - working no-gap tiles on all text modes!
   alpha8:
     - new mascot
     - lot of bugfixes

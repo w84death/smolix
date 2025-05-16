@@ -19,27 +19,32 @@ _OS_MEMORY_BASE_                equ 0x2000    ; Define memory base address
 _OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00   ; 4b
 _OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04   ; 1b
 _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
-_OS_TOOLBAR_STATE_              equ _OS_MEMORY_BASE_ + 0x06   ; 1b
-_OS_TOOLBAR_SELECTED_           equ _OS_MEMORY_BASE_ + 0x07   ; 2b
+
+
 _OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x09   ; 1b
 _OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x0A   ; 2b
-                                          ; next free: 0x0C
-                                          ; last free: 0x0F
-_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x10
+_OS_FS_FILE_SELECTED_           equ _OS_MEMORY_BASE_ + 0x0C   ; 1b
+_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0D   ; 1b
+_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0E   ; 5b
+_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x13   ; 5b
+_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x20
+
+_POS_X            equ 0x0
+_POS_Y            equ 0x1
+_DIR              equ 0x2
+_HP               equ 0x3
+_DIRT             equ 0x4
+_MODE             equ 0x5
 
 OS_STATE_INIT                   equ 0x01
 OS_STATE_SPLASH_SCREEN          equ 0x02
 OS_STATE_SHELL                  equ 0x03
 OS_STATE_FS                     equ 0x04
-OS_STATE_SETTINGS               equ 0x05
+OS_STATE_GAME                   equ 0x05
+
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
 
-OS_TOOLBAR_STATE_MAIN           equ 0x01
-OS_TOOLBAR_STATE_SHELL          equ 0x02
-OS_TOOLBAR_STATE_FS             equ 0x03
-OS_TOOLBAR_STATE_HELP           equ 0x04
-OS_TOOLBAR_TABLE_ENTRY_SIZE     equ 0x08
 
 OS_FS_BLOCK_FIRST               equ 0x11
 OS_FS_BLOCK_SIZE                equ 0x10
@@ -52,6 +57,11 @@ OS_FS_FILE_SCROLL_CHARS         equ 160
 OS_FS_FILE_ID_MANUAL            equ 0x00
 OS_FS_FILE_ID_LEM               equ 0x01
 
+OS_GAME_PLAYER_HP equ 0x5
+OS_GAME_MODE_IDLE equ 0x0
+OS_GAME_MODE_FOLLOW_PLAYER equ 0x1
+OS_GAME_MODE_CLEAN equ 0x2
+
 OS_COLOR_PRIMARY                equ 0x1F
 OS_COLOR_SECONDARY              equ 0x2F
 OS_LENGTH_BYTE                  equ 0x01
@@ -63,53 +73,49 @@ OS_SOUND_STARTUP                equ 1500
 OS_SOUND_SUCCESS                equ 1700
 OS_SOUND_ERROR                  equ 2500
 
-OS_MOUSE_SLOWDOWN               equ 0x02
-OS_MOUSE_ENABLED                equ 0x00
-OS_MOUSE_X                      equ 0x01
-OS_MOUSE_Y                      equ 0x03
-OS_MOUSE_BTN                    equ 0x05
+OS_GLYPH_ADDRESS                equ 0xB0
+GLYPH_PROMPT                    equ 0xB0
+GLYPH_MSG                       equ 0xB1
+GLYPH_ERROR                     equ 0xB2
+GLYPH_SYSTEM                    equ 0xB3
+GLYPH_FLOPPY                    equ 0xB4
+GLYPH_CAL                       equ 0xB5
+GLYPH_MEM                       equ 0xB6
+GLYPH_BAT                       equ 0xB7
+; placeholder 0xB8
+; placeholder 0xB9
+GLYPH_MASCOT                    equ 0xBA
+GLYPH_GAME1_RAT_IDLE_L          equ 0xBA
+GLYPH_GAME1_RAT_IDLE_R          equ 0xBB
+GLYPH_GAME1_RAT_WALK1_R         equ 0xBC
+GLYPH_GAME1_RAT_WALK2_R         equ 0xBD
+GLYPH_GAME1_RAT_WALK1_L         equ 0xBE
+GLYPH_GAME1_RAT_WALK2_L         equ 0xBF
 
-OS_GLYPH_ADDRESS                equ 0x80
-; LOGO                              0x80 - 0x86
-GLYPH_MASCOT                    equ 0x87
-GLYPH_SYSTEM                    equ 0x88
-GLYPH_ERROR                     equ 0x89
-GLYPH_MSG                       equ 0x8A
-GLYPH_PROMPT                    equ 0x8B
-GLYPH_FREE1                     equ 0x8C
-GLYPH_FLOPPY                    equ 0x8D
-GLYPH_CAL                       equ 0x8E
-GLYPH_MEM                       equ 0x8F
-GLYPH_BAT                       equ 0x90
-GLYPH_FREE2                     equ 0x91
-GLYPH_CEILING                   equ 0x92
-GLYPH_FLOOR                     equ 0x93
-GLYPH_RAMP_UP                   equ 0x94
-GLYPH_RAMP_DOWN                 equ 0x95
-GLYPH_ICONS_SELECTOR            equ 0x9796
-GLYPH_ICON_RESET                equ 0x9998
-GLYPH_ICON_REBOOT               equ 0x9B9A
-GLYPH_ICON_DOWN                 equ 0x9D9C
-GLYPH_ICON_BACK                 equ 0x9F9E
-GLYPH_ICON_EDIT                 equ 0xA1A0
-GLYPH_ICON_CONF                 equ 0xA3A2
-GLYPH_ICON_SHELL                equ 0xA5A4
-GLYPH_ICON_X                    equ 0xA7A6
-GLYPH_ICON_HELP                 equ 0xA9A8
-GLYPH_ICON_FLOPPY               equ 0xABAA
-GLYPH_RULER_START               equ 0xAC
-GLYPH_RULER_MIDDLE              equ 0xAD
-GLYPH_RULER_END                 equ 0xAE
-GLYPH_RULER_NO                  equ 0xAF
-; Ruler numbers 10-70               0xB0 - 0xB5
-GLYPH_ICON_FS_READ              equ 0xB7B6
-GLYPH_ICON_FS_WRITE             equ 0xB9B8
-GLYPH_ICON_FS_LIST              equ 0xBBBA
-GLYPH_ICON_GAME                 equ 0xBDBC
-GLYPH_16BIT_1                   equ 0xBE
-GLYPH_16BIT_2                   equ 0xBF
-GLYPH_16BIT_3                   equ 0xC0
-; Game sprites                      0xC1 - 0xCE
+OS_GLYPH_LOGO                   equ 0xC0
+; LOGO                              0xC0 - 0xC6
+GLYPH_CEILING                   equ 0xC7
+GLYPH_FLOOR                     equ 0xC8
+GLYPH_RAMP_UP                   equ 0xC9
+GLYPH_RAMP_DOWN                 equ 0xCA
+GLYPH_16BIT_1                   equ 0xCB
+GLYPH_16BIT_2                   equ 0xCC
+GLYPH_16BIT_3                   equ 0xCD
+GLYPH_RULER_START               equ 0xCE
+GLYPH_RULER_MIDDLE              equ 0xCF
+GLYPH_RULER_END                 equ 0xD0
+GLYPH_RULER_NO                  equ 0xD1
+; Ruler numbers 10-70               0xD1 - 0xD7
+GLYPH_GAME1_WALL_CORNER         equ 0xD8
+GLYPH_GAME1_WALL_HORIZONTAL     equ 0xD9
+GLYPH_GAME1_WALL_VERTICAL       equ 0xDA
+; placeholders 0xDB - 0xDF
+;
+GLYPH_GAME1_DIRT1               equ 0xE0
+GLYPH_GAME1_DIRT2               equ 0xE1
+GLYPH_GAME1_DIRT3               equ 0xE2
+GLYPH_GAME1_BROOM1              equ 0xE3
+GLYPH_GAME1_POT                 equ 0xE4
 
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
@@ -144,9 +150,6 @@ os_reset:
 	int 0x10            ; 80x25 text mode
   call os_load_all_glyphs
 
-  mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
-  mov word [_OS_TOOLBAR_SELECTED_], os_toolbar_table
-
   mov byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
@@ -161,18 +164,15 @@ os_reset:
 os_main_loop:
 
   .check_keyboard:
-    mov ah, 01h         ; BIOS keyboard status function
-    int 16h             ; Call BIOS interrupt
-    jz .done
+  mov ah, 01h         ; BIOS keyboard status function
+  int 16h             ; Call BIOS interrupt
+  jz .done
 
-    mov ah, 00h         ; BIOS keyboard read function
-    int 16h
+  mov ah, 00h         ; BIOS keyboard read function
+  int 16h
 
-    ; Do not interpret system commands in those states
-    cmp byte [_OS_STATE_], OS_STATE_FS
-    je .no_command_key
-    cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
-    je .no_command_key
+  cmp byte [_OS_STATE_], OS_STATE_SHELL
+  jne .no_command_key
 
   .check_system_command:
     test al, al
@@ -191,6 +191,8 @@ os_main_loop:
   .continue:
     cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
     je .print_splash
+    cmp byte [_OS_STATE_], OS_STATE_GAME
+    je .done
 
   .print_header:
     call os_cursor_pos_get
@@ -215,7 +217,11 @@ os_main_loop:
       jz .wait_loop
 
   inc dword [_OS_TICK_]
-  call os_print_tick
+
+  cmp byte [_OS_STATE_], OS_STATE_GAME
+  je .skip_print_tick
+    call os_print_tick
+  .skip_print_tick:
   call os_sound_stop
 
 jmp os_main_loop
@@ -341,8 +347,6 @@ os_print_header:
   mov al, GLYPH_CEILING
   mov ah, dh
   call os_print_chr_mul
-
-  call os_toolbar_print
 ret
 
 ; Print Error Status ===========================================================
@@ -366,11 +370,6 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_help:
-  mov bl, GLYPH_MSG
-  call os_print_prompt
-  mov si, help_toolbar_msg
-  call os_print_str
-
   call os_print_prompt
   mov si, available_cmds_msg
   call os_print_str
@@ -658,7 +657,6 @@ os_interpret_char:
     lodsb           ; Load next command character
     test al, al     ; Check for end of table
     jz .unknown_cmd
-    ; BL = character to interpret
     cmp bl, al
     je .found_cmd
     lea si, [si + OS_LENGTH_WORD+OS_LENGTH_WORD]
@@ -672,6 +670,23 @@ os_interpret_char:
 ret
 
   .unknown_cmd:
+
+  .check_fs_select_file:
+
+    cmp bl, '0'
+    jl .skip_fs_state
+    cmp bl, 'F'
+    jg .skip_fs_state
+
+    sub bl, '0'
+    mov byte [_OS_FS_FILE_SELECTED_], bl
+    call os_fs_file_read
+
+    ; write about selected file
+
+ret
+    .skip_fs_state:
+
     mov ax, OS_SOUND_ERROR
     call os_sound_play
     movzx dx, bl
@@ -973,12 +988,47 @@ os_fs_file0_read:
   call os_fs_file_read
 ret
 
+os_fs_list_files:
+  mov byte [_OS_STATE_], OS_STATE_SHELL
+  call os_clear_shell
+  mov bl, GLYPH_FLOPPY
+  call os_print_prompt
+  mov si, fs_files_list_msg
+  call os_print_str
+
+  xor cx, cx
+  xor bx, bx
+  .list_loop:
+    mov bx, cx
+    shl bx, 5
+    cmp byte [os_fs_directory_table+bx], 0xFF
+    je .end_of_list
+    add bx, 3
+    mov si, os_fs_directory_table
+    add si, bx
+
+    mov bl, GLYPH_FLOPPY
+    call os_print_prompt
+    mov ax, cx
+    call os_print_num
+    mov al, CHR_SPACE
+    call os_print_chr
+
+
+    call os_print_str
+
+    inc cx
+  jmp .list_loop
+.end_of_list:
+ret
+
 ; File System: Read file =======================================================
 ; This function reads a file from the floppy disk to a memory
-; Expects: DL = File number
+; Expects: None
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_file_read:
   mov word [_OS_FS_FILE_POS_], 0
+  mov dl, [_OS_FS_FILE_SELECTED_]
   cmp byte [_OS_FS_FILE_LOADED_], dl
   je .already_loaded
   call os_fs_file_load
@@ -1005,8 +1055,10 @@ os_fs_file_load:
   jc .disk_error
 
   movzx bx, dl
-  shl bx, 1
-  mov dx, [os_fs_directory_table + bx]
+  shl bx, 5
+  mov ch, [os_fs_directory_table + bx]      ; Cylinder
+  mov cl, [os_fs_directory_table + bx + 1]  ; Starting sector
+  mov dh, [os_fs_directory_table + bx + 2]  ; Starting block
 
   mov ax, ds
   mov es, ax              ; Make sure ES=DS for disk read
@@ -1014,8 +1066,6 @@ os_fs_file_load:
 
   mov ah, 0x02            ; BIOS read sectors function
   mov al, OS_FS_BLOCK_SIZE
-  mov ch, 0               ; Cylinder 0
-  mov cl, dl              ; Starting sector (file block)
   mov dl, 0x00            ; Drive 0 (first floppy drive)
   int 0x13                ; BIOS disk interrupt
   jc .disk_error          ; Error if carry flag set
@@ -1109,6 +1159,9 @@ ret
 
 ; File System: scroll up =======================================================
 os_fs_scroll_up:
+  cmp byte [_OS_STATE_], OS_STATE_FS
+  jne .done
+
   cmp word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
   jl .done
   sub word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
@@ -1118,6 +1171,9 @@ ret
 
 ; File System: scroll Down =====================================================
 os_fs_scroll_down:
+  cmp byte [_OS_STATE_], OS_STATE_FS
+  jne .done
+
   cmp word [_OS_FS_FILE_POS_], OS_FS_FILE_SIZE-OS_FS_FILE_SCROLL_CHARS
   jg .done
 
@@ -1310,171 +1366,6 @@ os_print_splash_screen:
   call os_cursor_pos_set
 ret
 
-; Toolbar: Selects next icon ===================================================
-; This function selects the next icon in the navigation
-; Expects: None
-; Returns: None
-os_toolbar_icon_next:
-  mov bx, OS_TOOLBAR_TABLE_ENTRY_SIZE
-  call os_toolbar_icon_change_active
-ret
-
-; Toolbar: Selects previous icon ===============================================
-; This function selects the previous icon in the navigation
-; Expects: None
-; Returns: None
-os_toolbar_icon_prev:
-  mov bx, -OS_TOOLBAR_TABLE_ENTRY_SIZE
-  call os_toolbar_icon_change_active
-ret
-
-; Toolbar: Change active icon ==================================================
-; This function tests if possible and change the active icon to new position
-; Expects: BX = new position (+/-)
-; Return: CF = out of bouds
-os_toolbar_icon_change_active:
-  mov si, [_OS_TOOLBAR_SELECTED_]
-  add si, bx
-  lodsb
-  test al, al
-  jz .bounded
-  cmp al, [_OS_TOOLBAR_STATE_]
-  jne .bounded
-  add word [_OS_TOOLBAR_SELECTED_], bx
-  call os_toolbar_print_hint
-  clc
-ret
-  .bounded:
-  stc
-ret
-
-; Clear line ===================================================================
-; This function clears whole line with spaces
-; Expects: DX position
-; Returns: None
-os_clear_line:
-  push dx
-  xor dl, dl
-  call os_cursor_pos_set
-  mov al, CHR_SPACE
-  mov ah, 80
-  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  je .skip_40
-    mov ah, 40
-  .skip_40:
-  call os_print_chr_mul
-  pop dx
-  call os_cursor_pos_set
-ret
-
-; Print toolbar hint ===========================================================
-; This function prints the hint for the currently selected toolbar icon
-; Expects: None
-; Returns: None
-os_toolbar_print_hint:
-  mov si, [_OS_TOOLBAR_SELECTED_]
-  add si, OS_TOOLBAR_TABLE_ENTRY_SIZE-2
-  call os_cursor_pos_get
-  push dx
-  mov dx, 0x0201
-  call os_cursor_pos_set
-  call os_clear_line
-  mov al, GLYPH_MSG
-  mov ah, CHR_SPACE
-  call os_print_chr_double
-  lodsw
-  mov si, ax
-  call os_print_str
-  pop dx
-  call os_cursor_pos_set
-ret
-
-; Executes toolbar icon command
-; This function executes the command associated with the currently selected icon
-; Expects: None
-; Returns: None
-os_toolbar_execute:
-  mov si, [_OS_TOOLBAR_SELECTED_]
-  inc si
-  lodsb
-  mov byte [_OS_TOOLBAR_STATE_], al
-
-  push si
-  mov si, os_toolbar_table
-  .loop_table:
-    lodsb
-    cmp al, [_OS_TOOLBAR_STATE_]
-    je .position_found
-    add si, OS_TOOLBAR_TABLE_ENTRY_SIZE-1
-    jmp .loop_table
-    .position_found:
-      dec si
-      mov [_OS_TOOLBAR_SELECTED_], si
-  pop si
-
-  add si, 2
-  lodsw
-  call ax
-ret
-
-; Prints toolbar icons =========================================================
-; This function prints the icons associated with the toolbar
-; Expects: None
-; Returns: None
-os_toolbar_print:
-  call os_cursor_pos_get
-  push dx
-
-  mov dx, 0x000C
-  call os_cursor_pos_set
-
-  mov si, os_toolbar_table
-  .icons_loop:
-    lodsb
-    test al, al
-    jz .done
-    cmp al, [_OS_TOOLBAR_STATE_]
-    jne .next_icon
-
-    mov ax, si
-    dec ax
-    cmp ax, [_OS_TOOLBAR_SELECTED_]
-    jne .skip_selector
-      call os_cursor_pos_get
-      add dh, 0x01
-      call os_cursor_pos_set
-      mov ax, GLYPH_ICONS_SELECTOR
-      call os_print_chr_double
-      sub dh, 0x01
-      call os_cursor_pos_set
-    .skip_selector:
-
-    inc si                        ; skip toolbar target state
-    lodsw
-    call os_print_chr_double
-    mov al, CHR_SPACE
-    call os_print_chr
-
-    add si, 4                     ; skip command + desc
-    jmp .icons_loop
-
-    .next_icon:
-      add si, 7                   ; skip target state, command, desc
-      jmp .icons_loop
-    .done:
-
-  pop dx
-  call os_cursor_pos_set
-ret
-
-; Toolbar back ================================================================
-; This function returns to the main toolbar state
-; Expects: None
-; Returns: None
-os_toolbar_back:
-  mov byte [_OS_TOOLBAR_STATE_], OS_TOOLBAR_STATE_MAIN
-ret
-
 ; Enter shell first time =======================================================
 ; This function initializes the shell state and prints welcome message
 ; Expects: None
@@ -1505,11 +1396,13 @@ ret
 ; Expects: None
 ; Returns: None
 os_enter_fs:
-  mov byte [_OS_STATE_], OS_STATE_FS
-  call os_clear_screen
-  call os_print_header
-  mov bl, GLYPH_PROMPT
+  call os_clear_shell
+  call os_fs_list_files
+
+  mov bl, GLYPH_FLOPPY
   call os_print_prompt
+  mov si, fs_select_file_msg
+  call os_print_str
 ret
 
 ; Enter Help ===================================================================
@@ -1518,12 +1411,152 @@ ret
 ; Returns: None
 os_enter_help:
   mov byte [_OS_STATE_], OS_STATE_FS
-  call os_clear_screen
-  call os_print_header
+  call os_clear_shell
 
   mov dl, OS_FS_FILE_ID_MANUAL
   call os_fs_file_read
   call os_fs_file_display
+ret
+
+
+; Enter Game ===================================================================
+; This function initializes the game state
+; Expects: None
+; Returns: None
+os_enter_game:
+
+
+  mov byte [_OS_STATE_], OS_STATE_GAME
+  mov byte [_OS_GAME_STARTED_], 0x0
+
+  call os_clear_screen
+
+  ; Game name
+  mov dx, 0x0406
+  call os_cursor_pos_set
+  mov si, game_name_msg
+  call os_print_str
+
+  ; Rat
+  mov dx, 0x0714
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME1_RAT_IDLE_R
+  call os_print_chr
+
+  ; Instructions
+  mov dx, 0x0A00
+  call os_cursor_pos_set
+  mov si, game_instructions_table
+  .instructions_loop:
+    lodsw
+    test ax, ax
+    jz .done
+
+    mov bx, ax
+    push si
+    mov si, bx
+    call os_print_str
+    inc dh
+    call os_cursor_pos_set
+    pop si
+  jmp .instructions_loop
+
+  .done:
+ret
+
+os_game_player_move:
+ret
+
+os_game_start:
+  mov byte [_OS_GAME_STARTED_], 0x1
+  call os_clear_screen
+
+  ; initialize player
+  mov byte [_OS_GAME_PLAYER_+_POS_X], 0x22
+  mov byte [_OS_GAME_PLAYER_+_POS_Y], 0x0A
+  mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
+  mov byte [_OS_GAME_PLAYER_+_HP], OS_GAME_PLAYER_HP
+  mov byte [_OS_GAME_PLAYER_+_DIRT], 0x0
+
+  ; initialize broom
+  mov byte [_OS_GAME_BROOM_+_POS_X], 0x0C
+  mov byte [_OS_GAME_BROOM_+_POS_Y], 0x0A
+  mov byte [_OS_GAME_BROOM_+_DIR], 0x0
+  mov byte [_OS_GAME_BROOM_+_MODE], 0x0
+
+  ; draw level
+  call os_cursor_pos_reset
+  mov al, GLYPH_GAME1_WALL_CORNER
+  call os_print_chr
+  mov al, GLYPH_GAME1_WALL_HORIZONTAL
+  mov ah, 0x26
+  call os_print_chr_mul
+  mov al, GLYPH_GAME1_WALL_CORNER
+  call os_print_chr
+
+  mov cx, 0x15
+  mov dx, 0x0100
+  .vertical_walls_loop:
+    call os_cursor_pos_set
+    mov al, GLYPH_GAME1_WALL_VERTICAL
+    call os_print_chr
+    add dl, 0x27
+    call os_cursor_pos_set
+    mov al, GLYPH_GAME1_WALL_VERTICAL
+    call os_print_chr
+    xor dl, dl
+    inc dh
+  loop .vertical_walls_loop
+
+  mov dx, 0x1600
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME1_WALL_CORNER
+  call os_print_chr
+  mov al, GLYPH_GAME1_WALL_HORIZONTAL
+  mov ah, 0x26
+  call os_print_chr_mul
+  mov al, GLYPH_GAME1_WALL_CORNER
+  call os_print_chr
+
+  ; Draw pots
+  mov dx, 0x0505
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME1_POT
+  call os_print_chr
+
+  mov dx, 0x1220
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME1_POT
+  call os_print_chr
+
+  call os_game_loop
+ret
+
+os_game_player_draw:
+  mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
+  mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME1_RAT_IDLE_R
+  cmp byte [_OS_GAME_PLAYER_+_DIR], 0x01
+  je .skip_draw_left
+  mov al, GLYPH_GAME1_RAT_IDLE_L
+  .skip_draw_left:
+  call os_print_chr
+ret
+
+os_game_broom_draw:
+  mov byte dl, [_OS_GAME_BROOM_+_POS_X]
+  mov byte dh, [_OS_GAME_BROOM_+_POS_Y]
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME1_BROOM1
+  call os_print_chr
+ret
+
+os_game_loop:
+
+  call os_game_player_draw
+  call os_game_broom_draw
+
 ret
 
 ; Void =========================================================================
@@ -1535,21 +1568,20 @@ os_void:
 ret
 
 ; Data section =================================================================
-version_msg           db 'Version alpha8', 0
+version_msg           db 'Version alpha9', 0
 system_logo_msg:
-db OS_GLYPH_ADDRESS+0x0
-db OS_GLYPH_ADDRESS+0x1
-db OS_GLYPH_ADDRESS+0x2
-db OS_GLYPH_ADDRESS+0x3
-db OS_GLYPH_ADDRESS+0x4
-db OS_GLYPH_ADDRESS+0x5
-db OS_GLYPH_ADDRESS+0x6
+db OS_GLYPH_LOGO+0x0
+db OS_GLYPH_LOGO+0x1
+db OS_GLYPH_LOGO+0x2
+db OS_GLYPH_LOGO+0x3
+db OS_GLYPH_LOGO+0x4
+db OS_GLYPH_LOGO+0x5
+db OS_GLYPH_LOGO+0x6
 db 0x0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0x0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0x0
 press_enter_msg       db 'Press ENTER to begin.', 0x0
 more_info_msg         db 'Type "h" for help.', 0x0
-help_toolbar_msg      db 'LEFT/RIGHT/ENTER to navigate toolbar', 0x0
 available_cmds_msg    db 'Available commands:', 0x0
 unknown_cmd_msg       db 'Unknown command', 0x0
 unsupported_msg       db 'Unsupported', 0x0
@@ -1573,9 +1605,35 @@ apm_batt_ac           db 'AC power', 0x0
 apm_batt_life         db '% charge', 0x0
 success_msg           db 'success.', 0x0
 failure_msg           db 'failure.', 0x0
+fs_files_list_msg     db 'Files on floppy:', 0x0
+fs_select_file_msg       db 'Type file number you want to select: ', 0x0
 fs_reading_msg        db 'Reading data from disk...', 0x0
 fs_writing_msg        db 'Writing data to disk...', 0x0
 fs_empty_msg          db 'No/empty file. Read data first.', 0x0
+game_name_msg         db '- - - D I R T Y - R A T - - -', 0x0
+game_instruction1_msg db 'Your mission is to collect all floppies.', 0x0
+game_instruction2_msg db 'Go to a flower pot to get dirt on you.', 0x0
+game_instruction3_msg db 'Spread it on the ground and avoid broom.', 0x0
+game_instruction4_msg db 'Use the arrow keys to move the rat.', 0x0
+game_instruction5_msg db 'Press ENTER to start, ESC to quit game.', 0x0
+
+msg_cmd_play_game     db 'Play "Dirty Rat" game', 0x0
+msg_cmd_h             db 'Quick help', 0x0
+msg_cmd_manual        db 'Full system manual', 0x0
+msg_cmd_v             db 'System version', 0x0
+msg_cmd_r             db 'Soft reset', 0x0
+msg_cmd_R             db 'Hard reboot', 0x0
+msg_cmd_D             db 'Shutdown', 0x0
+msg_cmd_c             db 'Clear the shell log', 0x0
+msg_cmd_x             db 'Toggle between 40/80 screen modes', 0x0
+msg_cmd_s             db 'System statistics', 0x0
+msg_cmd_tilde         db 'Custom charset', 0x0
+msg_cmd_void          db 0x0 ; Nothing
+msg_cmd_fs_list       db 'List files on a floppy', 0x0
+msg_cmd_fs_display    db 'Display & edit loaded file content', 0x0
+msg_cmd_fs_read       db 'Read selected file from a floppy', 0x0
+msg_cmd_fs_write      db 'Write current file to floppy', 0x0
+
 fs_ruler_80_msg:
 db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAF
 db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
@@ -1590,25 +1648,14 @@ db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
 db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
 db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
 db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
-msg_cmd_back          db 'Back', 0x0
-msg_cmd_enter_shell   db 'Enter shell', 0x0
-msg_cmd_enter_fs      db 'Enter filesystem', 0x0
-msg_cmd_enter_help    db 'Read full system manual', 0x0
-msg_cmd_play_game     db 'Play "Dirty Rat" game', 0x0
-msg_cmd_h             db 'Quick help', 0x0
-msg_cmd_manual        db 'Full system manual', 0x0
-msg_cmd_v             db 'System version', 0x0
-msg_cmd_r             db 'Soft reset', 0x0
-msg_cmd_R             db 'Hard reboot', 0x0
-msg_cmd_D             db 'Shutdown', 0x0
-msg_cmd_c             db 'Clear the shell log', 0x0
-msg_cmd_x             db 'Toggle between 40/80 screen modes', 0x0
-msg_cmd_s             db 'System statistics', 0x0
-msg_cmd_tilde         db 'Custom charset', 0x0
-msg_cmd_void          db 0x0 ; Nothing
-msg_cmd_fs_display    db GLYPH_FLOPPY, ' Display loaded file content', 0x0
-msg_cmd_fs_read       db GLYPH_FLOPPY, ' Read file [0]', 0x0
-msg_cmd_fs_write      db GLYPH_FLOPPY, ' Write current file', 0x0
+
+game_instructions_table:
+  dw game_instruction1_msg
+  dw game_instruction2_msg
+  dw game_instruction3_msg
+  dw game_instruction4_msg
+  dw game_instruction5_msg
+  dw 0x0
 
 os_cpu_family_table:
   dw cpu_family_other
@@ -1624,63 +1671,10 @@ os_cpu_family_table:
   dw 0x0
 
 os_fs_directory_table:
-  dw 0x0011
-  dw 0x010B
-  dw 0x0
-
-os_toolbar_table:
-  ; MAIN
-  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_SHELL, os_enter_shell, msg_cmd_enter_shell
-
-  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_FS
-  dw GLYPH_ICON_FLOPPY, os_enter_fs, msg_cmd_enter_fs
-
-  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_MAIN
-  dw GLYPH_ICON_GAME, os_void, msg_cmd_play_game
-
-  db OS_TOOLBAR_STATE_MAIN, OS_TOOLBAR_STATE_MAIN
-  dw GLYPH_ICON_HELP, os_enter_help, msg_cmd_enter_help
-
-  ; SHELL
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_MAIN
-  dw GLYPH_ICON_BACK, os_void, msg_cmd_back
-
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_SHELL, os_clear_shell, msg_cmd_c
-
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_CONF, os_print_stats, msg_cmd_s
-
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_X, os_toggle_video_mode, msg_cmd_x
-
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_RESET, os_reset, msg_cmd_r
-
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_REBOOT, os_reboot, msg_cmd_R
-
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_DOWN, os_down, msg_cmd_D
-
-  db OS_TOOLBAR_STATE_SHELL, OS_TOOLBAR_STATE_SHELL
-  dw GLYPH_ICON_HELP, os_print_help, msg_cmd_h
-
-  ; FILE SYSTEM
-  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_MAIN
-  dw GLYPH_ICON_BACK, os_void, msg_cmd_back
-
-  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_FS
-  dw GLYPH_ICON_FS_READ, os_void, msg_cmd_void
-
-  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_FS
-  dw GLYPH_ICON_FS_LIST, os_void, msg_cmd_void
-
-  db OS_TOOLBAR_STATE_FS, OS_TOOLBAR_STATE_FS
-  dw GLYPH_ICON_FS_WRITE, os_void, msg_cmd_void
-
-  db 0x0 ; Terminator
+  db 0x00, 0x11, 0x00, 'System Manual               ', 0x0
+  db 0x00, 0x0B, 0x01, 'Lem Pamietnik Znaleziony... ', 0x0
+  db 0x00, 0x01, 0x0B, 'Dummy entry...              ', 0x0
+  db 0xFF
 
 os_commands_table:
   db 'h'
@@ -1713,8 +1707,11 @@ os_commands_table:
   db '`'
   dw os_print_debug, msg_cmd_tilde
 
+  db 'l'
+  dw os_fs_list_files, msg_cmd_fs_list
+
   db 'F'
-  dw os_fs_file0_read, msg_cmd_fs_read
+  dw os_fs_file_load, msg_cmd_fs_read
 
   db 'f'
   dw os_fs_file_display, msg_cmd_fs_display
@@ -1722,8 +1719,8 @@ os_commands_table:
   db 'W'
   dw os_fs_file_write, msg_cmd_fs_write
 
-  db 13
-  dw os_toolbar_execute, msg_cmd_void
+  db 'g'
+  dw os_enter_game, msg_cmd_play_game
 
   db 27
   dw os_clear_shell, msg_cmd_void
@@ -1735,19 +1732,6 @@ os_keyboard_table:
   dw os_enter_from_splash_screen
   db OS_STATE_SHELL, KBD_KEY_ESCAPE
   dw os_clear_shell
-  db OS_STATE_SHELL, KBD_KEY_RIGHT
-  dw os_toolbar_icon_next
-  db OS_STATE_SHELL, KBD_KEY_LEFT
-  dw os_toolbar_icon_prev
-  ;db OS_STATE_SHELL, KBD_KEY_ENTER
-  ;dw os_toolbar_execute
-
-  db OS_STATE_FS, KBD_KEY_RIGHT
-  dw os_toolbar_icon_next
-  db OS_STATE_FS, KBD_KEY_LEFT
-  dw os_toolbar_icon_prev
-  db OS_STATE_FS, KBD_KEY_ENTER
-  dw os_toolbar_execute
 
   db OS_STATE_FS, KBD_KEY_UP
   dw os_fs_scroll_up
@@ -1755,6 +1739,20 @@ os_keyboard_table:
   dw os_fs_scroll_down
   db OS_STATE_FS, KBD_KEY_ESCAPE
   dw os_enter_shell
+
+  db OS_STATE_GAME, KBD_KEY_UP
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_DOWN
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_LEFT
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_RIGHT
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_ENTER
+  dw os_game_start
+  db OS_STATE_GAME, KBD_KEY_ESCAPE
+  dw os_enter_shell
+
   db 0x0
 
 ; Glyphs =======================================================================
