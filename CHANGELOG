@@ -1,7 +1,8 @@
 alpha10:
     - [in-progress] full printer support
     - [in-progress] editing files
-    - [in-progress] game
+    - [in-progress] Dirty Rat game progress
+    - show/hide cursor (shell/game)
     - updated logo (removed 16bit part)
   alpha9 [RELEASED]:
     - start of a Dirty Rat mini game

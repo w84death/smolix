@@ -82,12 +82,12 @@ GLYPH_BAT                       equ 0xB7
 ; placeholder 0xB8
 ; placeholder 0xB9
 GLYPH_MASCOT                    equ 0xBA
-GLYPH_GAME1_RAT_IDLE_L          equ 0xBA
-GLYPH_GAME1_RAT_IDLE_R          equ 0xBB
-GLYPH_GAME1_RAT_WALK1_R         equ 0xBC
-GLYPH_GAME1_RAT_WALK2_R         equ 0xBD
-GLYPH_GAME1_RAT_WALK1_L         equ 0xBE
-GLYPH_GAME1_RAT_WALK2_L         equ 0xBF
+GLYPH_GAME_RAT_IDLE_L          equ 0xBA
+GLYPH_GAME_RAT_IDLE_R          equ 0xBB
+GLYPH_GAME_RAT_WALK1_R         equ 0xBC
+GLYPH_GAME_RAT_WALK2_R         equ 0xBD
+GLYPH_GAME_RAT_WALK1_L         equ 0xBE
+GLYPH_GAME_RAT_WALK2_L         equ 0xBF
 
 OS_GLYPH_LOGO                   equ 0xC0
 ; LOGO                              0xC0 - 0xC6
@@ -103,16 +103,18 @@ GLYPH_RULER_MIDDLE              equ 0xCF
 GLYPH_RULER_END                 equ 0xD0
 GLYPH_RULER_NO                  equ 0xD1
 ; Ruler numbers 10-70               0xD1 - 0xD7
-GLYPH_GAME1_WALL_CORNER         equ 0xD8
-GLYPH_GAME1_WALL_HORIZONTAL     equ 0xD9
-GLYPH_GAME1_WALL_VERTICAL       equ 0xDA
-; placeholders 0xDB - 0xDF
+GLYPH_GAME_WALL_CORNER         equ 0xD8
+GLYPH_GAME_WALL_HORIZONTAL     equ 0xD9
+GLYPH_GAME_WALL_VERTICAL       equ 0xDA
+GLYPH_GAME_TILE_A              equ 0xDB
+GLYPH_GAME_TILE_B              equ 0xDC
+; placeholders 0xDD - 0xDF
 ;
-GLYPH_GAME1_DIRT1               equ 0xE0
-GLYPH_GAME1_DIRT2               equ 0xE1
-GLYPH_GAME1_DIRT3               equ 0xE2
-GLYPH_GAME1_BROOM1              equ 0xE3
-GLYPH_GAME1_POT                 equ 0xE4
+GLYPH_GAME_DIRT1               equ 0xE0
+GLYPH_GAME_DIRT2               equ 0xE1
+GLYPH_GAME_DIRT3               equ 0xE2
+GLYPH_GAME_BROOM1              equ 0xE3
+GLYPH_GAME_POT                 equ 0xE4
 
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
@@ -1567,6 +1569,36 @@ os_enter_game:
   call os_cursor_hide
   call os_clear_screen
 
+  mov dx, 0x0303
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME_TILE_A
+  mov ah, 0x23
+  call os_print_chr_mul
+
+  mov dx, 0x0504
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME_TILE_A
+  mov ah, 0x21
+  call os_print_chr_mul
+
+  mov dx, 0x0607
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME_TILE_A
+  mov ah, 0x1A
+  call os_print_chr_mul
+
+  mov dx, 0x070B
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME_TILE_A
+  mov ah, 0x12
+  call os_print_chr_mul
+
+  mov dx, 0x080D
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME_TILE_A
+  mov ah, 0x0E
+  call os_print_chr_mul
+
   ; Game name
   mov dx, 0x0406
   call os_cursor_pos_set
@@ -1576,7 +1608,7 @@ os_enter_game:
   ; Rat
   mov dx, 0x0714
   call os_cursor_pos_set
-  mov al, GLYPH_GAME1_RAT_IDLE_R
+  mov al, GLYPH_GAME_RAT_IDLE_R
   call os_print_chr
 
   ; Instructions
@@ -1596,8 +1628,14 @@ os_enter_game:
     call os_cursor_pos_set
     pop si
   jmp .instructions_loop
-
   .done:
+
+  ; copy
+  mov dx, 0x1402
+  call os_cursor_pos_set
+  mov si, copyright_msg
+  call os_print_str
+
 ret
 
 os_game_start:
@@ -1619,23 +1657,23 @@ os_game_start:
 
   ; draw level
   call os_cursor_pos_reset
-  mov al, GLYPH_GAME1_WALL_CORNER
+  mov al, GLYPH_GAME_WALL_CORNER
   call os_print_chr
-  mov al, GLYPH_GAME1_WALL_HORIZONTAL
+  mov al, GLYPH_GAME_WALL_HORIZONTAL
   mov ah, 0x26
   call os_print_chr_mul
-  mov al, GLYPH_GAME1_WALL_CORNER
+  mov al, GLYPH_GAME_WALL_CORNER
   call os_print_chr
 
   mov cx, 0x15
   mov dx, 0x0100
   .vertical_walls_loop:
     call os_cursor_pos_set
-    mov al, GLYPH_GAME1_WALL_VERTICAL
+    mov al, GLYPH_GAME_WALL_VERTICAL
     call os_print_chr
     add dl, 0x27
     call os_cursor_pos_set
-    mov al, GLYPH_GAME1_WALL_VERTICAL
+    mov al, GLYPH_GAME_WALL_VERTICAL
     call os_print_chr
     xor dl, dl
     inc dh
@@ -1643,23 +1681,23 @@ os_game_start:
 
   mov dx, 0x1600
   call os_cursor_pos_set
-  mov al, GLYPH_GAME1_WALL_CORNER
+  mov al, GLYPH_GAME_WALL_CORNER
   call os_print_chr
-  mov al, GLYPH_GAME1_WALL_HORIZONTAL
+  mov al, GLYPH_GAME_WALL_HORIZONTAL
   mov ah, 0x26
   call os_print_chr_mul
-  mov al, GLYPH_GAME1_WALL_CORNER
+  mov al, GLYPH_GAME_WALL_CORNER
   call os_print_chr
 
   ; Draw pots
   mov dx, 0x0505
   call os_cursor_pos_set
-  mov al, GLYPH_GAME1_POT
+  mov al, GLYPH_GAME_POT
   call os_print_chr
 
   mov dx, 0x1220
   call os_cursor_pos_set
-  mov al, GLYPH_GAME1_POT
+  mov al, GLYPH_GAME_POT
   call os_print_chr
 
   ; Draw floppies
@@ -1681,10 +1719,10 @@ os_game_player_draw:
   mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
   mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
   call os_cursor_pos_set
-  mov al, GLYPH_GAME1_RAT_IDLE_R
+  mov al, GLYPH_GAME_RAT_IDLE_R
   cmp byte [_OS_GAME_PLAYER_+_DIR], 0x0
   je .skip_draw_left
-  mov al, GLYPH_GAME1_RAT_IDLE_L
+  mov al, GLYPH_GAME_RAT_IDLE_L
   .skip_draw_left:
   call os_print_chr
 ret
@@ -1693,7 +1731,7 @@ os_game_broom_draw:
   mov byte dl, [_OS_GAME_BROOM_+_POS_X]
   mov byte dh, [_OS_GAME_BROOM_+_POS_Y]
   call os_cursor_pos_set
-  mov al, GLYPH_GAME1_BROOM1
+  mov al, GLYPH_GAME_BROOM1
   call os_print_chr
 ret
 
