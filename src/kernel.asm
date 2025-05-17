@@ -720,7 +720,7 @@ ret
 ; Returns: None
 os_print_debug:
 mov dx, 0
-mov cx, 0x03
+mov cx, 0x02
   .looper:
     push cx
     mov bl, GLYPH_MSG
