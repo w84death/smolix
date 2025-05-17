@@ -544,13 +544,29 @@ ret
 ; Expects: None
 ; Returns: None
 os_clear_screen:
+ mov al, CHR_SPACE
+  mov bl, OS_COLOR_PRIMARY  ; Set color attribute
+  call os_fill_screen_with_glyph
+ret
+
+; Fill screen with glyph ======================================================
+; This function fills the entire screen with a specified glyph character.
+; Expects: AL = glyph character to fill with
+;          BL = color attribute for the glyph
+; Returns: None
+os_fill_screen_with_glyph:
   pusha
-  call os_cursor_pos_reset
-  mov ax, 0x0600     ; Function 06h (scroll window up)
-  mov bh, OS_COLOR_PRIMARY  ; Set color attribute
-  mov cx, 0x0000     ; Top left corner (row 0, col 0)
-  mov dx, 0x184F     ; Bottom right corner (row 24, col 79)
-  int 0x10
+  mov bh, bl           ; Move color attribute to BH (required by INT 10h)
+  mov cx, 0x0000       ; Top left corner (row 0, col 0)
+  mov dx, 0x184F       ; Bottom right corner (row 24, col 79)
+  mov ah, 0x09         ; BIOS function to write character and attribute
+  mov bl, bh           ; Move color attribute to BL (required format)
+  mov cx, 4096         ; 80x25 = 2000 characters on screen
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  je .skip_40
+  shr cx, 1
+  .skip_40:
+  int 0x10             ; Call BIOS
   call os_cursor_pos_reset
   popa
 ret
@@ -1559,6 +1575,7 @@ ret
 ret
 
 
+
 ; Enter Game ===================================================================
 ; This function initializes the game state
 ; Expects: None
@@ -1656,6 +1673,13 @@ os_game_start:
   mov byte [_OS_GAME_BROOM_+_MODE], 0x0
 
   ; draw level
+
+  ; fill tiles
+  mov al, GLYPH_GAME_TILE_B
+  mov bl, OS_COLOR_PRIMARY
+  call os_fill_screen_with_glyph
+
+  ; walls
   call os_cursor_pos_reset
   mov al, GLYPH_GAME_WALL_CORNER
   call os_print_chr
@@ -1742,8 +1766,9 @@ os_game_player_move:
     mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
     mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
     call os_cursor_pos_set
-    mov al, CHR_SPACE
+    mov al, GLYPH_GAME_TILE_B
     call os_print_chr
+
 
   .move_player:
     cmp bl, KBD_KEY_UP
