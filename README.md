@@ -1,19 +1,19 @@
-![SMOLiX](media/logo.png)
+![SMOLiX](media/splash.png)
 
 Real Mode, Raw Power.
 
 Homebrew, research operating system for x86 processors. Targeting retro 32-bit computers (386+).
 
-![Screenshot of SMOLiX](media/smolix-logo.png)
+![Screenshot of SMOLiX](media/welcome.png)
 
-## ALPHA STAGE
+## ALPHA STAGE (Version alpha9)
 This code is in alpha stage. This means that all the documentation/manual is constantly outdated. I try to commit only working code but sometimes that means that features are removed before refactor.
 
 ## Technical Details
 
 SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit). It embraces the simplicity and raw performance of direct hardware access, while providing a unique graphical user interface.
 
-![40 vs 80 video mode](media/mode4080.png)
+![High Resolution Mode](media/hires.png)
 
 ### Architecture
 - **Processor Target**: x86 (386+ compatible)
@@ -21,9 +21,10 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
 - **Memory Model**: Segmented memory model
 - **Boot Method**: Standard floppy disk boot
 - **Minimal Hardware**:
-  - CPU: 386
+  - CPU: 386+
   - Graphics: EGA/VGA
   - RAM: 256KB
+- **Operating System**: Linux (development environment)
 
 ### Development Tools
 - **Assembly Language**: FASM (Flat Assembler)
@@ -62,13 +63,16 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
   - Multiple video modes (40x25, 80x25)
   - Permanent header with logo and version
 
-![Glyphs](media/glyphs.png)
+![ASCII Support](media/ascii.png)
 
 - **User Interface**
   - Command-line interface
   - Sound feedback for commands
+  - System statistics display
 
-![Commands](media/commands.png)
+![System Statistics](media/stats.png)
+
+![Help Screen](media/help.png)
 
 ## Building and Running
 
@@ -86,4 +90,4 @@ make clean  # Clean build artifacts
 
 
 # FOSS
-Copyright (C) 2025 [Krzysztof Krystian Jankowski](https://krzysztofjankowski.com). This program is free software. See [LICENSE](LICENSE) for details.
+Copyright (C) 2023 [Krzysztof Krystian Jankowski](https://krzysztofjankowski.com). This program is free software. See [LICENSE](LICENSE) for details.
