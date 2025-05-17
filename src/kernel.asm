@@ -1384,6 +1384,7 @@ ret
 ; Returns: None
 os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
+  call os_cursor_show
   call os_clear_screen
   call os_print_header
   mov bl, GLYPH_PROMPT
@@ -1406,6 +1407,26 @@ os_print_manual:
   call os_fs_display_buffer
 ret
   .error:
+ret
+
+; Hide cursor =====================================================
+; This function hides the cursor.
+; Expects: None
+; Returns: None
+os_cursor_hide:
+  mov ah, 0x01       ; Set cursor type function
+  mov cx, 0x2000     ; Bit 15 set (0x2000) disables the cursor
+  int 0x10           ; Call BIOS
+ret
+
+; Show cursor =====================================================
+; This function shows the cursor.
+; Expects: None
+; Returns: None
+os_cursor_show:
+  mov ah, 0x01       ; Set cursor type function
+  mov cx, 0x0607     ; Normal cursor (start scan line 6, end scan line 7)
+  int 0x10           ; Call BIOS
 ret
 
 ; Initialize Printer ===========================================================
@@ -1543,7 +1564,7 @@ ret
 os_enter_game:
   mov byte [_OS_STATE_], OS_STATE_GAME
   mov byte [_OS_GAME_STARTED_], 0x0
-
+  call os_cursor_hide
   call os_clear_screen
 
   ; Game name
@@ -1577,9 +1598,6 @@ os_enter_game:
   jmp .instructions_loop
 
   .done:
-ret
-
-os_game_player_move:
 ret
 
 os_game_start:
@@ -1664,7 +1682,7 @@ os_game_player_draw:
   mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
   call os_cursor_pos_set
   mov al, GLYPH_GAME1_RAT_IDLE_R
-  cmp byte [_OS_GAME_PLAYER_+_DIR], 0x01
+  cmp byte [_OS_GAME_PLAYER_+_DIR], 0x0
   je .skip_draw_left
   mov al, GLYPH_GAME1_RAT_IDLE_L
   .skip_draw_left:
@@ -1677,6 +1695,49 @@ os_game_broom_draw:
   call os_cursor_pos_set
   mov al, GLYPH_GAME1_BROOM1
   call os_print_chr
+ret
+
+; BL arrow
+os_game_player_move:
+
+  .clear_background:
+    mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
+    mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
+    call os_cursor_pos_set
+    mov al, CHR_SPACE
+    call os_print_chr
+
+  .move_player:
+    cmp bl, KBD_KEY_UP
+    je .up
+    cmp bl, KBD_KEY_DOWN
+    je .down
+    cmp bl, KBD_KEY_LEFT
+    je .left
+    cmp bl, KBD_KEY_RIGHT
+    je .right
+    jmp .end
+
+  .up:
+    dec byte [_OS_GAME_PLAYER_+_POS_Y]
+    jmp .end
+
+  .down:
+    inc byte [_OS_GAME_PLAYER_+_POS_Y]
+    jmp .end
+
+  .left:
+    dec byte [_OS_GAME_PLAYER_+_POS_X]
+    mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
+    jmp .end
+
+  .right:
+    inc byte [_OS_GAME_PLAYER_+_POS_X]
+    mov byte [_OS_GAME_PLAYER_+_DIR], 0x1
+    jmp .end
+
+  .end:
+  call os_game_player_draw
 ret
 
 os_game_loop:
@@ -1695,7 +1756,7 @@ os_void:
 ret
 
 ; Data section =================================================================
-version_msg           db 'Version alpha9', 0
+version_msg           db 'Version alphaA', 0
 system_logo_msg:
 db OS_GLYPH_LOGO+0x0
 db OS_GLYPH_LOGO+0x1

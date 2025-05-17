@@ -2,6 +2,7 @@ alpha10:
     - [in-progress] full printer support
     - [in-progress] editing files
     - [in-progress] game
+    - updated logo (removed 16bit part)
   alpha9 [RELEASED]:
     - start of a Dirty Rat mini game
     - initial printing support
