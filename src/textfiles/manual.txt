@@ -1,0 +1,146 @@
+# SMOLiX OPERATING SYSTEM MANUAL
+==============================
+
+SMOLiX - Real Mode, Raw Power.
+
+## TABLE OF CONTENTS
+1. Introduction
+2. User Interface
+3. Command System
+4. File Operations
+5. System Settings
+6. Playing Games
+7. Technical Information
+
+## 1. INTRODUCTION
+--------------
+SMOLiX is a minimal operating system designed for x86 processors running in real mode.
+It provides a simple but functional environment with a command-line interface
+that embraces the simplicity and raw performance of direct hardware access.
+
+The system uses a unique one-letter command system for efficiency and offers
+basic file operations, system information, and includes a game.
+
+## 2. USER INTERFACE
+-----------------
+SMOLiX uses a text-based user interface. The primary interface is the command prompt,
+where users can enter commands to interact with the system.
+
+The interface features:
+- Permanent header with logo and version information
+- Command-line prompt for user input
+- 16-color support via EGA/VGA
+- Multiple video modes (40x25, 80x25)
+- Sound feedback for commands
+
+## 3. COMMAND SYSTEM
+----------------
+SMOLiX uses a unique one-letter command system. This minimalist approach allows for
+quick interaction without complex typing. Simply press a single key to execute the
+corresponding command.
+
+### Available Commands:
+
+| Command | Description                         |
+|---------|-------------------------------------|
+| h       | Display quick help                  |
+| H       | View full system manual             |
+| v       | Show system version                 |
+| r       | Perform soft reset                  |
+| R       | Perform hard reboot                 |
+| D       | Shutdown the system                 |
+| c       | Clear the shell log                 |
+| x       | Toggle between 40/80 screen modes   |
+| s       | Display system statistics           |
+| l       | List files on floppy disk           |
+| f       | Display & edit loaded file content  |
+| W       | Write current file to floppy        |
+| g       | Play "Dirty Rat" game               |
+| p       | Test printer                        |
+| ESC     | Clear shell / Exit current mode     |
+
+To execute a command, simply type the corresponding letter at the command prompt.
+The system will provide sound feedback to indicate command execution.
+
+## 4. FILE OPERATIONS
+-----------------
+SMOLiX offers basic file operations for working with a floppy disk.
+
+### Listing Files
+To list all files available on the floppy disk:
+1. Press 'l' at the command prompt
+2. The system will display all files present on the floppy
+
+### Opening and Reading Files
+To open and read a file:
+1. Use 'l' to list available files
+2. When a file is loaded into the buffer, press 'f' to display its contents
+3. Use UP and DOWN arrow keys to scroll through the file content
+4. Press ESC to return to the shell
+
+### Writing Files
+To write the current buffer content to a floppy disk:
+1. Press 'W' at the command prompt
+2. The system will write the current buffer to the floppy disk
+
+## 5. SYSTEM SETTINGS
+-----------------
+SMOLiX allows you to view and modify various system settings.
+
+### Viewing System Statistics
+To view system statistics:
+1. Press 's' at the command prompt
+2. The system will display information about:
+   - CPU usage
+   - Memory status
+   - System uptime
+   - Hardware information
+
+### Changing Video Mode
+To toggle between video modes:
+1. Press 'x' at the command prompt
+2. The system will switch between 40x25 and 80x25 text modes
+
+## 6. PLAYING GAMES
+---------------
+SMOLiX includes a built-in game called "Dirty Rat".
+
+### Starting the Game
+To start the game:
+1. Press 'g' at the command prompt
+2. The system will enter game mode
+3. Press ENTER to begin playing
+
+### Game Controls
+- Use arrow keys to move the character
+- UP: Move up
+- DOWN: Move down
+- LEFT: Move left
+- RIGHT: Move right
+- ENTER: Start game
+- ESC: Quit game and return to shell
+
+### Game Instructions
+"Dirty Rat" is a simple game where you control a rat character.
+The objective is to navigate through the environment, avoiding obstacles
+and collecting items. Press ENTER to start the game and ESC to quit.
+
+## 7. TECHNICAL INFORMATION
+-----------------------
+### System Requirements
+- CPU: 386 SX, 16MHz minimum (486 DX4, 100MHz recommended)
+- Graphics: EGA Enhanced (8x16) minimum, VGA recommended
+- RAM: 256KB minimum (SMOLiX recognizes up to 640KB only)
+
+### Architecture
+- Processor Mode: Real mode (16-bit)
+- Memory Model: Segmented memory model
+- Boot Method: Standard floppy disk boot
+
+### System Services
+SMOLiX provides various system services through software interrupts,
+including display functions, keyboard input handling, and memory management.
+
+---
+SMOLiX: Copyright (C) 2025 Krzysztof Krystian Jankowski
+This is free and open source software.

@@ -3,9 +3,10 @@
     - [todo] listing and selecting files to read/write
     - [todo] polish characters (own custom encoding)
     - [todo] virtual pages for fake-multi tasking
-  alpha9:
+  alpha9 [RELEASED]:
     - start of a Dirty Rat mini game
     - list and select files to read/write
+    - updated sample files with ASCII Art Gallery and Notepad (for future edits)
     - removed toolbar
     - reduced tileset
     - working no-gap tiles on all text modes!

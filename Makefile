@@ -31,9 +31,9 @@ IMG_DIR = $(BUILD_DIR)/img
 BOOTLOADER = $(BIN_DIR)/boot.bin
 KERNEL = $(BIN_DIR)/kernel.bin
 FLOPPY_IMG = $(IMG_DIR)/floppy.img
-OS_FILE_MANUAL = src/manual.txt
-OS_FILE_LEM = src/lem.txt
-
+OS_FILE_0 = src/textfiles/manual.txt
+OS_FILE_1 = src/textfiles/file1.txt
+OS_FILE_2 = src/textfiles/file2.txt
 
 # Assembly flags
 # Note: FASM doesn't need format flags like NASM does
@@ -65,12 +65,13 @@ $(IMG_DIR)/floppy_empty.img: | $(IMG_DIR)
 	$(DD) if=/dev/zero of=$@ bs=1474560 count=1
 
 # Write bootloader to floppy image
-$(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(OS_FILE_MANUAL) $(OS_FILE_2)
+$(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(OS_FILE_0) $(OS_FILE_1) $(OS_FILE_2)
 	cp $(IMG_DIR)/floppy_empty.img $(FLOPPY_IMG)
 	$(DD) if=$(BOOTLOADER) of=$(FLOPPY_IMG) bs=512 count=1 conv=notrunc
 	$(DD) if=$(KERNEL) of=$(FLOPPY_IMG) bs=512 seek=1 conv=notrunc
-	$(DD) if=$(OS_FILE_MANUAL) of=$(FLOPPY_IMG) bs=512 seek=16 conv=notrunc
-	$(DD) if=$(OS_FILE_LEM) of=$(FLOPPY_IMG) bs=512 seek=28 conv=notrunc
+	$(DD) if=$(OS_FILE_0) of=$(FLOPPY_IMG) bs=512 seek=16 conv=notrunc
+	$(DD) if=$(OS_FILE_1) of=$(FLOPPY_IMG) bs=512 seek=28 conv=notrunc
+	$(DD) if=$(OS_FILE_2) of=$(FLOPPY_IMG) bs=512 seek=40 conv=notrunc
 
 # Run SMOLiX in emulator (default: Bochs)
 run: $(FLOPPY_IMG)

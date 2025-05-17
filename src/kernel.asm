@@ -1799,10 +1799,11 @@ os_cpu_family_table:
   dw cpu_family_other
   dw 0x0
 
+; Cylinder, Starting sector, Starting block, Filename
 os_fs_directory_table:
-  db 0x00, 0x11, 0x00, 'System Manual               ', 0x0
-  db 0x00, 0x0B, 0x01, 'Lem Pamietnik Znaleziony... ', 0x0
-  db 0x00, 0x0B, 0x01, 'Dummy entry...              ', 0x0
+  db 0x00, 0x11, 0x00, 'Full System Manual          ', 0x0
+  db 0x00, 0x0B, 0x01, 'ASCII Art gallery           ', 0x0
+  db 0x01, 0x05, 0x00, 'Notepad                     ', 0x0
   db 0xFF
 
 os_commands_table:
