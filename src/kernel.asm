@@ -28,9 +28,8 @@ _OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x16   ; 5b
 _POS_X                          equ 0x0
 _POS_Y                          equ 0x1
 _DIR                            equ 0x2
-_HP                             equ 0x3
+_FRAME                          equ 0x3
 _DIRT                           equ 0x4
-_MODE                           equ 0x5
 
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x20
 
@@ -83,11 +82,11 @@ GLYPH_BAT                       equ 0xB7
 ; placeholder 0xB9
 GLYPH_MASCOT                    equ 0xBA
 GLYPH_GAME_RAT_IDLE_L          equ 0xBA
-GLYPH_GAME_RAT_IDLE_R          equ 0xBB
-GLYPH_GAME_RAT_WALK1_R         equ 0xBC
-GLYPH_GAME_RAT_WALK2_R         equ 0xBD
-GLYPH_GAME_RAT_WALK1_L         equ 0xBE
-GLYPH_GAME_RAT_WALK2_L         equ 0xBF
+GLYPH_GAME_RAT_WALK1_L         equ 0xBB
+GLYPH_GAME_RAT_WALK2_L         equ 0xBC
+GLYPH_GAME_RAT_IDLE_R          equ 0xBD
+GLYPH_GAME_RAT_WALK1_R         equ 0xBE
+GLYPH_GAME_RAT_WALK2_R         equ 0xBF
 
 OS_GLYPH_LOGO                   equ 0xC0
 ; LOGO                              0xC0 - 0xC6
@@ -216,13 +215,19 @@ os_main_loop:
       jz .wait_loop
 
   inc dword [_OS_TICK_]
-
-  cmp byte [_OS_STATE_], OS_STATE_GAME
-  je .skip_print_tick
-    call os_print_tick
-  .skip_print_tick:
   call os_sound_stop
 
+  cmp byte [_OS_STATE_], OS_STATE_GAME
+  je .game_loop
+
+  call os_print_tick
+jmp os_main_loop
+
+  .game_loop:
+  cmp word [_OS_TICK_], 0xFFFF
+  jne .skip_loop
+    call os_game_loop
+  .skip_loop:
 jmp os_main_loop
 
 ; Print System Tick
@@ -1663,14 +1668,15 @@ os_game_start:
   mov byte [_OS_GAME_PLAYER_+_POS_X], 0x22
   mov byte [_OS_GAME_PLAYER_+_POS_Y], 0x0A
   mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
-  mov byte [_OS_GAME_PLAYER_+_HP], OS_GAME_PLAYER_HP
+  mov byte [_OS_GAME_PLAYER_+_FRAME], 0x0
   mov byte [_OS_GAME_PLAYER_+_DIRT], 0x0
 
   ; initialize broom
   mov byte [_OS_GAME_BROOM_+_POS_X], 0x0C
   mov byte [_OS_GAME_BROOM_+_POS_Y], 0x0A
   mov byte [_OS_GAME_BROOM_+_DIR], 0x0
-  mov byte [_OS_GAME_BROOM_+_MODE], 0x0
+  mov byte [_OS_GAME_PLAYER_+_FRAME], 0x0
+  mov byte [_OS_GAME_PLAYER_+_DIRT], 0x0
 
   ; draw level
 
@@ -1735,8 +1741,8 @@ os_game_start:
   mov al, GLYPH_FLOPPY
   call os_print_chr
 
-
-  call os_game_loop
+  call os_game_player_draw
+  call os_game_broom_draw
 ret
 
 os_game_player_draw:
@@ -1748,6 +1754,7 @@ os_game_player_draw:
   je .skip_draw_left
   mov al, GLYPH_GAME_RAT_IDLE_L
   .skip_draw_left:
+  add al, [_OS_GAME_PLAYER_+_FRAME]
   call os_print_chr
 ret
 
@@ -1769,7 +1776,6 @@ os_game_player_move:
     mov al, GLYPH_GAME_TILE_B
     call os_print_chr
 
-
   .move_player:
     cmp bl, KBD_KEY_UP
     je .up
@@ -1783,30 +1789,34 @@ os_game_player_move:
 
   .up:
     dec byte [_OS_GAME_PLAYER_+_POS_Y]
-    jmp .end
+    jmp .animate
 
   .down:
     inc byte [_OS_GAME_PLAYER_+_POS_Y]
-    jmp .end
+    jmp .animate
 
   .left:
     dec byte [_OS_GAME_PLAYER_+_POS_X]
     mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
-    jmp .end
+    jmp .animate
 
   .right:
     inc byte [_OS_GAME_PLAYER_+_POS_X]
     mov byte [_OS_GAME_PLAYER_+_DIR], 0x1
-    jmp .end
+    jmp .animate
 
+  .animate:
+    mov byte [_OS_GAME_PLAYER_+_FRAME], 0x02
   .end:
-  call os_game_player_draw
+    call os_game_player_draw
 ret
 
 os_game_loop:
-
-  call os_game_player_draw
-  call os_game_broom_draw
+  cmp byte [_OS_GAME_PLAYER_+_FRAME], 0x0
+  je .idle
+    dec byte [_OS_GAME_PLAYER_+_FRAME]
+    call os_game_player_draw
+  .idle:
 
 ret
 
