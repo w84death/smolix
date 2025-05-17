@@ -2,7 +2,7 @@
 
 Real Mode, Raw Power.
 
-Homebrew, research, 16-bit operating system for x86 processors. Targeting retro computers (486).
+Homebrew, research operating system for x86 processors. Targeting retro 32-bit computers (386+).
 
 ![Screenshot of SMOLiX](media/smolix-logo.png)
 
@@ -16,13 +16,13 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
 ![40 vs 80 video mode](media/mode4080.png)
 
 ### Architecture
-- **Processor Target**: x86 (486+ compatible)
-- **Mode**: Real mode (16-bit)
+- **Processor Target**: x86 (386+ compatible)
+- **Mode**: Real mode
 - **Memory Model**: Segmented memory model
 - **Boot Method**: Standard floppy disk boot
 - **Minimal Hardware**:
-  - CPU: 486
-  - Graphics: EGA
+  - CPU: 386
+  - Graphics: EGA/VGA
   - RAM: 256KB
 
 ### Development Tools
@@ -58,15 +58,13 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
     - APM power management
 
 - **Graphics System**
-  - Custom glyph-based rendering
-  - 16-color VGA support
+  - 16-color EGA/VGA support
   - Multiple video modes (40x25, 80x25)
   - Permanent header with logo and version
 
 ![Glyphs](media/glyphs.png)
 
 - **User Interface**
-  - Icon-based toolbar
   - Command-line interface
   - Sound feedback for commands
 
@@ -77,6 +75,8 @@ SMOLiX is a minimalist operating system designed to run in x86 Real Mode (16-bit
 ```
 make        # Build the system
 make run    # Run in QEMU
+make debug  # Run in Bochs
+make burn   # Burn to floppy disk
 make clean  # Clean build artifacts
 ```
 

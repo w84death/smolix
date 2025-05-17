@@ -19,22 +19,20 @@ _OS_MEMORY_BASE_                equ 0x2000    ; Define memory base address
 _OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00   ; 4b
 _OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04   ; 1b
 _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
+_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x06   ; 1b
+_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x07   ; 2b
 
+_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x10   ; 1b
+_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x11   ; 5b
+_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x16   ; 5b
+_POS_X                          equ 0x0
+_POS_Y                          equ 0x1
+_DIR                            equ 0x2
+_HP                             equ 0x3
+_DIRT                           equ 0x4
+_MODE                           equ 0x5
 
-_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x09   ; 1b
-_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x0A   ; 2b
-_OS_FS_FILE_SELECTED_           equ _OS_MEMORY_BASE_ + 0x0C   ; 1b
-_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0D   ; 1b
-_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0E   ; 5b
-_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x13   ; 5b
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x20
-
-_POS_X            equ 0x0
-_POS_Y            equ 0x1
-_DIR              equ 0x2
-_HP               equ 0x3
-_DIRT             equ 0x4
-_MODE             equ 0x5
 
 OS_STATE_INIT                   equ 0x01
 OS_STATE_SPLASH_SCREEN          equ 0x02
@@ -44,7 +42,6 @@ OS_STATE_GAME                   equ 0x05
 
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
-
 
 OS_FS_BLOCK_FIRST               equ 0x11
 OS_FS_BLOCK_SIZE                equ 0x10
@@ -401,15 +398,6 @@ os_print_help:
 .done:
 ret
 
-; Load and read manual =========================================================
-; This function loads and reads the manual file.
-; Expects: None
-; Returns: None
-os_load_and_read_manual:
-  call os_fs_file0_read
-  call os_fs_file_display
-ret
-
 ; Print prompt =================================================================
 ; This function prints the prompt for the user.
 ; Expects: BL = type of glyph
@@ -670,20 +658,10 @@ os_interpret_char:
 ret
 
   .unknown_cmd:
-
-  .check_fs_select_file:
-
-    cmp bl, '0'
-    jl .skip_fs_state
-    cmp bl, 'F'
-    jg .skip_fs_state
-
-    sub bl, '0'
-    mov byte [_OS_FS_FILE_SELECTED_], bl
-    call os_fs_file_read
-
-    ; write about selected file
-
+    call os_fs_select_file
+    jc .skip_fs_state
+    mov ax, OS_SOUND_SUCCESS
+    call os_sound_play
 ret
     .skip_fs_state:
 
@@ -981,13 +959,10 @@ os_sound_stop:
   out 61h, al
 ret
 
-; Temporary function - will be replaced by propoer listing and selecting files
-;
-os_fs_file0_read:
-  mov dl, 0
-  call os_fs_file_read
-ret
-
+; File System: list files ======================================================
+; This function lists the files on the floppy disk.
+; Expects: None
+; Returns: None
 os_fs_list_files:
   mov byte [_OS_STATE_], OS_STATE_SHELL
   call os_clear_shell
@@ -1006,43 +981,62 @@ os_fs_list_files:
     add bx, 3
     mov si, os_fs_directory_table
     add si, bx
-
     mov bl, GLYPH_FLOPPY
+    cmp byte cl, [_OS_FS_FILE_LOADED_]
+    jne .not_selected
+    mov bl, GLYPH_MEM
+    .not_selected:
     call os_print_prompt
     mov ax, cx
     call os_print_num
     mov al, CHR_SPACE
     call os_print_chr
 
-
     call os_print_str
 
     inc cx
   jmp .list_loop
-.end_of_list:
+
+  .end_of_list:
+  mov bl, GLYPH_FLOPPY
+  call os_print_prompt
+  mov si, fs_select_file_msg
+  call os_print_str
 ret
 
-; File System: Read file =======================================================
-; This function reads a file from the floppy disk to a memory
-; Expects: None
+
+; File System: select file =====================================================
+; This function selects a file from the floppy disk to load
+; Expects: BL = ASCII file id
 ; Returns: CF = 0 on success, CF = 1 on failure
-os_fs_file_read:
-  mov word [_OS_FS_FILE_POS_], 0
-  mov dl, [_OS_FS_FILE_SELECTED_]
+os_fs_select_file:
+  cmp bl, '0'
+  jl .invalid_select
+  cmp bl, 'F'
+  jg .invalid_select
+
+  sub bl, '0'
+  mov dl, bl
+  call os_fs_load_buffer
+  ;call os_fs_list_files
+  clc
+ret
+  .invalid_select:
+  stc
+ret
+
+
+; File System: load buffer =====================================================
+; This function loads a file from the floppy disk to a memory
+; Expects: DL = file id
+; Returns: CF = 0 on success, CF = 1 on failure
+os_fs_load_buffer:
   cmp byte [_OS_FS_FILE_LOADED_], dl
   je .already_loaded
-  call os_fs_file_load
-  call os_print_error_status
-  .already_loaded:
-  mov word [_OS_FS_FILE_POS_], 0
-ret
 
-; File System: load file =======================================================
-; This function loads a file from the floppy disk to a memory
-; Expects: DL = File number
-; Returns: CF = 0 on success, CF = 1 on failure
-os_fs_file_load:
+  .load_new_buffer:
   mov byte [_OS_FS_FILE_LOADED_], dl
+  mov word [_OS_FS_FILE_POS_], 0x0
 
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
@@ -1050,11 +1044,12 @@ os_fs_file_load:
   call os_print_str
 
   ; Reset disk system first
+  xor dl, dl
   xor ax, ax
   int 0x13               ; Reset disk system
   jc .disk_error
 
-  movzx bx, dl
+  movzx bx, [_OS_FS_FILE_LOADED_]
   shl bx, 5
   mov ch, [os_fs_directory_table + bx]      ; Cylinder
   mov cl, [os_fs_directory_table + bx + 1]  ; Starting sector
@@ -1070,19 +1065,23 @@ os_fs_file_load:
   int 0x13                ; BIOS disk interrupt
   jc .disk_error          ; Error if carry flag set
 
+  .already_loaded:
+  mov si, success_msg
+  call os_print_str
   clc                     ; Clear carry flag (success)
 ret
-
   .disk_error:
     mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
+    mov si, failure_msg
+    call os_print_str
     stc                   ; Set carry flag (error)
 ret
 
-; File System: display file ====================================================
+; File System: display buffer ==================================================
 ; This function displays the loaded file contents from memory to the screen
 ; Expects: None
 ; Returns: None
-os_fs_file_display:
+os_fs_display_buffer:
   mov si, _OS_FS_BUFFER_
   add si, [_OS_FS_FILE_POS_]  ; Add current scroll position
 
@@ -1165,7 +1164,7 @@ os_fs_scroll_up:
   cmp word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
   jl .done
   sub word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
-  call os_fs_file_display
+  call os_fs_display_buffer
   .done:
 ret
 
@@ -1184,7 +1183,7 @@ os_fs_scroll_down:
   je .done
 
   add word [_OS_FS_FILE_POS_], OS_FS_FILE_SCROLL_CHARS
-  call os_fs_file_display
+  call os_fs_display_buffer
   .done:
 ret
 
@@ -1391,31 +1390,149 @@ os_enter_shell:
   call os_print_prompt
 ret
 
-; Enter File System ============================================================
-; This function initializes the file system state
-; Expects: None
-; Returns: None
-os_enter_fs:
-  call os_clear_shell
-  call os_fs_list_files
 
-  mov bl, GLYPH_FLOPPY
-  call os_print_prompt
-  mov si, fs_select_file_msg
-  call os_print_str
-ret
 
-; Enter Help ===================================================================
+; Print full manual ============================================================
 ; This function initializes the help state
 ; Expects: None
 ; Returns: None
-os_enter_help:
+os_print_manual:
   mov byte [_OS_STATE_], OS_STATE_FS
   call os_clear_shell
 
   mov dl, OS_FS_FILE_ID_MANUAL
-  call os_fs_file_read
-  call os_fs_file_display
+  call os_fs_load_buffer
+  jc .error
+  call os_fs_display_buffer
+ret
+  .error:
+ret
+
+; Initialize Printer ===========================================================
+; This function initializes the printer.
+; Expects: None
+; Returns: CF = 0 for success, CF = 1 for error
+os_printer_init:
+  ; Check printer status
+  mov dx, 0x379      ; Status port of LPT1
+  in al, dx          ; Read status
+  test al, 0x80      ; Check if printer is online (bit 7 = 0 means online)
+  jnz .printer_error
+
+  ; Reset printer
+  mov dx, 0x37A      ; Control port
+  mov al, 0x08       ; Set bit 3 (Initialize printer)
+  out dx, al
+
+  ; Short delay
+  mov cx, 0xFFFF
+  .delay_loop:
+    loop .delay_loop
+
+  ; Clear initialization bit
+  mov al, 0x0C       ; Set bit 2 (Auto LF) and bit 3 (Init)
+  out dx, al
+
+  clc                ; Clear carry flag (success)
+ret
+
+  .printer_error:
+    stc                ; Set carry flag (error)
+ret
+
+; Print Character to Printer ===================================================
+; This function sends a character to the printer.
+; Expects: AL = character to print
+; Returns: CF = 0 for success, CF = 1 for error
+os_printer_char:
+  ; Check printer status
+  mov dx, 0x379      ; Status port of LPT1
+  in al, dx
+  test al, 0x80      ; Check if printer is online
+  jnz .printer_error
+
+  ; Send character to data port
+  mov dx, 0x378      ; Data port
+  mov al, [esp+3]    ; Get the character from stack
+  out dx, al
+
+  ; Strobe the printer
+  mov dx, 0x37A      ; Control port
+  in al, dx
+  or al, 0x01        ; Set strobe bit
+  out dx, al
+
+  ; Small delay
+  mov cx, 0x0FFF
+  .delay_loop1:
+    loop .delay_loop1
+
+  ; Reset strobe
+  and al, 0xFE       ; Clear strobe bit
+  out dx, al
+
+  ; Wait for printer to be ready
+  mov dx, 0x379      ; Status port
+  .wait_ready:
+    in al, dx
+    test al, 0x40    ; Check if printer is ready (ACK)
+    jz .wait_ready
+
+  clc                ; Clear carry flag (success)
+ret
+
+  .printer_error:
+    stc                ; Set carry flag (error)
+ret
+
+; Print String to Printer ======================================================
+; This function sends a string to the printer.
+; Expects: SI = pointer to null-terminated string
+; Returns: CF = 0 for success, CF = 1 for error
+os_printer_string:
+  .next_char:
+    lodsb              ; Load next character from SI into AL
+    or al, al          ; Check for null terminator
+    jz .done
+
+    call os_printer_char
+    jc .error          ; If error, exit
+  jmp .next_char
+
+  .done:
+    mov al, 0x0C       ; Form feed character
+    call os_printer_char
+    clc                ; Clear carry flag (success)
+  ret
+
+  .error:
+    stc                ; Set carry flag (error)
+  ret
+
+  ; Print file or text to printer
+  ; This function prints a file or text to the printer.
+  ; Expects: None
+  ; Returns: None
+  os_printer_test:
+    mov bl, GLYPH_SYSTEM
+    call os_print_prompt
+    mov si, os_printer_printing_msg
+    call os_print_str
+
+    call os_printer_init
+    jc .error
+
+    mov si, welcome_msg
+    call os_printer_string
+    jc .error
+
+    mov si, success_msg
+    call os_print_str
+ret
+
+  .error:
+    mov si, failure_msg
+    call os_print_str
 ret
 
 
@@ -1424,8 +1541,6 @@ ret
 ; Expects: None
 ; Returns: None
 os_enter_game:
-
-
   mov byte [_OS_STATE_], OS_STATE_GAME
   mov byte [_OS_GAME_STARTED_], 0x0
 
@@ -1529,6 +1644,18 @@ os_game_start:
   mov al, GLYPH_GAME1_POT
   call os_print_chr
 
+  ; Draw floppies
+  mov dx, 0x0515
+  call os_cursor_pos_set
+  mov al, GLYPH_FLOPPY
+  call os_print_chr
+
+  mov dx, 0x1225
+  call os_cursor_pos_set
+  mov al, GLYPH_FLOPPY
+  call os_print_chr
+
+
   call os_game_loop
 ret
 
@@ -1610,6 +1737,7 @@ fs_select_file_msg       db 'Type file number you want to select: ', 0x0
 fs_reading_msg        db 'Reading data from disk...', 0x0
 fs_writing_msg        db 'Writing data to disk...', 0x0
 fs_empty_msg          db 'No/empty file. Read data first.', 0x0
+os_printer_printing_msg db 'Printing...', 0x0
 game_name_msg         db '- - - D I R T Y - R A T - - -', 0x0
 game_instruction1_msg db 'Your mission is to collect all floppies.', 0x0
 game_instruction2_msg db 'Go to a flower pot to get dirt on you.', 0x0
@@ -1617,9 +1745,8 @@ game_instruction3_msg db 'Spread it on the ground and avoid broom.', 0x0
 game_instruction4_msg db 'Use the arrow keys to move the rat.', 0x0
 game_instruction5_msg db 'Press ENTER to start, ESC to quit game.', 0x0
 
-msg_cmd_play_game     db 'Play "Dirty Rat" game', 0x0
 msg_cmd_h             db 'Quick help', 0x0
-msg_cmd_manual        db 'Full system manual', 0x0
+msg_cmd_m        db 'Full system manual', 0x0
 msg_cmd_v             db 'System version', 0x0
 msg_cmd_r             db 'Soft reset', 0x0
 msg_cmd_R             db 'Hard reboot', 0x0
@@ -1633,21 +1760,23 @@ msg_cmd_fs_list       db 'List files on a floppy', 0x0
 msg_cmd_fs_display    db 'Display & edit loaded file content', 0x0
 msg_cmd_fs_read       db 'Read selected file from a floppy', 0x0
 msg_cmd_fs_write      db 'Write current file to floppy', 0x0
+msg_cmd_g             db 'Play "Dirty Rat" game', 0x0
+msg_cmd_p             db 'Test printer', 0x0
 
 fs_ruler_80_msg:
-db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAF
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB3
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB4
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB5
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
+db GLYPH_RULER_START,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x00
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x01
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x02
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x03
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x04
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x05
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x06
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_END, 0x0
 fs_ruler_40_msg:
-db 0xAC,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB0
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB1
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xB2
-db 0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAD,0xAE,0x0
+db GLYPH_RULER_START,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x00
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x01
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x02
+db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_END, 0x0
 
 game_instructions_table:
   dw game_instruction1_msg
@@ -1673,7 +1802,7 @@ os_cpu_family_table:
 os_fs_directory_table:
   db 0x00, 0x11, 0x00, 'System Manual               ', 0x0
   db 0x00, 0x0B, 0x01, 'Lem Pamietnik Znaleziony... ', 0x0
-  db 0x00, 0x01, 0x0B, 'Dummy entry...              ', 0x0
+  db 0x00, 0x0B, 0x01, 'Dummy entry...              ', 0x0
   db 0xFF
 
 os_commands_table:
@@ -1681,7 +1810,7 @@ os_commands_table:
   dw os_print_help, msg_cmd_h
 
   db 'H'
-  dw os_load_and_read_manual, msg_cmd_manual
+  dw os_print_manual, msg_cmd_m
 
   db 'v'
   dw os_print_ver, msg_cmd_v
@@ -1710,17 +1839,17 @@ os_commands_table:
   db 'l'
   dw os_fs_list_files, msg_cmd_fs_list
 
-  db 'F'
-  dw os_fs_file_load, msg_cmd_fs_read
-
   db 'f'
-  dw os_fs_file_display, msg_cmd_fs_display
+  dw os_fs_display_buffer, msg_cmd_fs_display
 
   db 'W'
   dw os_fs_file_write, msg_cmd_fs_write
 
+  db 'p'
+  dw os_printer_test, msg_cmd_p
+
   db 'g'
-  dw os_enter_game, msg_cmd_play_game
+  dw os_enter_game, msg_cmd_g
 
   db 27
   dw os_clear_shell, msg_cmd_void
