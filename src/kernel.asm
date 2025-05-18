@@ -22,9 +22,10 @@ _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
 _OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x06   ; 1b
 _OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x07   ; 2b
 _RNG_                           equ _OS_MEMORY_BASE_ + 0x09   ; 2b
-_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0b   ; 1b
-_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0c   ; 5b
-_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x11   ; 5b
+_OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x0B   ; 2b
+_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0D   ; 1b
+_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0E   ; 5b
+_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x14   ; 5b
 _POS_X                          equ 0x0
 _POS_Y                          equ 0x1
 _DIR                            equ 0x2
@@ -53,10 +54,11 @@ OS_FS_FILE_SCROLL_CHARS         equ 160
 OS_FS_FILE_ID_MANUAL            equ 0x00
 OS_FS_FILE_ID_LEM               equ 0x01
 
-OS_GAME_PLAYER_HP equ 0x5
-OS_GAME_MODE_IDLE equ 0x0
-OS_GAME_MODE_FOLLOW_PLAYER equ 0x1
-OS_GAME_MODE_CLEAN equ 0x2
+OS_GAME_DELAY                   equ 0x7FFF
+OS_GAME_PLAYER_HP               equ 0x5
+OS_GAME_MODE_IDLE               equ 0x0
+OS_GAME_MODE_FOLLOW_PLAYER      equ 0x1
+OS_GAME_MODE_CLEAN              equ 0x2
 
 OS_COLOR_PRIMARY                equ 0x1F
 OS_COLOR_SECONDARY              equ 0x2F
@@ -229,8 +231,9 @@ jmp os_main_loop
   .game_loop:
   cmp byte [_OS_GAME_STARTED_], 0
   jz .skip_loop
-  cmp word [_OS_TICK_], 0xFFF
-  jne .skip_loop
+  dec word [_OS_GAME_TICK_]
+  jnz .skip_loop
+    mov word [_OS_GAME_TICK_], OS_GAME_DELAY
     call os_game_loop
   .skip_loop:
 jmp os_main_loop
@@ -1724,36 +1727,50 @@ os_game_start:
   mov al, GLYPH_GAME_WALL_CORNER
   call os_print_chr
 
-  ; Draw pots
-  mov dx, 0x0505
-  call os_cursor_pos_set
+  push 0x0404
+  push 0x0E04
+  push 0x0420
+  push 0x0E20
   mov al, GLYPH_GAME_POT
-  call os_print_chr
+  mov ah, 0x04
+  push ax
+  call os_game_spawn_items
 
-  mov dx, 0x1220
-  call os_cursor_pos_set
-  mov al, GLYPH_GAME_POT
-  call os_print_chr
+  push 0x0608
+  push 0x0C1D
+  mov al, GLYPH_FLOPPY
+  mov ah, 0x02
+  push ax
+  call os_game_spawn_items
 
-  ; Draw floppies
-  mov cx, 0x5
-  .floppy_loop:
-    push cx
-    call os_get_random
-    mov dx, ax
-    and dh, 0x10
-    and dl, 0x22
-    add dh, 0x2
-    add dl, 0x2
-    call os_cursor_pos_set
-    mov al, GLYPH_FLOPPY
-    call os_print_chr
-    pop cx
-  loop .floppy_loop
 
   call os_game_player_draw
   call os_game_broom_draw
 ret
+
+os_game_spawn_items:
+  push bp
+  mov bp, sp
+
+  mov al, [bp+5]
+  shl al, 1
+  add al, 2
+  mov [.return+1], al
+
+  mov si, 0x6
+  mov cl, [bp+5]
+  .item_loop:
+    mov dx, [si+bp]
+    call os_cursor_pos_set
+    mov al, [bp+4]
+    call os_print_chr
+    add si, 2
+  loop .item_loop
+
+  mov sp, bp
+  pop bp
+  .return:
+ret 0xFF
 
 os_game_player_draw:
   mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
