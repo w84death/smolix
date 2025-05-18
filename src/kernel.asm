@@ -21,10 +21,10 @@ _OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04   ; 1b
 _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
 _OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x06   ; 1b
 _OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x07   ; 2b
-
-_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x10   ; 1b
-_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x11   ; 5b
-_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x16   ; 5b
+_RNG_                           equ _OS_MEMORY_BASE_ + 0x09   ; 2b
+_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0b   ; 1b
+_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0c   ; 5b
+_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x11   ; 5b
 _POS_X                          equ 0x0
 _POS_Y                          equ 0x1
 _DIR                            equ 0x2
@@ -113,7 +113,10 @@ GLYPH_GAME_DIRT1               equ 0xE0
 GLYPH_GAME_DIRT2               equ 0xE1
 GLYPH_GAME_DIRT3               equ 0xE2
 GLYPH_GAME_BROOM1              equ 0xE3
-GLYPH_GAME_POT                 equ 0xE4
+GLYPH_GAME_BROOM2              equ 0xE4
+GLYPH_GAME_POT                 equ 0xE5
+GLYPH_GAME_POT_BROKEN          equ 0xE6
+GLYPH_GAME_DOOR                equ 0xE7
 
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
@@ -224,7 +227,9 @@ os_main_loop:
 jmp os_main_loop
 
   .game_loop:
-  cmp word [_OS_TICK_], 0xFFFF
+  cmp byte [_OS_GAME_STARTED_], 0
+  jz .skip_loop
+  cmp word [_OS_TICK_], 0xFFF
   jne .skip_loop
     call os_game_loop
   .skip_loop:
@@ -1675,8 +1680,8 @@ os_game_start:
   mov byte [_OS_GAME_BROOM_+_POS_X], 0x0C
   mov byte [_OS_GAME_BROOM_+_POS_Y], 0x0A
   mov byte [_OS_GAME_BROOM_+_DIR], 0x0
-  mov byte [_OS_GAME_PLAYER_+_FRAME], 0x0
-  mov byte [_OS_GAME_PLAYER_+_DIRT], 0x0
+  mov byte [_OS_GAME_BROOM_+_FRAME], 0x1
+  mov byte [_OS_GAME_BROOM_+_DIRT], 0x0
 
   ; draw level
 
@@ -1731,15 +1736,20 @@ os_game_start:
   call os_print_chr
 
   ; Draw floppies
-  mov dx, 0x0515
-  call os_cursor_pos_set
-  mov al, GLYPH_FLOPPY
-  call os_print_chr
-
-  mov dx, 0x1225
-  call os_cursor_pos_set
-  mov al, GLYPH_FLOPPY
-  call os_print_chr
+  mov cx, 0x5
+  .floppy_loop:
+    push cx
+    call os_get_random
+    mov dx, ax
+    and dh, 0x10
+    and dl, 0x22
+    add dh, 0x2
+    add dl, 0x2
+    call os_cursor_pos_set
+    mov al, GLYPH_FLOPPY
+    call os_print_chr
+    pop cx
+  loop .floppy_loop
 
   call os_game_player_draw
   call os_game_broom_draw
@@ -1763,6 +1773,7 @@ os_game_broom_draw:
   mov byte dh, [_OS_GAME_BROOM_+_POS_Y]
   call os_cursor_pos_set
   mov al, GLYPH_GAME_BROOM1
+  add al, [_OS_GAME_BROOM_+_FRAME]
   call os_print_chr
 ret
 
@@ -1811,12 +1822,119 @@ os_game_player_move:
     call os_game_player_draw
 ret
 
+; Move broom with direction in AL
+; AL: 0=up, 1=right, 2=down, 3=left
+; Handles edge detection and bouncing
+os_move_broom:
+
+  .clear_background:
+    push ax
+    mov byte dl, [_OS_GAME_BROOM_+_POS_X]
+    mov byte dh, [_OS_GAME_BROOM_+_POS_Y]
+    call os_cursor_pos_set
+    mov al, GLYPH_GAME_TILE_B
+    call os_print_chr
+    pop ax
+
+  ; Movement direction is in AL
+  cmp al, 0
+  je .move_up
+  cmp al, 1
+  je .move_right
+  cmp al, 2
+  je .move_down
+  cmp al, 3
+  je .move_left
+  jmp .end_move
+
+  .move_up:
+    dec byte [_OS_GAME_BROOM_+_POS_Y]
+    ; Check for upper boundary (y=1 because walls are at y=0)
+    cmp byte [_OS_GAME_BROOM_+_POS_Y], 1
+    jg .end_move
+    ; Bounce: set position back and change direction
+    inc byte [_OS_GAME_BROOM_+_POS_Y]
+    mov al, 2           ; Change to down direction
+    jmp .end_move
+
+  .move_down:
+    inc byte [_OS_GAME_BROOM_+_POS_Y]
+    ; Check for lower boundary (y=14 - adjust this based on your screen size)
+    cmp byte [_OS_GAME_BROOM_+_POS_Y], 14
+    jl .end_move
+    ; Bounce: set position back and change direction
+    dec byte [_OS_GAME_BROOM_+_POS_Y]
+    mov al, 0           ; Change to up direction
+    jmp .end_move
+
+  .move_left:
+    dec byte [_OS_GAME_BROOM_+_POS_X]
+    ; Check for left boundary (x=1 because walls are at x=0)
+    cmp byte [_OS_GAME_BROOM_+_POS_X], 1
+    jg .end_move
+    ; Bounce: set position back and change direction
+    inc byte [_OS_GAME_BROOM_+_POS_X]
+    mov al, 1           ; Change to right direction
+    jmp .end_move
+
+  .move_right:
+    inc byte [_OS_GAME_BROOM_+_POS_X]
+    ; Check for right boundary (x=38 - adjust this based on your screen size)
+    cmp byte [_OS_GAME_BROOM_+_POS_X], 38
+    jl .end_move
+    ; Bounce: set position back and change direction
+    dec byte [_OS_GAME_BROOM_+_POS_X]
+    mov al, 3           ; Change to left direction
+
+  .end_move:
+    ; Store the current direction in broom data
+    mov byte [_OS_GAME_BROOM_+_DIR], al
+  ret
+
+  os_get_random:
+     mov ax, [_RNG_]
+     inc ax
+     rol ax, 1
+     xor ax, 0x1337
+     add ax, [_OS_TICK_]
+     mov [_RNG_], ax
+  ret
+
 os_game_loop:
   cmp byte [_OS_GAME_PLAYER_+_FRAME], 0x0
   je .idle
     dec byte [_OS_GAME_PLAYER_+_FRAME]
     call os_game_player_draw
   .idle:
+
+  call os_get_random
+  mov bl, al
+
+  ; 1 in 4 chance to change direction randomly
+  and bl, 0x03
+  cmp bl, 0
+  jne .use_current_dir
+
+  ; Choose random direction
+  call os_get_random
+  and al, 0x03          ; Get a value 0-3 for direction
+  jmp .move_broom
+
+  .use_current_dir:
+  mov al, [_OS_GAME_BROOM_+_DIR]  ; Use current direction
+
+  .move_broom:
+  call os_move_broom
+
+
+  call os_game_broom_draw
+  cmp byte [_OS_GAME_BROOM_+_FRAME], 0x0
+  jz .rewind
+  mov byte [_OS_GAME_BROOM_+_FRAME], 0x0
+  jmp .skip_rewind
+  .rewind:
+  mov byte [_OS_GAME_BROOM_+_FRAME], 0x01
+  .skip_rewind:
 
 ret
 
