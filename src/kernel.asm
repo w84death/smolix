@@ -22,10 +22,10 @@ _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
 _OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x06   ; 1b
 _OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x07   ; 2b
 _RNG_                           equ _OS_MEMORY_BASE_ + 0x09   ; 2b
-_OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x0B   ; 2b
-_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0D   ; 1b
-_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0E   ; 5b
-_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x14   ; 5b
+_OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x0B   ; 1b
+_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0C   ; 1b
+_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0D   ; 5b
+_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x13   ; 5b
 _POS_X                          equ 0x0
 _POS_Y                          equ 0x1
 _DIR                            equ 0x2
@@ -55,11 +55,11 @@ OS_FS_FILE_SCROLL_CHARS         equ 160
 OS_FS_FILE_ID_MANUAL            equ 0x00
 OS_FS_FILE_ID_LEM               equ 0x01
 
-OS_GAME_DELAY                   equ 0x7FFF
-OS_GAME_PLAYER_HP               equ 0x5
-OS_GAME_MODE_IDLE               equ 0x0
-OS_GAME_MODE_FOLLOW_PLAYER      equ 0x1
-OS_GAME_MODE_CLEAN              equ 0x2
+OS_GAME_DELAY                   equ 0x02
+OS_GAME_PLAYER_HP               equ 0x05
+OS_GAME_MODE_IDLE               equ 0x00
+OS_GAME_MODE_FOLLOW_PLAYER      equ 0x01
+OS_GAME_MODE_CLEAN              equ 0x02
 
 OS_COLOR_PRIMARY                equ 0x1F
 OS_COLOR_SECONDARY              equ 0x2F
@@ -84,13 +84,12 @@ GLYPH_BAT                       equ 0xB7
 ; placeholder 0xB8
 ; placeholder 0xB9
 GLYPH_MASCOT                    equ 0xBA
-GLYPH_GAME_RAT_IDLE_L          equ 0xBA
-GLYPH_GAME_RAT_WALK1_L         equ 0xBB
-GLYPH_GAME_RAT_WALK2_L         equ 0xBC
-GLYPH_GAME_RAT_IDLE_R          equ 0xBD
-GLYPH_GAME_RAT_WALK1_R         equ 0xBE
-GLYPH_GAME_RAT_WALK2_R         equ 0xBF
-
+GLYPH_GAME_RAT_IDLE_L           equ 0xBA
+GLYPH_GAME_RAT_WALK1_L          equ 0xBB
+GLYPH_GAME_RAT_WALK2_L          equ 0xBC
+GLYPH_GAME_RAT_IDLE_R           equ 0xBD
+GLYPH_GAME_RAT_WALK1_R          equ 0xBE
+GLYPH_GAME_RAT_WALK2_R          equ 0xBF
 OS_GLYPH_LOGO                   equ 0xC0
 ; LOGO                              0xC0 - 0xC6
 GLYPH_CEILING                   equ 0xC7
@@ -105,21 +104,21 @@ GLYPH_RULER_MIDDLE              equ 0xCF
 GLYPH_RULER_END                 equ 0xD0
 GLYPH_RULER_NO                  equ 0xD1
 ; Ruler numbers 10-70               0xD1 - 0xD7
-GLYPH_GAME_WALL_CORNER         equ 0xD8
-GLYPH_GAME_WALL_HORIZONTAL     equ 0xD9
-GLYPH_GAME_WALL_VERTICAL       equ 0xDA
-GLYPH_GAME_TILE_A              equ 0xDB
-GLYPH_GAME_TILE_B              equ 0xDC
-GLYPH_GAME_TILE_C              equ 0xDD
-; placeholders 0xDE - 0xDF
-GLYPH_GAME_DIRT1               equ 0xE0
-GLYPH_GAME_DIRT2               equ 0xE1
-GLYPH_GAME_DIRT3               equ 0xE2
-GLYPH_GAME_BROOM1              equ 0xE3
-GLYPH_GAME_BROOM2              equ 0xE4
-GLYPH_GAME_POT                 equ 0xE5
-GLYPH_GAME_POT_BROKEN          equ 0xE6
-GLYPH_GAME_DOOR                equ 0xE7
+GLYPH_GAME_WALL_CORNER          equ 0xD8
+GLYPH_GAME_WALL_HORIZONTAL      equ 0xD9
+GLYPH_GAME_WALL_VERTICAL        equ 0xDA
+GLYPH_GAME_TILE_A               equ 0xDB
+GLYPH_GAME_TILE_B               equ 0xDC
+GLYPH_GAME_TILE_C               equ 0xDD
+; placeholders                      0xDE - 0xDF
+GLYPH_GAME_DIRT1                equ 0xE0
+GLYPH_GAME_DIRT2                equ 0xE1
+GLYPH_GAME_DIRT3                equ 0xE2
+GLYPH_GAME_BROOM1               equ 0xE3
+GLYPH_GAME_BROOM2               equ 0xE4
+GLYPH_GAME_POT                  equ 0xE5
+GLYPH_GAME_POT_BROKEN           equ 0xE6
+GLYPH_GAME_DOOR                 equ 0xE7
 
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
@@ -127,6 +126,7 @@ CHR_LF                          equ 0x0A
 CHR_NEW_LINE                    equ 0x0A0D
 CHR_LIST                        equ 0x1A
 CHR_SLASH                       equ '/'
+
 KBD_KEY_LEFT                    equ 0x4B
 KBD_KEY_RIGHT                   equ 0x4D
 KBD_KEY_UP                      equ 0x48
@@ -134,6 +134,12 @@ KBD_KEY_DOWN                    equ 0x50
 KBD_KEY_ESCAPE                  equ 0x01
 KBD_KEY_ENTER                   equ 0x1C
 KBD_KEY_BACKSPACE               equ 0x0E
+KBD_KEY_TAB                     equ 0x0F
+KBD_KEY_PAGEUP                  equ 0x49
+KBD_KEY_PAGEDOWN                equ 0x51
+KBD_KEY_HOME                    equ 0x47
+KBD_KEY_END                     equ 0x4F
+KBD_KEY_INSERT                  equ 0x52
 
 ; Initialize OS ================================================================
 ; This is the main entry
@@ -142,7 +148,7 @@ os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
   mov dword [_OS_TICK_], 0
-  call os_sound_init
+  mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
 
 ; Entry point / System reset ===================================================
 ; This function resets the system.
@@ -154,6 +160,7 @@ os_reset:
 	int 0x10            ; 80x25 text mode
   call os_load_all_glyphs
 
+  call os_sound_init
   mov byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
@@ -168,15 +175,15 @@ os_reset:
 os_main_loop:
 
   .check_keyboard:
-  mov ah, 01h         ; BIOS keyboard status function
-  int 16h             ; Call BIOS interrupt
-  jz .done
+    mov ah, 01h         ; BIOS keyboard status function
+    int 16h             ; Call BIOS interrupt
+    jz .done
 
-  mov ah, 00h         ; BIOS keyboard read function
-  int 16h
+    mov ah, 00h         ; BIOS keyboard read function
+    int 16h
 
-  cmp byte [_OS_STATE_], OS_STATE_SHELL
-  jne .no_command_key
+    cmp byte [_OS_STATE_], OS_STATE_SHELL
+    jne .no_command_key
 
   .check_system_command:
     test al, al
@@ -196,7 +203,7 @@ os_main_loop:
     cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
     je .print_splash
     cmp byte [_OS_STATE_], OS_STATE_GAME
-    je .done
+    je .cpu_delay
 
   .print_header:
     call os_cursor_pos_get
@@ -204,64 +211,81 @@ os_main_loop:
     call os_print_header
     pop dx
     call os_cursor_pos_set
-    jmp .done
+    jmp .cpu_delay
 
   .print_splash:
     call os_print_splash_screen
 
-  .done:
-
   .cpu_delay:
     xor ax, ax            ; Function 00h: Read system timer counter
     int 0x1a              ; Returns tick count in CX:DX
-    mov bx, dx            ; Store the current tick count
+    mov bx, dx            ; Store low word of tick count
+    mov si, cx            ; Store high word of tick count
     .wait_loop:
-      int 0x1a            ; Read the tick count again
-      test dx, bx
-      jz .wait_loop
+      xor ax, ax
+      int 0x1a
+      cmp cx, si          ; Compare high word
+      jne .tick_changed
+      cmp dx, bx          ; Compare low word
+      je .wait_loop       ; If both are the same, keep waiting
+    .tick_changed:
 
-  inc dword [_OS_TICK_]
+  .update_system_tick:
+    cmp dword [_OS_TICK_], 0xF0000000
+    jb .skip_tick_reset
+      mov dword [_OS_TICK_], 0
+    .skip_tick_reset:
+    inc dword [_OS_TICK_]
+
   call os_sound_stop
 
   cmp byte [_OS_STATE_], OS_STATE_GAME
   je .game_loop
-
   call os_print_tick
-jmp os_main_loop
+  jmp .skip_game_loop
 
   .game_loop:
   cmp byte [_OS_GAME_STARTED_], 0
-  jz .skip_loop
-  dec word [_OS_GAME_TICK_]
-  jnz .skip_loop
-    mov word [_OS_GAME_TICK_], OS_GAME_DELAY
-    call os_game_loop
-  .skip_loop:
+  jz .skip_game_loop
+    dec byte [_OS_GAME_TICK_]
+    jnz .skip_game_loop
+      mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
+      call os_game_loop
+  .skip_game_loop:
+
 jmp os_main_loop
 
-; Print System Tick
-; This function prints the current system tick count to the screen.
+; Print System Tick and Stack ==================================================
+; This function prints system tick and stack pointer position to the screen.
 ; Expects: None
 ; Returns: None
 os_print_tick:
   call os_cursor_pos_get
   push dx
 
-  mov dl, 0x44
+  mov dl, 0x3C
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   jz .skip_40
-    mov dl, 0x1C
+    mov dl, 0x16
   .skip_40:
   call os_cursor_pos_set
+
+  mov al, GLYPH_SYSTEM
+  call os_print_chr
   mov eax, [_OS_TICK_]
-  mov cx, 0x08
   call os_print_num
 
+  mov al, CHR_SPACE
+  mov ah, GLYPH_MEM
+  call os_print_chr_double
+  xor ax, ax
+  mov ax, sp
+  call os_print_num
   pop dx
   call os_cursor_pos_set
 ret
 
-; Gets Cursor Position
+; Gets Cursor Position =========================================================
 ; This function gets the current cursor position on the screen.
 ; Expects: None
 ; Returns: DX = column, DX = row
@@ -271,7 +295,7 @@ os_cursor_pos_get:
   int 0x10          ; Call BIOS
 ret
 
-; Sets Cursor Pos
+; Sets Cursor Position =========================================================
 ; This function sets the cursor position on the screen.
 ; Expects: DX = column (0-79), DX = row (0-24)
 ; Returns: None
@@ -458,7 +482,7 @@ os_down:
   call os_print_str
 ret
 
-; Reboot System
+; Reboot System ================================================================
 ; This function reboots the system.
 ; Expects: None
 ; Returns: None
@@ -669,15 +693,6 @@ os_load_all_glyphs:
   .done:
 ret
 
-; Wait for key press ===========================================================
-; This function waits for a key press and returns the key code in AL.
-; Expects: None
-; Returns: AL = key code
-os_get_key:
-  xor ax, ax      ; Clear AX (any key)
-  int 0x16        ; Wait for key press
-ret
-
 ; Interpret character ==========================================================
 ; This function interprets the command and performs the appropriate action.
 ; Expects: AL = character to interpret (letters)
@@ -723,7 +738,7 @@ ret
 ret
 
 ; Interpret keyboard input =====================================================
-; This function interprets the keyboard input and performs the appropriate action.
+; This function interprets the keyboard input and performs associated action.
 ; Expects: AH = character to interpret (control)
 ; Returns: None
 os_interpret_kb:
@@ -1083,10 +1098,9 @@ os_fs_load_buffer:
   je .already_loaded
 
   .clean_buffer:
-    mov cx, OS_FS_FILE_SIZE
-    shr cx, 1               ; Half the size as we'll push words not bytes
     mov di, _OS_FS_BUFFER_
     xor ax, ax
+    mov cx, OS_FS_FILE_SIZE/2
     rep stosw               ; Clear buffer
 
   .load_new_buffer:
@@ -1468,7 +1482,7 @@ ret
   .error:
 ret
 
-; Hide cursor =====================================================
+; Hide cursor ==================================================================
 ; This function hides the cursor.
 ; Expects: None
 ; Returns: None
@@ -1478,7 +1492,7 @@ os_cursor_hide:
   int 0x10           ; Call BIOS
 ret
 
-; Show cursor =====================================================
+; Show cursor ==================================================================
 ; This function shows the cursor.
 ; Expects: None
 ; Returns: None
@@ -1589,8 +1603,9 @@ os_printer_string:
     stc                ; Set carry flag (error)
   ret
 
-  ; Print file or text to printer
-  ; This function prints a file or text to the printer.
+  ; Print test =================================================================
+  ; This function prints a test data to the printer.
+  ; TODO: CHANGE TO PROPER FILE BUFFER PRINTING
   ; Expects: None
   ; Returns: None
   os_printer_test:
@@ -1615,10 +1630,8 @@ ret
     call os_print_str
 ret
 
-
-
 ; Enter Game ===================================================================
-; This function initializes the game state
+; This function initializes the game state and draws welcome screen
 ; Expects: None
 ; Returns: None
 os_enter_game:
@@ -1696,6 +1709,10 @@ os_enter_game:
 
 ret
 
+; Game start ===================================================================
+; Thus functuion starts game, draws board and initiates entities
+; Expects: None
+; Returns: None
 os_game_start:
   mov byte [_OS_GAME_STARTED_], 0x1
   call os_clear_screen
@@ -1800,6 +1817,10 @@ os_game_spawn_items:
   .return:
 ret 0xFF
 
+; Draw player ==================================================================
+; This function draws the player on the screen
+; Expects: None
+; Returns: None
 os_game_player_draw:
   mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
   mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
@@ -1813,6 +1834,10 @@ os_game_player_draw:
   call os_print_chr
 ret
 
+; Draw broom ===================================================================
+; This function draws the broom on the screen
+; Expects: None
+; Returns: None
 os_game_broom_draw:
   mov byte dl, [_OS_GAME_BROOM_+_POS_X]
   mov byte dh, [_OS_GAME_BROOM_+_POS_Y]
@@ -1822,13 +1847,20 @@ os_game_broom_draw:
   call os_print_chr
 ret
 
+; Validate position ============================================================
+; This function validates the new position
+; Expects: DX - position
+; Returns: Carry if can't move (wall)
 os_game_validate_pos:
 
   call os_read_chr
 
 ret
 
-; BL arrow
+; Player movement ==============================================================
+; This function moves the player
+; Expects: BL - keyboard input
+; Returns: None
 os_game_player_move:
 
   .clear_background:
@@ -1873,9 +1905,10 @@ os_game_player_move:
     call os_game_player_draw
 ret
 
-; Move broom with direction in AL
-; AL: 0=up, 1=right, 2=down, 3=left
-; Handles edge detection and bouncing
+; Move broom ===================================================================
+; This function moves the broom, handles edge detection and bouncing
+; Expects: AL: 0=up, 1=right, 2=down, 3=left
+; Returns: None
 os_move_broom:
 
   .clear_background:
@@ -1942,15 +1975,23 @@ os_move_broom:
     mov byte [_OS_GAME_BROOM_+_DIR], al
   ret
 
-  os_get_random:
-     mov ax, [_RNG_]
-     inc ax
-     rol ax, 1
-     xor ax, 0x1337
-     add ax, [_OS_TICK_]
-     mov [_RNG_], ax
-  ret
+; Get random ===================================================================
+; This function generates a random number
+; Expects: None
+; Returns: AX - Random number
+os_get_random:
+    mov ax, [_RNG_]
+    inc ax
+    rol ax, 1
+    xor ax, 0x1337
+    add ax, [_OS_TICK_]
+    mov [_RNG_], ax
+ret
 
+; Game loop ====================================================================
+; This function handles the main game loop
+; Expects: None
+; Returns: None
 os_game_loop:
   cmp byte [_OS_GAME_PLAYER_+_FRAME], 0x0
   je .idle
@@ -2120,7 +2161,7 @@ os_commands_table:
   dw os_print_ver, msg_cmd_v
 
   db 'r'
-  dw os_reset, msg_cmd_r
+  dw os_init, msg_cmd_r
 
   db 'R'
   dw os_reboot, msg_cmd_R
@@ -2166,9 +2207,9 @@ os_keyboard_table:
   db OS_STATE_SHELL, KBD_KEY_ESCAPE
   dw os_clear_shell
 
-  db OS_STATE_FS, KBD_KEY_UP
+  db OS_STATE_FS, KBD_KEY_PAGEUP
   dw os_fs_scroll_up
-  db OS_STATE_FS, KBD_KEY_DOWN
+  db OS_STATE_FS, KBD_KEY_PAGEDOWN
   dw os_fs_scroll_down
   db OS_STATE_FS, KBD_KEY_ESCAPE
   dw os_enter_shell

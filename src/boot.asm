@@ -10,7 +10,7 @@ use16
 KERNEL_SIZE_KB        equ 6                 ; Size of the kernel in KB
 SECTORS_TO_LOAD       equ KERNEL_SIZE_KB*2  ; Sectors to load (512KB chunks)
 KERNEL_STACK_POINTER  equ 0xFFFE            ; Stack pointer for the kernel
-KERNEL_SEGMENT        equ 0x7E0             ; Segment where kernel is loaded
+KERNEL_SEGMENT        equ 0x1000            ; Segment where kernel is loaded
 KERNEL_OFFSET         equ 0x0000            ; Offset where kernel is loaded
 
 ; Start of the bootloader ======================================================
