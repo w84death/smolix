@@ -177,7 +177,7 @@ os_main_loop:
   .check_keyboard:
     mov ah, 01h         ; BIOS keyboard status function
     int 16h             ; Call BIOS interrupt
-    jz .done
+    jz .continue
 
     mov ah, 00h         ; BIOS keyboard read function
     int 16h
@@ -322,16 +322,13 @@ os_print_header:
 
   call os_cursor_pos_reset
 
-  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
-  je .set_width_40
-  mov dl, 41+15
-  mov dh, 82
-  jmp .continue
-  .set_width_40:
-    mov dl, 16+15
-    mov dh, 42
-  .continue:
-  sub dh, 13
+  mov dl, 58
+  mov dh, 69
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  je .skip_40
+    mov dl, 31
+    mov dh, 29
+  .skip_40:
 
   ; new line
   mov al, GLYPH_MASCOT
@@ -1371,14 +1368,14 @@ os_print_splash_screen:
 
   ; Version
   add dh, 0x4
-  sub dl, 0x4
+  sub dl, 0x2
   call os_cursor_pos_set
   mov si, version_msg
   call os_print_str
 
   ; Press ENTER
   inc dh
-  sub dl, 0x3
+  sub dl, 0x5
   call os_cursor_pos_set
   mov si, press_enter_msg
   call os_print_str
@@ -2039,7 +2036,7 @@ os_void:
 ret
 
 ; Data section =================================================================
-version_msg           db 'Version alphaA', 0
+version_msg           db 'Version 0x0B', 0
 system_logo_msg:
 db OS_GLYPH_LOGO+0x0
 db OS_GLYPH_LOGO+0x1

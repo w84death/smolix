@@ -1,76 +1,77 @@
-alphaB:
-    - [in-progress] full printer support
-    - [in-progress] editing files (hemingway and insert modes)
-    - [in-progress] Dirty Rat game
-alphaA:
-    - progress on Dirty Rat game
-      - drawing one test level
-      - player movement
-      - rando broom movement
-    - bugfixes, checks
-    - show/hide cursor (shell/game)
-    - updated logo (removed 16bit part)
-  alpha9 [RELEASED]:
-    - start of a Dirty Rat mini game
-    - initial printing support (theoretical)
-    - list and select files to read/write
-    - updated sample files with ASCII Art Gallery and Notepad (for future edits)
-    - removed toolbar
-    - reduced and rearanged tileset to work with any EGA/VGA (no 1px gaps)
-    - working no-gap tiles on all text modes!
-  alpha8:
-    - new mascot
-    - lot of bugfixes
-    - updated status [s] reporting (date/battery/mouse)
-    - refactored toolbar backend with secondary menus
-    - code golf and optimizations
-    - cpuid added with fallback for 386
-    - updated logo
-    - splash screen
+0x0B:
+  - [in-progress] full printer support
+  - [in-progress] editing files (hemingway and insert modes)
+  - [in-progress] Dirty Rat game
+  - changed kernel version naming to hexadecimal numbers - it's no longer alpha!
+0x0A:
+  - progress on Dirty Rat game
+    - drawing one test level
+    - player movement
+    - rando broom movement
+  - bugfixes, checks, stability testing
+  - show/hide cursor (shell/game)
+  - updated logo (removed 16bit part)
+alpha9 [RELEASED]:
+  - start of a Dirty Rat mini game
+  - initial printing support (theoretical)
+  - list and select files to read/write
+  - updated sample files with ASCII Art Gallery and Notepad (for future edits)
+  - removed toolbar
+  - reduced and rearanged tileset to work with any EGA/VGA (no 1px gaps)
+  - working no-gap tiles on all text modes!
+alpha8:
+  - new mascot
+  - lot of bugfixes
+  - updated status [s] reporting (date/battery/mouse)
+  - refactored toolbar backend with secondary menus
+  - code golf and optimizations
+  - cpuid added with fallback for 386
+  - updated logo
+  - splash screen
 alpha7 [RELEASED]:
-    - file system bugfixes
-    - ruler in file display
-    - state machine implementation
-    - shell and edit states
+  - file system bugfixes
+  - ruler in file display
+  - state machine implementation
+  - shell and edit states
 alpha6:
-    - basic file system implementation:
-        - read file from disk to buffer
-        - display buffer
-        - write buffer to the disk
-    - example file on floppy
-    - clean up, refactor
+  - basic file system implementation:
+      - read file from disk to buffer
+      - display buffer
+      - write buffer to the disk
+  - example file on floppy
+  - clean up, refactor
 alpha5:
-    - code refactor, cleanup, comments added
-    - working icons (select, execute, description)
-    - detect cursors for icons movement
-    - real time loop
-    - display kernel tick (live + commands history)
-    - beeper support for boot tune and commands response
-    - fix correct handling 40/80 screen modes
+  - code refactor, cleanup, comments added
+  - working icons (select, execute, description)
+  - detect cursors for icons movement
+  - real time loop
+  - display kernel tick (live + commands history)
+  - beeper support for boot tune and commands response
+  - fix correct handling 40/80 screen modes
 alpha4 [RELEASED]:
-    - updated charset
-    - two video modes: 80x25, 40x25
-    - permanent header with logo and version
-    - finalized stats command
+  - updated charset
+  - two video modes: 80x25, 40x25
+  - permanent header with logo and version
+  - finalized stats command
 alpha3 [RELEASED]:
-    - hardware stats (wip)
-    - better comments in kernel and boot
-    - automatic list of commands in help
-    - remade logo and icons
-    - commands refactor for easy expansion
+  - hardware stats (wip)
+  - better comments in kernel and boot
+  - automatic list of commands in help
+  - remade logo and icons
+  - commands refactor for easy expansion
 alpha2 [RELEASED]:
-    - working kernel basics
-    - colors
-    - custom glyphs
-    - tool: for converting png tileset to asm data
-    - icons for UI in the os
-    - basic shell functions: help, version
-    - debug option showing all custom glyphs w/ IDs
+  - working kernel basics
+  - colors
+  - custom glyphs
+  - tool: for converting png tileset to asm data
+  - icons for UI in the os
+  - basic shell functions: help, version
+  - debug option showing all custom glyphs w/ IDs
 alpha1 [RELEASED]:
-    - bootloader
-    - empty kernel
-    - ability to boot the OS
+  - bootloader
+  - empty kernel
+  - ability to boot the OS
 alpha0 [RELEASED]:
-    - init repository
-    - Initial files structure.
-    - Initial documentation and idea for the system.
+  - init repository
+  - Initial files structure.
+  - Initial documentation and idea for the system.
