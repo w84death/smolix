@@ -1,7 +1,8 @@
 alpha10:
     - [in-progress] full printer support
-    - [in-progress] editing files
+    - [in-progress] editing files (hemingway and insert)
     - [in-progress] Dirty Rat game progress
+    - bugfixes, checks
     - show/hide cursor (shell/game)
     - updated logo (removed 16bit part)
   alpha9 [RELEASED]:
@@ -10,7 +11,7 @@ alpha10:
     - list and select files to read/write
     - updated sample files with ASCII Art Gallery and Notepad (for future edits)
     - removed toolbar
-    - reduced tileset
+    - reduced and rearanged tileset to work with any EGA/VGA (no 1px gaps)
     - working no-gap tiles on all text modes!
   alpha8:
     - new mascot

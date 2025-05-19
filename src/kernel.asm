@@ -47,6 +47,7 @@ OS_FS_BLOCK_FIRST               equ 0x11
 OS_FS_BLOCK_SIZE                equ 0x10
 OS_FS_FILE_SIZE                 equ 8192
 OS_FS_FILE_NOT_LOADED           equ 0xFF
+OS_FS_FILE_LAST                 equ 0x2
 OS_FS_FILE_LINES_ON_SCREEN      equ 0x15
 OS_FS_FILE_CHARS_ON_LINE_80     equ 80-1
 OS_FS_FILE_CHARS_ON_LINE_40     equ 40-1
@@ -109,8 +110,8 @@ GLYPH_GAME_WALL_HORIZONTAL     equ 0xD9
 GLYPH_GAME_WALL_VERTICAL       equ 0xDA
 GLYPH_GAME_TILE_A              equ 0xDB
 GLYPH_GAME_TILE_B              equ 0xDC
-; placeholders 0xDD - 0xDF
-;
+GLYPH_GAME_TILE_C              equ 0xDD
+; placeholders 0xDE - 0xDF
 GLYPH_GAME_DIRT1               equ 0xE0
 GLYPH_GAME_DIRT2               equ 0xE1
 GLYPH_GAME_DIRT3               equ 0xE2
@@ -552,6 +553,18 @@ os_print_str:
   popa
 ret
 
+; Read Character ==============================================================
+; This function reads a character from the screen.
+; Expects: DX = coordinates of cursor position
+; Returns: AL = character read from keyboard
+os_read_chr:
+  mov ah, 02h         ; First set cursor position
+  mov bh, 0          ; Page number
+  int 10h            ; Move cursor
+  mov ah, 08h        ; Then read character
+  int 10h            ; Call BIOS interrupt
+ret
+
 ; Clear screen =================================================================
 ; This function clears the screen with primary colors.
 ; Expects: None
@@ -986,8 +999,11 @@ ret
 ; Returns: None
 os_sound_stop:
   in al, 61h
-  and al, 11111100b   ; Clear bits 0-1
-  out 61h, al
+  test al, 00000011b    ; Check if bits 0 and 1 are set
+  jz .already_stopped   ; If both bits clear, sound is already off
+  and al, 11111100b     ; Clear bits 0-1
+  out 61h, al           ; Disable speaker output
+  .already_stopped:
 ret
 
 ; File System: list files ======================================================
@@ -1043,13 +1059,14 @@ ret
 os_fs_select_file:
   cmp bl, '0'
   jl .invalid_select
-  cmp bl, 'F'
+  mov al, OS_FS_FILE_LAST
+  add al, '0'
+  cmp bl, al
   jg .invalid_select
 
   sub bl, '0'
   mov dl, bl
   call os_fs_load_buffer
-  ;call os_fs_list_files
   clc
 ret
   .invalid_select:
@@ -1065,40 +1082,51 @@ os_fs_load_buffer:
   cmp byte [_OS_FS_FILE_LOADED_], dl
   je .already_loaded
 
+  .clean_buffer:
+    mov cx, OS_FS_FILE_SIZE
+    shr cx, 1               ; Half the size as we'll push words not bytes
+    mov di, _OS_FS_BUFFER_
+    xor ax, ax
+    rep stosw               ; Clear buffer
+
   .load_new_buffer:
-  mov byte [_OS_FS_FILE_LOADED_], dl
-  mov word [_OS_FS_FILE_POS_], 0x0
+    mov byte [_OS_FS_FILE_LOADED_], dl
+    mov word [_OS_FS_FILE_POS_], 0x0
 
-  mov bl, GLYPH_FLOPPY
-  call os_print_prompt
-  mov si, fs_reading_msg
-  call os_print_str
+  .draw_prompt:
+    mov bl, GLYPH_FLOPPY
+    call os_print_prompt
+    mov si, fs_reading_msg    ; Reading...
+    call os_print_str
 
-  ; Reset disk system first
-  xor dl, dl
-  xor ax, ax
-  int 0x13               ; Reset disk system
-  jc .disk_error
+  .reset_disk:
+    xor dl, dl
+    xor ax, ax
+    int 0x13               ; Reset disk system
+    jc .disk_error
 
-  movzx bx, [_OS_FS_FILE_LOADED_]
-  shl bx, 5
-  mov ch, [os_fs_directory_table + bx]      ; Cylinder
-  mov cl, [os_fs_directory_table + bx + 1]  ; Starting sector
-  mov dh, [os_fs_directory_table + bx + 2]  ; Starting block
+    .preapare_file_position:
+    movzx bx, [_OS_FS_FILE_LOADED_]
+    shl bx, 5
+    mov ch, [os_fs_directory_table + bx]      ; Cylinder
+    mov cl, [os_fs_directory_table + bx + 1]  ; Starting sector
+    mov dh, [os_fs_directory_table + bx + 2]  ; Starting block
 
-  mov ax, ds
-  mov es, ax              ; Make sure ES=DS for disk read
-  mov bx, _OS_FS_BUFFER_
+  .prepare_es:
+    mov ax, ds
+    mov es, ax              ; Make sure ES=DS for disk read
+    mov bx, _OS_FS_BUFFER_
 
-  mov ah, 0x02            ; BIOS read sectors function
-  mov al, OS_FS_BLOCK_SIZE
-  mov dl, 0x00            ; Drive 0 (first floppy drive)
-  int 0x13                ; BIOS disk interrupt
-  jc .disk_error          ; Error if carry flag set
+  .read_data_from_floppy:
+    mov ah, 0x02            ; BIOS read sectors function
+    mov al, OS_FS_BLOCK_SIZE
+    mov dl, 0x00            ; Drive 0 (first floppy drive)
+    int 0x13                ; BIOS disk interrupt
+    jc .disk_error          ; Error if carry flag set
 
   .already_loaded:
-  mov si, success_msg
-  call os_print_str
+    mov si, success_msg
+    call os_print_str
   clc                     ; Clear carry flag (success)
 ret
   .disk_error:
@@ -1792,6 +1820,12 @@ os_game_broom_draw:
   mov al, GLYPH_GAME_BROOM1
   add al, [_OS_GAME_BROOM_+_FRAME]
   call os_print_chr
+ret
+
+os_game_validate_pos:
+
+  call os_read_chr
+
 ret
 
 ; BL arrow
