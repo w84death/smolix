@@ -1,6 +1,10 @@
 0x0B:
   - [todo] screen saver
   - [in-progress] full printer support
+    - printer initialization
+    - print one char
+    - print a string
+    - print current buffer
   - [in-progress] editing files (hemingway and insert modes)
   - [in-progress] Dirty Rat game
     - status bar

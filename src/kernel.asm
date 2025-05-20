@@ -1504,25 +1504,37 @@ ret
 ; Expects: None
 ; Returns: CF = 0 for success, CF = 1 for error
 os_printer_init:
-  ; Check printer status
-  mov dx, 0x379      ; Status port of LPT1
-  in al, dx          ; Read status
-  test al, 0x80      ; Check if printer is online (bit 7 = 0 means online)
-  jnz .printer_error
+  .check_status:
+    mov dx, 0x379      ; Status port of LPT1
+    in al, dx          ; Read status
 
-  ; Reset printer
-  mov dx, 0x37A      ; Control port
-  mov al, 0x08       ; Set bit 3 (Initialize printer)
-  out dx, al
+    ; Check status bits:
+    ; Bit 7 (0x80): BUSY (1 = Busy, 0 = Ready)
+    ; Bit 6 (0x40): ACK (0 = Acknowledged)
+    ; Bit 5 (0x20): Paper Out (1 = Out)
+    ; Bit 4 (0x10): Selected (1 = Selected)
+    ; Bit 3 (0x08): Error (1 = Error)
+    movzx ax, al
+    call os_print_num
 
-  ; Short delay
-  mov cx, 0xFFFF
-  .delay_loop:
-    loop .delay_loop
+    ; Check important status bits:
+    ; - Bit 4 (0x10) should be 1 (Selected)
+    ; - Bit 5 (0x20) should be 0 (Paper present)
+    ; Don't check BUSY as it can be 1 or 0
+    mov ah, al         ; Save status
+    and al, 0x30       ; Mask bits 4,5 (Selected, Paper Out)
+    cmp al, 0x10       ; Should be Selected=1, PaperOut=0
+    jne .printer_error
 
-  ; Clear initialization bit
-  mov al, 0x0C       ; Set bit 2 (Auto LF) and bit 3 (Init)
-  out dx, al
+  .reset_printer:
+    mov dx, 0x37A      ; Control port
+    mov al, 0x08       ; Set bit 3 (Initialize printer)
+    out dx, al
+
+  .set_auto_lf:
+    mov dx, 0x37A      ; Control port
+    mov al, 0x0C       ; Set proper control bits (includes Auto LF)
+    out dx, al
 
   clc                ; Clear carry flag (success)
 ret
@@ -1568,7 +1580,7 @@ os_printer_char:
     in al, dx
     test al, 0x40    ; Check if printer is ready (ACK)
     jz .wait_ready
-  ret
+ret
 
 
 ; Print String to Printer ======================================================
@@ -1577,17 +1589,28 @@ os_printer_char:
 ; Returns: CF = 0 for success, CF = 1 for error
 os_printer_string:
   .next_char:
-    lodsb              ; Load next character from SI into AL
+    lodsb               ; Load next character from SI into AL
     test al, al          ; Check for null terminator
     jz .done
 
     call os_printer_char
   jmp .next_char
-
   .done:
-    mov al, 0x0C       ; Form feed character
-    call os_printer_char
-  ret
+
+  call os_printer_send_lfcr
+ret
+
+os_printer_send_lfcr:
+  mov al, 0x0A            ; Line Feed
+  call os_printer_char
+  mov al, 0x0D            ; Carriage Return (just to be safe)
+  call os_printer_char
+ret
+
+os_printer_send_feed:
+  mov al, 0x0C              ; Form feed character
+  call os_printer_char
+ret
 
   ; Print test =================================================================
   ; This function prints a test data to the printer.
