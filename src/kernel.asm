@@ -24,13 +24,14 @@ _OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x07   ; 2b
 _RNG_                           equ _OS_MEMORY_BASE_ + 0x09   ; 2b
 _OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x0B   ; 1b
 _OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0C   ; 1b
-_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0D   ; 5b
-_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x13   ; 5b
+_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0D   ; 6b
+_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x13   ; 6b
 _POS_X                          equ 0x0
 _POS_Y                          equ 0x1
 _DIR                            equ 0x2
 _FRAME                          equ 0x3
 _DIRT                           equ 0x4
+_LAST_TILE                      equ 0x5
 
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x20
 
@@ -56,10 +57,7 @@ OS_FS_FILE_ID_MANUAL            equ 0x00
 OS_FS_FILE_ID_LEM               equ 0x01
 
 OS_GAME_DELAY                   equ 0x02
-OS_GAME_PLAYER_HP               equ 0x05
-OS_GAME_MODE_IDLE               equ 0x00
-OS_GAME_MODE_FOLLOW_PLAYER      equ 0x01
-OS_GAME_MODE_CLEAN              equ 0x02
+OS_GAME_ENTITY_SIZE             equ 0x06
 
 OS_COLOR_PRIMARY                equ 0x1F
 OS_COLOR_SECONDARY              equ 0x2F
@@ -164,7 +162,7 @@ os_reset:
   mov byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
-  call os_clear_screen
+  call os_clear_screen ; IN: None - OUT: None
   call os_print_splash_screen
 
 ; Main system loop =============================================================
@@ -590,18 +588,15 @@ ret
 ; This function clears the screen with primary colors.
 ; Expects: None
 ; Returns: None
-os_clear_screen:
+os_clear_screen: ; IN: None - OUT: None
  mov al, CHR_SPACE
   mov bl, OS_COLOR_PRIMARY  ; Set color attribute
-  call os_fill_screen_with_glyph
+  call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
 ret
 
 ; Fill screen with glyph ======================================================
 ; This function fills the entire screen with a specified glyph character.
-; Expects: AL = glyph character to fill with
-;          BL = color attribute for the glyph
-; Returns: None
-os_fill_screen_with_glyph:
+os_fill_screen_with_glyph: ; IN: AL glyph, BL color - OUT: None
   pusha
   mov bh, bl           ; Move color attribute to BH (required by INT 10h)
   mov cx, 0x0000       ; Top left corner (row 0, col 0)
@@ -624,7 +619,7 @@ ret
 ; Returns: None
 os_clear_shell:
   pusha
-  call os_clear_screen
+  call os_clear_screen ; IN: None - OUT: None
   call os_print_header
   popa
 ret
@@ -1441,7 +1436,7 @@ ret
 ; Returns: None
 os_enter_from_splash_screen:
   mov byte [_OS_STATE_], OS_STATE_SHELL
-  call os_clear_screen
+  call os_clear_screen ; IN: None - OUT: None
   call os_print_header
   call os_print_welcome_shell
   mov bl, GLYPH_PROMPT
@@ -1455,7 +1450,7 @@ ret
 os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
   call os_cursor_show
-  call os_clear_screen
+  call os_clear_screen ; IN: None - OUT: None
   call os_print_header
   mov bl, GLYPH_PROMPT
   call os_print_prompt
@@ -1600,6 +1595,10 @@ os_printer_string:
   call os_printer_send_lfcr
 ret
 
+; Printing: send LF&CR =========================================================
+; This function is used to move the printer head to the next line.
+; Expects: None
+; Returns: None
 os_printer_send_lfcr:
   mov al, 0x0A            ; Line Feed
   call os_printer_char
@@ -1607,35 +1606,49 @@ os_printer_send_lfcr:
   call os_printer_char
 ret
 
+; Printing: send Feed ==========================================================
+; This function is used to move the printer head to the next page.
+; Expects: None
+; Returns: None
 os_printer_send_feed:
   mov al, 0x0C              ; Form feed character
   call os_printer_char
 ret
 
-  ; Print test =================================================================
-  ; This function prints a test data to the printer.
-  ; TODO: CHANGE TO PROPER FILE BUFFER PRINTING
-  ; Expects: None
-  ; Returns: None
-  os_printer_test:
-    mov bl, GLYPH_SYSTEM
-    call os_print_prompt
-    mov si, os_printer_printing_msg
-    call os_print_str
+; Print test =================================================================
+; This function prints a test data to the printer.
+; TODO: CHANGE TO PROPER FILE BUFFER PRINTING
+; Expects: None
+; Returns: None
+os_printer_print_fs_buffer:
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+  mov si, os_printer_printing_msg
+  call os_print_str
 
-    call os_printer_init
-    jc .error_init
+  call os_printer_init
+  jc .error_init
 
-    mov si, welcome_msg
-    call os_printer_string
+  mov si, _OS_FS_BUFFER_
+  cmp byte [si], 0          ; Check if the current character is null
+  je .empty_file
+  mov si, welcome_msg
+  call os_printer_string
 
+  .success_print:
     mov si, success_msg
     call os_print_str
+    clc
 ret
-
+  .empty_file:
+    mov si, fs_empty_msg
+    call os_print_str
+    stc
+ret
   .error_init:
     mov si, failure_msg
     call os_print_str
+    stc
 ret
 
 ; Enter Game ===================================================================
@@ -1646,7 +1659,7 @@ os_enter_game:
   mov byte [_OS_STATE_], OS_STATE_GAME
   mov byte [_OS_GAME_STARTED_], 0x0
   call os_cursor_hide
-  call os_clear_screen
+  call os_clear_screen ; IN: None - OUT: None
 
   mov dx, 0x0303
   call os_cursor_pos_set
@@ -1723,63 +1736,89 @@ ret
 ; Returns: None
 os_game_start:
   mov byte [_OS_GAME_STARTED_], 0x1
-  call os_clear_screen
+  call os_clear_screen ; IN: None - OUT: None ; IN: None - OUT: None
 
   ; initialize player
-  mov byte [_OS_GAME_PLAYER_+_POS_X], 0x22
-  mov byte [_OS_GAME_PLAYER_+_POS_Y], 0x0A
+  mov byte [_OS_GAME_PLAYER_+_POS_X], 0x24
+  mov byte [_OS_GAME_PLAYER_+_POS_Y], 0x02
   mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
   mov byte [_OS_GAME_PLAYER_+_FRAME], 0x0
   mov byte [_OS_GAME_PLAYER_+_DIRT], 0x0
+  mov byte [_OS_GAME_PLAYER_+_LAST_TILE], GLYPH_GAME_TILE_A
 
   ; initialize broom
   mov byte [_OS_GAME_BROOM_+_POS_X], 0x0C
-  mov byte [_OS_GAME_BROOM_+_POS_Y], 0x0A
+  mov byte [_OS_GAME_BROOM_+_POS_Y], 0x0D
   mov byte [_OS_GAME_BROOM_+_DIR], 0x0
   mov byte [_OS_GAME_BROOM_+_FRAME], 0x1
   mov byte [_OS_GAME_BROOM_+_DIRT], 0x0
+  mov byte [_OS_GAME_BROOM_+_LAST_TILE], GLYPH_GAME_TILE_A
 
   ; draw level
 
   ; fill tiles
-  mov al, GLYPH_GAME_TILE_B
+  mov al, GLYPH_GAME_TILE_A
   mov bl, OS_COLOR_PRIMARY
-  call os_fill_screen_with_glyph
+  call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
 
   ; walls
-  call os_cursor_pos_reset
-  mov al, GLYPH_GAME_WALL_CORNER
-  call os_print_chr
-  mov al, GLYPH_GAME_WALL_HORIZONTAL
-  mov ah, 0x26
-  call os_print_chr_mul
-  mov al, GLYPH_GAME_WALL_CORNER
-  call os_print_chr
+  mov dx, 0x0000
+  mov cx, 0x0B
+  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
 
-  mov cx, 0x15
+  mov dx, 0x001B
+  mov cx, 0x0B
+  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
+
   mov dx, 0x0100
-  .vertical_walls_loop:
-    call os_cursor_pos_set
-    mov al, GLYPH_GAME_WALL_VERTICAL
-    call os_print_chr
-    add dl, 0x27
-    call os_cursor_pos_set
-    mov al, GLYPH_GAME_WALL_VERTICAL
-    call os_print_chr
-    xor dl, dl
-    inc dh
-  loop .vertical_walls_loop
+  mov cx, 0x0C
+  call os_game_draw_vertical_wall ; IN: DX pos, CL len
 
-  mov dx, 0x1600
-  call os_cursor_pos_set
-  mov al, GLYPH_GAME_WALL_CORNER
-  call os_print_chr
-  mov al, GLYPH_GAME_WALL_HORIZONTAL
-  mov ah, 0x26
-  call os_print_chr_mul
-  mov al, GLYPH_GAME_WALL_CORNER
-  call os_print_chr
+  mov dx, 0x010C
+  mov cx, 0x04
+  call os_game_draw_vertical_wall ; IN: DX pos, CL len
 
+  mov dx, 0x050C
+  mov cx, 0x0E
+  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
+
+  mov dx, 0x011B
+  mov cx, 0x04
+  call os_game_draw_vertical_wall ; IN: DX pos, CL len
+
+  mov dx, 0x0127
+  mov cx, 0x0C
+  call os_game_draw_vertical_wall ; IN: DX pos, CL len
+
+  mov dx, 0x0D00
+  mov cx, 0x06
+  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
+
+  mov dx, 0x0D07
+  mov cx, 0x0B
+  call os_game_draw_vertical_wall ; IN: DX pos, CL len
+
+  mov dx, 0x0D14
+  mov cx, 0x12
+  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
+
+  mov dx, 0x0D14
+  mov cx, 0x04
+  call os_game_draw_vertical_wall ; IN: DX pos, CL len
+
+  mov dx, 0x1114
+  mov cx, 0x10
+  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
+
+  mov dx, 0x1807
+  mov cx, 0x1D
+  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
+
+  mov dx, 0x1225
+  mov cx, 0x06
+  call os_game_draw_vertical_wall ; IN: DX pos, CL len
+
+  ; props
   push 0x0404
   push 0x0E04
   push 0x0420
@@ -1796,10 +1835,38 @@ os_game_start:
   push ax
   call os_game_spawn_items
 
+  push 0x0024
+  push 0x1425
+  mov al, GLYPH_GAME_DOOR
+  mov ah, 0x02
+  push ax
+  call os_game_spawn_items
 
+  ; entities
   call os_game_player_draw
   call os_game_broom_draw
 ret
+
+os_game_draw_horizontal_wall: ; IN: DX pos, CL len
+  call os_cursor_pos_set
+  mov al, GLYPH_GAME_WALL_CORNER
+  call os_print_chr
+  mov al, GLYPH_GAME_WALL_HORIZONTAL
+  mov ah, cl
+  call os_print_chr_mul
+  mov al, GLYPH_GAME_WALL_CORNER
+  call os_print_chr
+ret
+
+os_game_draw_vertical_wall: ; IN: DX pos, CL len
+  .vertical_walls_loop:
+    call os_cursor_pos_set
+    mov al, GLYPH_GAME_WALL_VERTICAL
+    call os_print_chr
+    inc dh
+  loop .vertical_walls_loop
+ret
+
 
 os_game_draw_status_bar:
   ; draw LIFE 0
@@ -1867,11 +1934,17 @@ ret
 ; This function validates the new position
 ; Expects: DX - position
 ; Returns: Carry if can't move (wall)
+;          AL - tile type
 os_game_validate_pos:
 
   call os_read_chr
-
-ret
+  cmp al, GLYPH_GAME_TILE_A
+  je .can_move
+  stc
+  ret
+.can_move:
+  clc
+  ret
 
 ; Player movement ==============================================================
 ; This function moves the player
@@ -1880,10 +1953,9 @@ ret
 os_game_player_move:
 
   .clear_background:
-    mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
-    mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
+    mov word dx, [_OS_GAME_PLAYER_]
     call os_cursor_pos_set
-    mov al, GLYPH_GAME_TILE_B
+    mov al, [_OS_GAME_PLAYER_+_LAST_TILE]
     call os_print_chr
 
   .move_player:
@@ -1898,24 +1970,30 @@ os_game_player_move:
     jmp .end
 
   .up:
-    dec byte [_OS_GAME_PLAYER_+_POS_Y]
-    jmp .animate
+    dec dh
+    jmp .validate
 
   .down:
-    inc byte [_OS_GAME_PLAYER_+_POS_Y]
-    jmp .animate
+    inc dh
+    jmp .validate
 
   .left:
-    dec byte [_OS_GAME_PLAYER_+_POS_X]
+    dec dl
     mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
-    jmp .animate
+    jmp .validate
 
   .right:
-    inc byte [_OS_GAME_PLAYER_+_POS_X]
+    inc dl
     mov byte [_OS_GAME_PLAYER_+_DIR], 0x1
-    jmp .animate
+    jmp .validate
+
+  .validate:
+    call os_game_validate_pos
+    jc .end
 
   .animate:
+    mov byte [_OS_GAME_PLAYER_+_LAST_TILE], al
+    mov word [_OS_GAME_PLAYER_], dx
     mov byte [_OS_GAME_PLAYER_+_FRAME], 0x02
   .end:
     call os_game_player_draw
@@ -1923,73 +2001,54 @@ ret
 
 ; Move broom ===================================================================
 ; This function moves the broom, handles edge detection and bouncing
-; Expects: AL: 0=up, 1=right, 2=down, 3=left
+; Expects: BL: 0=up, 1=right, 2=down, 3=left
 ; Returns: None
 os_move_broom:
 
   .clear_background:
-    push ax
-    mov byte dl, [_OS_GAME_BROOM_+_POS_X]
-    mov byte dh, [_OS_GAME_BROOM_+_POS_Y]
+    mov word dx, [_OS_GAME_BROOM_]
     call os_cursor_pos_set
-    mov al, GLYPH_GAME_TILE_B
+    mov al, [_OS_GAME_BROOM_+_LAST_TILE]
     call os_print_chr
-    pop ax
 
-  ; Movement direction is in AL
-  cmp al, 0
-  je .move_up
-  cmp al, 1
-  je .move_right
-  cmp al, 2
-  je .move_down
-  cmp al, 3
-  je .move_left
-  jmp .end_move
+  .check_move:
+    cmp bl, 0
+    je .up
+    cmp bl, 1
+    je .right
+    cmp bl, 2
+    je .down
+    cmp bl, 3
+    je .left
+    jmp .end
 
-  .move_up:
-    dec byte [_OS_GAME_BROOM_+_POS_Y]
-    ; Check for upper boundary (y=1 because walls are at y=0)
-    cmp byte [_OS_GAME_BROOM_+_POS_Y], 1
-    jg .end_move
-    ; Bounce: set position back and change direction
-    inc byte [_OS_GAME_BROOM_+_POS_Y]
-    mov al, 2           ; Change to down direction
-    jmp .end_move
+  .up:
+    dec dh
+    jmp .validate
 
-  .move_down:
-    inc byte [_OS_GAME_BROOM_+_POS_Y]
-    ; Check for lower boundary (y=14 - adjust this based on your screen size)
-    cmp byte [_OS_GAME_BROOM_+_POS_Y], 14
-    jl .end_move
-    ; Bounce: set position back and change direction
-    dec byte [_OS_GAME_BROOM_+_POS_Y]
-    mov al, 0           ; Change to up direction
-    jmp .end_move
+  .down:
+    inc dh
+    jmp .validate
 
-  .move_left:
-    dec byte [_OS_GAME_BROOM_+_POS_X]
-    ; Check for left boundary (x=1 because walls are at x=0)
-    cmp byte [_OS_GAME_BROOM_+_POS_X], 1
-    jg .end_move
-    ; Bounce: set position back and change direction
-    inc byte [_OS_GAME_BROOM_+_POS_X]
-    mov al, 1           ; Change to right direction
-    jmp .end_move
+  .left:
+    dec dl
+    jmp .validate
 
-  .move_right:
-    inc byte [_OS_GAME_BROOM_+_POS_X]
-    ; Check for right boundary (x=38 - adjust this based on your screen size)
-    cmp byte [_OS_GAME_BROOM_+_POS_X], 38
-    jl .end_move
-    ; Bounce: set position back and change direction
-    dec byte [_OS_GAME_BROOM_+_POS_X]
-    mov al, 3           ; Change to left direction
+  .right:
+    inc dl
+    jmp .validate
 
-  .end_move:
-    ; Store the current direction in broom data
-    mov byte [_OS_GAME_BROOM_+_DIR], al
-  ret
+  .validate:
+    call os_game_validate_pos
+    jc .end
+
+  .animate:
+    mov byte [_OS_GAME_BROOM_+_LAST_TILE], al
+    mov word [_OS_GAME_BROOM_], dx
+  .end:
+    call os_game_broom_draw
+    mov byte [_OS_GAME_BROOM_+_DIR], bl
+ret
 
 ; Get random ===================================================================
 ; This function generates a random number
@@ -2026,10 +2085,11 @@ os_game_loop:
   ; Choose random direction
   call os_get_random
   and al, 0x03          ; Get a value 0-3 for direction
+  mov bl, al
   jmp .move_broom
 
   .use_current_dir:
-  mov al, [_OS_GAME_BROOM_+_DIR]  ; Use current direction
+  mov bl, [_OS_GAME_BROOM_+_DIR]  ; Use current direction
 
   .move_broom:
   call os_move_broom
@@ -2093,7 +2153,7 @@ apm_batt_life         db '% charge', 0x0
 success_msg           db 'success.', 0x0
 failure_msg           db 'failure.', 0x0
 fs_files_list_msg     db 'Files on floppy:', 0x0
-fs_select_file_msg       db 'Type file number you want to select: ', 0x0
+fs_select_file_msg    db 'Type file number you want to select: ', 0x0
 fs_reading_msg        db 'Reading data from disk...', 0x0
 fs_writing_msg        db 'Writing data to disk...', 0x0
 fs_empty_msg          db 'No/empty file. Read data first.', 0x0
@@ -2106,7 +2166,7 @@ game_instruction4_msg db 'Use the arrow keys to move the rat.', 0x0
 game_instruction5_msg db 'Press ENTER to start, ESC to quit game.', 0x0
 
 msg_cmd_h             db 'Quick help', 0x0
-msg_cmd_m        db 'Full system manual', 0x0
+msg_cmd_m             db 'Full system manual', 0x0
 msg_cmd_v             db 'System version', 0x0
 msg_cmd_r             db 'Soft reset', 0x0
 msg_cmd_R             db 'Hard reboot', 0x0
@@ -2121,7 +2181,7 @@ msg_cmd_fs_display    db 'Display & edit loaded file content', 0x0
 msg_cmd_fs_read       db 'Read selected file from a floppy', 0x0
 msg_cmd_fs_write      db 'Write current file to floppy', 0x0
 msg_cmd_g             db 'Play "Dirty Rat" game', 0x0
-msg_cmd_p             db 'Test printer', 0x0
+msg_cmd_p             db 'Print current file (LPT1)', 0x0
 
 fs_ruler_80_msg:
 db GLYPH_RULER_START,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x00
@@ -2207,7 +2267,7 @@ os_commands_table:
   dw os_fs_file_write, msg_cmd_fs_write
 
   db 'p'
-  dw os_printer_test, msg_cmd_p
+  dw os_printer_print_fs_buffer, msg_cmd_p
 
   db 'g'
   dw os_enter_game, msg_cmd_g
