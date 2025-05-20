@@ -1,7 +1,11 @@
 0x0B:
+  - [todo] screen saver
   - [in-progress] full printer support
   - [in-progress] editing files (hemingway and insert modes)
   - [in-progress] Dirty Rat game
+    - status bar
+    - system for drawing levels
+    - 3 levels draw
   - changed kernel version naming to hexadecimal numbers - it's no longer alpha!
 0x0A:
   - progress on Dirty Rat game

@@ -1536,45 +1536,40 @@ ret
 ; Expects: AL = character to print
 ; Returns: CF = 0 for success, CF = 1 for error
 os_printer_char:
-  ; Check printer status
-  mov dx, 0x379      ; Status port of LPT1
-  in al, dx
-  test al, 0x80      ; Check if printer is online
-  jnz .printer_error
+  mov bl, al         ; Save character
 
   ; Send character to data port
   mov dx, 0x378      ; Data port
-  mov al, [esp+3]    ; Get the character from stack
+  mov al, bl         ; Restore character
   out dx, al
 
-  ; Strobe the printer
-  mov dx, 0x37A      ; Control port
-  in al, dx
-  or al, 0x01        ; Set strobe bit
-  out dx, al
-
-  ; Small delay
-  mov cx, 0x0FFF
+  ; Longer delay before strobe
+  mov cx, 0xFFFF
   .delay_loop1:
     loop .delay_loop1
 
-  ; Reset strobe
-  and al, 0xFE       ; Clear strobe bit
+  ; Strobe the printer
+  mov dx, 0x37A      ; Control port
+  mov al, 0x0D       ; Set strobe bit (and keep other control bits)
   out dx, al
 
-  ; Wait for printer to be ready
+  ; Longer delay while strobed
+  mov cx, 0xFFFF
+  .delay_loop2:
+    loop .delay_loop2
+
+  ; Reset strobe
+  mov al, 0x0C       ; Clear strobe bit (keep other control bits)
+  out dx, al
+
+  ; Wait for BUSY to go high (printer accepting data)
   mov dx, 0x379      ; Status port
   .wait_ready:
     in al, dx
     test al, 0x40    ; Check if printer is ready (ACK)
     jz .wait_ready
+  ret
 
-  clc                ; Clear carry flag (success)
-ret
-
-  .printer_error:
-    stc                ; Set carry flag (error)
-ret
 
 ; Print String to Printer ======================================================
 ; This function sends a string to the printer.
@@ -1583,21 +1578,15 @@ ret
 os_printer_string:
   .next_char:
     lodsb              ; Load next character from SI into AL
-    or al, al          ; Check for null terminator
+    test al, al          ; Check for null terminator
     jz .done
 
     call os_printer_char
-    jc .error          ; If error, exit
   jmp .next_char
 
   .done:
     mov al, 0x0C       ; Form feed character
     call os_printer_char
-    clc                ; Clear carry flag (success)
-  ret
-
-  .error:
-    stc                ; Set carry flag (error)
   ret
 
   ; Print test =================================================================
@@ -1612,17 +1601,16 @@ os_printer_string:
     call os_print_str
 
     call os_printer_init
-    jc .error
+    jc .error_init
 
     mov si, welcome_msg
     call os_printer_string
-    jc .error
 
     mov si, success_msg
     call os_print_str
 ret
 
-  .error:
+  .error_init:
     mov si, failure_msg
     call os_print_str
 ret
@@ -1788,6 +1776,14 @@ os_game_start:
 
   call os_game_player_draw
   call os_game_broom_draw
+ret
+
+os_game_draw_status_bar:
+  ; draw LIFE 0
+  ; draw LEVEL 0
+  ; draw SCORE 00000
+  ; drew HI SCORE 00000
+  ; draw TIMER
 ret
 
 os_game_spawn_items:
