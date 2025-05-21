@@ -14,12 +14,6 @@ RM = rm -f
 RMDIR = rm -rf
 
 # USB floppy device (change this to match your system)
-# To identify your USB floppy drive:
-#   1. Run 'lsblk' or 'sudo fdisk -l' to list all block devices
-#   2. Connect your USB floppy drive and run the command again
-#   3. The new device that appears is your floppy drive (usually /dev/sdX where X is a letter)
-#   4. Check the size to confirm (~1.4MB for a standard floppy)
-# CAUTION: Make sure this is the correct device before using 'make burn'!
 USB_FLOPPY = /dev/sdb
 
 # Directories
@@ -34,16 +28,16 @@ FLOPPY_IMG = $(IMG_DIR)/floppy.img
 OS_FILE_0 = src/textfiles/manual.txt
 OS_FILE_1 = src/textfiles/file1.txt
 OS_FILE_2 = src/textfiles/file2.txt
+OS_FILE_3 = src/textfiles/file3.txt
 
-# Assembly flags
-# Note: FASM doesn't need format flags like NASM does
-# as it determines output format based on file extension
+# Floppy image size (1.44MB = 2880 sectors * 512 bytes/sector)
+FLOPPY_SECTORS = 2880
 
-# Floppy image size (1.44MB)
-FLOPPY_SIZE = 1474560
+# Kernel details
+KERNEL_SECTORS = 16 # Allocate 8KB (16 sectors) for the kernel
 
-# Kernel load address (matching the bootloader's load address)
-KERNEL_ORG = 0x0100
+# OS File details
+OS_FILE_SECTORS = 16 # Allocate 8KB (16 sectors) for each OS file
 
 # Default target
 all: $(FLOPPY_IMG)
@@ -62,16 +56,17 @@ $(KERNEL): src/kernel.asm | $(BIN_DIR)
 
 # Create empty floppy image
 $(IMG_DIR)/floppy_empty.img: | $(IMG_DIR)
-	$(DD) if=/dev/zero of=$@ bs=1474560 count=1
+	$(DD) if=/dev/zero of=$@ bs=512 count=$(FLOPPY_SECTORS)
 
-# Write bootloader to floppy image
-$(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(OS_FILE_0) $(OS_FILE_1) $(OS_FILE_2)
+# Write to floppy image
+$(FLOPPY_IMG): $(BOOTLOADER) $(KERNEL) $(IMG_DIR)/floppy_empty.img $(OS_FILE_0) $(OS_FILE_1) $(OS_FILE_2) $(OS_FILE_3) | $(IMG_DIR)
 	cp $(IMG_DIR)/floppy_empty.img $(FLOPPY_IMG)
 	$(DD) if=$(BOOTLOADER) of=$(FLOPPY_IMG) bs=512 count=1 conv=notrunc
-	$(DD) if=$(KERNEL) of=$(FLOPPY_IMG) bs=512 seek=1 conv=notrunc
-	$(DD) if=$(OS_FILE_0) of=$(FLOPPY_IMG) bs=512 seek=16 conv=notrunc
-	$(DD) if=$(OS_FILE_1) of=$(FLOPPY_IMG) bs=512 seek=28 conv=notrunc
-	$(DD) if=$(OS_FILE_2) of=$(FLOPPY_IMG) bs=512 seek=40 conv=notrunc
+	$(DD) if=$(KERNEL) of=$(FLOPPY_IMG) bs=512 seek=1 count=$(KERNEL_SECTORS) conv=notrunc
+	$(DD) if=$(OS_FILE_0) of=$(FLOPPY_IMG) bs=512 seek=17 count=$(OS_FILE_SECTORS) conv=notrunc iflag=fullblock
+	$(DD) if=$(OS_FILE_1) of=$(FLOPPY_IMG) bs=512 seek=33 count=$(OS_FILE_SECTORS) conv=notrunc iflag=fullblock
+	$(DD) if=$(OS_FILE_2) of=$(FLOPPY_IMG) bs=512 seek=49 count=$(OS_FILE_SECTORS) conv=notrunc iflag=fullblock
+	$(DD) if=$(OS_FILE_3) of=$(FLOPPY_IMG) bs=512 seek=65 count=$(OS_FILE_SECTORS) conv=notrunc iflag=fullblock
 
 # Run SMOLiX in emulator (default: Bochs)
 run: $(FLOPPY_IMG)

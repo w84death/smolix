@@ -1,21 +1,7 @@
-Future planned changes:
-- screen saver
-- editing files (hemingway and insert modes)
-- Dirty Rat game
-  - status bar
-  - actual levels for the game (3x)
-  - game logic (collecting floppies, exiting to next level)
-  - dirt!
-
-Current version changes:
 0x0C:
   - introducion of DSKY input interface: VERB/NOUN
   - removal of old commands system (one letter)
 0x0B:
-  - file system:
-    - fixed files positions and size (8K)
-    - added change log as file3
-    - fixed CHS values
   - full printer support
     - printer initialization
     - print one char

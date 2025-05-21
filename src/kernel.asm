@@ -51,27 +51,22 @@ OS_DSKY_STATE_EXECUTING         equ 0x03
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
 
-OS_FS_BLOCK_FIRST               equ 0x11
 OS_FS_BLOCK_SIZE                equ 0x10
-OS_FS_FILE_SIZE                 equ 8192
+OS_FS_FILE_SIZE                 equ 0x2000
 OS_FS_FILE_NOT_LOADED           equ 0xFF
-OS_FS_FILE_LAST                 equ 0x2
+OS_FS_FILE_LAST                 equ 0x3
 OS_FS_FILE_LINES_ON_SCREEN      equ 0x15
 OS_FS_FILE_CHARS_ON_LINE_80     equ 80-1
 OS_FS_FILE_CHARS_ON_LINE_40     equ 40-1
 OS_FS_FILE_SCROLL_CHARS         equ 160
 OS_FS_FILE_ID_MANUAL            equ 0x00
-OS_FS_FILE_ID_LEM               equ 0x01
 
 OS_GAME_DELAY                   equ 0x02
-OS_GAME_ENTITY_SIZE             equ 0x06
 
 OS_COLOR_PRIMARY                equ 0x1F
 OS_COLOR_SECONDARY              equ 0x2F
 OS_LENGTH_BYTE                  equ 0x01
 OS_LENGTH_WORD                  equ 0x02
-OS_LENGTH_WORD                  equ 0x02
-OS_LOGO_LENGTH                  equ 0x07
 
 OS_SOUND_STARTUP                equ 1500
 OS_SOUND_SUCCESS                equ 1700
@@ -1149,8 +1144,8 @@ os_fs_load_buffer:
     movzx bx, [_OS_FS_FILE_LOADED_]
     shl bx, 5
     mov ch, [os_fs_directory_table + bx]      ; Cylinder
-    mov cl, [os_fs_directory_table + bx + 1]  ; Starting sector
-    mov dh, [os_fs_directory_table + bx + 2]  ; Starting block
+    mov dh, [os_fs_directory_table + bx + 1]  ; Head
+    mov cl, [os_fs_directory_table + bx + 2]  ; Sector
 
   .prepare_es:
     mov ax, ds
@@ -1158,9 +1153,9 @@ os_fs_load_buffer:
     mov bx, _OS_FS_BUFFER_
 
   .read_data_from_floppy:
-    mov ah, 0x02            ; BIOS read sectors function
+    mov ah, 0x02            ; Read sectors function
     mov al, OS_FS_BLOCK_SIZE
-    mov dl, 0x00            ; Drive 0 (first floppy drive)
+    mov dl, 0x00            ; Drive = 0 (Floppy A:)
     int 0x13                ; BIOS disk interrupt
     jc .disk_error          ; Error if carry flag set
 
@@ -1310,7 +1305,7 @@ os_fs_file_write:
   mov ah, 0x03           ; BIOS write sectors function
   mov al, OS_FS_BLOCK_SIZE ; Number of sectors to write
   mov ch, 0              ; Cylinder 0
-  mov cl, OS_FS_BLOCK_FIRST ; Start from sector defined in constants
+  mov cl, 0 ; Start from sector defined in constants
   mov dh, 0              ; Head 0
   mov dl, 0x00           ; Drive 0 (first floppy drive)
 
@@ -2253,12 +2248,14 @@ os_cpu_family_table:
   dw cpu_family_other
   dw 0x0
 
-; Cylinder, Starting sector, Starting block, Filename
+;  Cylinder, Head, Sector, Filename
 os_fs_directory_table:
-  db 0x00, 0x11, 0x00, 'Full System Manual          ', 0x0
-  db 0x00, 0x0B, 0x01, 'ASCII Art gallery           ', 0x0
-  db 0x01, 0x05, 0x00, 'Notepad                     ', 0x0
+  db 0x00, 0x00, 0x12, 'Full System Manual          ', 0x0
+  db 0x00, 0x01, 0x10, 'ASCII Art gallery           ', 0x0
+  db 0x01, 0x00, 0x0E, 'Notepad                     ', 0x0
+  db 0x01, 0x01, 0x0C, 'Kernel change log           ', 0x0
   db 0xFF
+
 
 os_dsky_command_table:
   ; Help/Informations
