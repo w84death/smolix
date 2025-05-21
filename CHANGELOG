@@ -10,9 +10,10 @@ Current version changes:
     - print current buffer
   - [in-progress] editing files (hemingway and insert modes)
   - [in-progress] Dirty Rat game
+    - [done] better broom random movement
     - status bar
-    - system for drawing levels
-    - 3 levels draw
+    - [done] system for drawing levels
+    - 3 levels
   - changed kernel version naming to hexadecimal numbers - it's no longer alpha!
 0x0A:
   - progress on Dirty Rat game
