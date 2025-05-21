@@ -32,7 +32,9 @@ _DIR                            equ 0x2
 _FRAME                          equ 0x3
 _DIRT                           equ 0x4
 _LAST_TILE                      equ 0x5
-
+_OS_DSKY_STATE_                 equ _OS_MEMORY_BASE_ + 0x1A   ; 1b
+_OS_DSKY_VERB_                  equ _OS_MEMORY_BASE_ + 0x1B   ; 2b
+_OS_DSKY_NOUN_                  equ _OS_MEMORY_BASE_ + 0x1D   ; 2b
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x20
 
 OS_STATE_INIT                   equ 0x01
@@ -40,6 +42,11 @@ OS_STATE_SPLASH_SCREEN          equ 0x02
 OS_STATE_SHELL                  equ 0x03
 OS_STATE_FS                     equ 0x04
 OS_STATE_GAME                   equ 0x05
+
+OS_DSKY_STATE_IDLE              equ 0x00
+OS_DSKY_STATE_VERB_INPUT        equ 0x01
+OS_DSKY_STATE_NOUN_INPUT        equ 0x02
+OS_DSKY_STATE_EXECUTING         equ 0x03
 
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
@@ -124,6 +131,11 @@ CHR_LF                          equ 0x0A
 CHR_NEW_LINE                    equ 0x0A0D
 CHR_LIST                        equ 0x1A
 CHR_SLASH                       equ '/'
+
+DSKY_KEY_VERB                   equ '/'
+DSKY_KEY_NOUN                   equ '*'
+DSKY_KEY_ENTER                  equ 0x0D
+DSKY_KEY_CLEAR                  equ 0x1B
 
 KBD_KEY_LEFT                    equ 0x4B
 KBD_KEY_RIGHT                   equ 0x4D
@@ -253,18 +265,46 @@ os_main_loop:
 
 jmp os_main_loop
 
-; Print System Tick and Stack ==================================================
-; This function prints system tick and stack pointer position to the screen.
+os_dsky_process_input:
+  ; Check current DSKY state
+  mov al, [_OS_DSKY_STATE_]
+
+  ; Process digit input (0-9) for current state
+  ; ...
+
+  ; Process control keys (VERB, NOUN, ENTER, CLEAR)
+  ; ...
+
+  ; If ENTER pressed and both verb and noun are set, call command execution
+  ; ...
+ret
+
+; Execute DSKY command
+os_dsky_execute_command:
+  ; Get verb and noun
+  mov al, [_OS_DSKY_VERB_]
+  mov ah, [_OS_DSKY_NOUN_]
+
+  ; Look up command in verb-noun table
+  ; ...
+
+  ; Call the command function if found
+  ; ...
+ret
+
+
+; Print System Tick ============================================================
+; This function prints system tick to the screen.
 ; Expects: None
 ; Returns: None
 os_print_tick:
   call os_cursor_pos_get
   push dx
 
-  mov dl, 0x3C
+  mov dl, 0x41
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   jz .skip_40
-    mov dl, 0x16
+    mov dl, 0x1A
   .skip_40:
   call os_cursor_pos_set
 
@@ -273,12 +313,6 @@ os_print_tick:
   mov eax, [_OS_TICK_]
   call os_print_num
 
-  mov al, CHR_SPACE
-  mov ah, GLYPH_MEM
-  call os_print_chr_double
-  xor ax, ax
-  mov ax, sp
-  call os_print_num
   pop dx
   call os_cursor_pos_set
 ret
@@ -488,7 +522,7 @@ os_reboot:
 ; This function returns the version of the kernel.
 ; Expects: None
 ; Returns: None
-os_print_ver:
+os_version:
   mov bl, GLYPH_SYSTEM
   call os_print_prompt
   mov si, version_msg
@@ -769,7 +803,7 @@ ret
 ; This function prints debug information.
 ; Expects: None
 ; Returns: None
-os_print_debug:
+os_glyphs:
 mov dx, 0
 mov cx, 0x02
   .looper:
@@ -872,7 +906,7 @@ os_toggle_video_mode:
 ; This function prints system statistics.
 ; Expects: None
 ; Returns: None
-os_print_stats:
+os_system_stats:
   mov bl, GLYPH_SYSTEM
   call os_print_prompt
   mov si, cpu_family_msg
@@ -2165,24 +2199,24 @@ game_instruction3_msg db 'Spread it on the ground and avoid broom.', 0x0
 game_instruction4_msg db 'Use the arrow keys to move the rat.', 0x0
 game_instruction5_msg db 'Press ENTER to start, ESC to quit game.', 0x0
 
-msg_cmd_h             db 'Quick help', 0x0
-msg_cmd_m             db 'Full system manual', 0x0
-msg_cmd_v             db 'System version', 0x0
-msg_cmd_r             db 'Soft reset', 0x0
-msg_cmd_R             db 'Hard reboot', 0x0
-msg_cmd_D             db 'Shutdown', 0x0
-msg_cmd_c             db 'Clear the shell log', 0x0
-msg_cmd_x             db 'Toggle between 40/80 screen modes', 0x0
-msg_cmd_s             db 'System statistics', 0x0
-msg_cmd_tilde         db 'Custom charset', 0x0
+msg_cmd_help          db 'Quick help', 0x0
+msg_cmd_manual        db 'Full system manual', 0x0
+msg_cmd_version       db 'System version', 0x0
+msg_cmd_reset         db 'Soft reset', 0x0
+msg_cmd_reboot        db 'Hard reboot', 0x0
+msg_cmd_down          db 'Shutdown', 0x0
+msg_cmd_clear_shell   db 'Clear the shell log', 0x0
+msg_cmd_display       db 'Toggle between 40/80 screen modes', 0x0
+msg_cmd_stats         db 'System statistics', 0x0
+msg_cmd_glyphs        db 'Custom charset', 0x0
 msg_cmd_void          db 0x0 ; Nothing
 msg_cmd_fs_list       db 'List files on a floppy', 0x0
 msg_cmd_fs_display    db 'Display & edit loaded file content', 0x0
 msg_cmd_fs_read       db 'Read selected file from a floppy', 0x0
 msg_cmd_fs_write      db 'Write current file to floppy', 0x0
-msg_cmd_g             db 'Play "Dirty Rat" game', 0x0
-msg_cmd_p             db 'Print current file (LPT1)', 0x0
-
+msg_cmd_game          db 'Play "Dirty Rat" game', 0x0
+msg_cmd_print         db 'Print current file (LPT1)', 0x0
+msg_cmd_tick          db 'System tick', 0x0
 fs_ruler_80_msg:
 db GLYPH_RULER_START,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x00
 db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x01
@@ -2226,36 +2260,91 @@ os_fs_directory_table:
   db 0x01, 0x05, 0x00, 'Notepad                     ', 0x0
   db 0xFF
 
+os_dsky_command_table:
+  ; Help/Informations
+  db 00, 00
+  dw os_version, msg_cmd_version
+  db 00, 01
+  dw os_system_stats, msg_cmd_stats
+  db 00, 02
+  dw os_glyphs, msg_cmd_glyphs
+  db 00, 03
+  dw os_print_tick, msg_cmd_tick
+  db 02, 00
+  dw os_print_help, msg_cmd_help
+  db 02, 01
+  dw os_print_manual, msg_cmd_manual
+
+  ; Core
+  db 10, 00
+  dw os_reset, msg_cmd_reset
+  db 10, 01
+  dw os_reboot, msg_cmd_reboot
+  db 10, 02
+  dw os_down, msg_cmd_down
+  db 11, 00
+  dw os_toggle_video_mode, msg_cmd_display
+  db 11, 01 ; todo: set 40
+  dw os_void, msg_cmd_void
+  db 11, 02 ; todo: set 80
+  dw os_void, msg_cmd_void
+
+  ; Shell
+  db 20, 00
+  dw os_clear_shell, msg_cmd_clear_shell
+
+  ; File System
+  db 30, 00
+  dw os_fs_list_files, msg_cmd_fs_list
+  db 31, 0xFF ; noun is the file number
+  dw os_fs_load_buffer
+  db 32, 00
+  dw os_fs_display_buffer, msg_cmd_fs_display
+  db 32, 01 ; todo: clear buffer
+  dw os_void, msg_cmd_void
+  db 33, 00
+  dw os_fs_file_write, msg_cmd_fs_write
+
+  db 40, 00
+  dw os_printer_print_fs_buffer, msg_cmd_print
+  db 40, 01 ; todo: print screen
+  dw os_void, msg_cmd_void
+
+  db 50, 00
+  dw os_enter_game, msg_cmd_game
+
+  db 0xFF
+
 os_commands_table:
   db 'h'
-  dw os_print_help, msg_cmd_h
+  dw os_print_help, msg_cmd_help
 
   db 'H'
-  dw os_print_manual, msg_cmd_m
+  dw os_print_manual, msg_cmd_manual
 
   db 'v'
-  dw os_print_ver, msg_cmd_v
+  dw os_version, msg_cmd_version
 
   db 'r'
-  dw os_init, msg_cmd_r
+  dw os_init, msg_cmd_reset
 
   db 'R'
-  dw os_reboot, msg_cmd_R
+  dw os_reboot, msg_cmd_reboot
 
   db 'D'
-  dw os_down, msg_cmd_D
+  dw os_down, msg_cmd_down
 
   db 'c'
-  dw os_clear_shell, msg_cmd_c
+  dw os_clear_shell, msg_cmd_clear_shell
 
   db 'x'
-  dw os_toggle_video_mode, msg_cmd_x
+  dw os_toggle_video_mode, msg_cmd_display
 
   db 's'
-  dw os_print_stats, msg_cmd_s
+  dw os_system_stats, msg_cmd_stats
 
   db '`'
-  dw os_print_debug, msg_cmd_tilde
+  dw os_glyphs, msg_cmd_glyphs
 
   db 'l'
   dw os_fs_list_files, msg_cmd_fs_list
@@ -2267,13 +2356,13 @@ os_commands_table:
   dw os_fs_file_write, msg_cmd_fs_write
 
   db 'p'
-  dw os_printer_print_fs_buffer, msg_cmd_p
+  dw os_printer_print_fs_buffer, msg_cmd_print
 
   db 'g'
-  dw os_enter_game, msg_cmd_g
+  dw os_enter_game, msg_cmd_game
 
   db 27
-  dw os_clear_shell, msg_cmd_void
+  dw os_clear_shell, msg_cmd_clear_shell
 
   db 0x0 ; Terminator
 
