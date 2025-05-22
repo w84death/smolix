@@ -120,17 +120,19 @@ GLYPH_GAME_POT                  equ 0xE5
 GLYPH_GAME_POT_BROKEN           equ 0xE6
 GLYPH_GAME_DOOR                 equ 0xE7
 
+CHR_DOT                         equ '.'
 CHR_SPACE                       equ ' '
 CHR_CR                          equ 0x0D
 CHR_LF                          equ 0x0A
 CHR_NEW_LINE                    equ 0x0A0D
 CHR_LIST                        equ 0x1A
 CHR_SLASH                       equ '/'
+CHR_ARROW_RIGHT                 equ 0x1A
 
-DSKY_KEY_VERB                   equ '/'
-DSKY_KEY_NOUN                   equ '*'
-DSKY_KEY_ENTER                  equ 0x0D
-DSKY_KEY_CLEAR                  equ 0x1B
+DSKY_KEY_VERB                   equ 'v'
+DSKY_KEY_NOUN                   equ 'n'
+DSKY_KEY_ENTER                  equ 0x1C
+DSKY_KEY_CLEAR                  equ 0x01
 
 KBD_KEY_LEFT                    equ 0x4B
 KBD_KEY_RIGHT                   equ 0x4D
@@ -150,6 +152,9 @@ KBD_KEY_INSERT                  equ 0x52
 ; This is the main entry
 os_init:
   mov byte [_OS_STATE_], OS_STATE_INIT
+  mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
+  mov word [_OS_DSKY_VERB_], 0x0
+  mov word [_OS_DSKY_NOUN_], 0x0
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
   mov dword [_OS_TICK_], 0
@@ -190,15 +195,12 @@ os_main_loop:
     cmp byte [_OS_STATE_], OS_STATE_SHELL
     jne .no_command_key
 
-  .check_system_command:
+  .check_dsky_command:
     test al, al
     jz .no_command_key
 
-    call os_print_chr
-    call os_interpret_char
+    call os_dsky_process_input
 
-    mov bl, GLYPH_PROMPT
-    call os_print_prompt
     jmp .continue
 
   .no_command_key:
@@ -214,6 +216,7 @@ os_main_loop:
     call os_cursor_pos_get
     push dx
     call os_print_header
+    call os_dsky_display
     pop dx
     call os_cursor_pos_set
     jmp .cpu_delay
@@ -246,7 +249,6 @@ os_main_loop:
 
   cmp byte [_OS_STATE_], OS_STATE_GAME
   je .game_loop
-  call os_print_tick
   jmp .skip_game_loop
 
   .game_loop:
@@ -260,56 +262,140 @@ os_main_loop:
 
 jmp os_main_loop
 
-os_dsky_process_input:
-  ; Check current DSKY state
-  mov al, [_OS_DSKY_STATE_]
-
-  ; Process digit input (0-9) for current state
-  ; ...
-
-  ; Process control keys (VERB, NOUN, ENTER, CLEAR)
-  ; ...
-
-  ; If ENTER pressed and both verb and noun are set, call command execution
-  ; ...
+os_dsky_display:
+  mov dx, 0x000D
+  call os_cursor_pos_set
+  mov si, verb_msg
+  call os_print_str
+  mov al, [_OS_DSKY_VERB_]
+  call os_print_bcd
+  mov dx, 0x0018
+  call os_cursor_pos_set
+  mov si, noun_msg
+  call os_print_str
+  mov al, [_OS_DSKY_NOUN_]
+  call os_print_bcd
 ret
+
+os_dsky_process_input:
+
+  cmp al, DSKY_KEY_VERB
+  je .process_verb
+  cmp al, DSKY_KEY_NOUN
+  je .process_noun
+  cmp ah, DSKY_KEY_ENTER
+  je .process_enter
+  cmp ah, DSKY_KEY_CLEAR
+  je .process_clear
+
+  .check_if_digit:
+    sub al, '0'
+    cmp al, 0
+    jl .done
+    cmp al, 9
+    jg .done
+    jmp .process_digit
+
+  .process_digit:
+    cmp byte [_OS_DSKY_STATE_], OS_DSKY_STATE_VERB_INPUT
+    je .process_verb_digit
+    cmp byte [_OS_DSKY_STATE_], OS_DSKY_STATE_NOUN_INPUT
+    je .process_noun_digit
+    jmp .done
+    .process_verb_digit:
+      mov bl, al                      ; Save new digit
+      mov al, byte [_OS_DSKY_VERB_]   ; Save original value
+      and al, 0x0F                    ; Mask the lower nibble
+      shl al, 4                       ; Shift nibble to upper nibble
+      add al, bl                      ; Add the new digit in lower nibble
+      mov byte [_OS_DSKY_VERB_], al   ; Save
+      jmp .done
+    .process_noun_digit:
+      mov bl, al                      ; Save new digit
+      mov al, byte [_OS_DSKY_NOUN_]   ; Save original value
+      and al, 0x0F                    ; Mask the lower nibble
+      shl al, 4                       ; Shift nibble to upper nibble
+      add al, bl                      ; Add the new digit
+      mov byte [_OS_DSKY_NOUN_], al   ; Save
+      jmp .done
+
+  .process_verb:
+    mov word [_OS_DSKY_VERB_], 0x0
+    mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_VERB_INPUT
+  jmp .done
+
+  .process_noun:
+    mov word [_OS_DSKY_NOUN_], 0x0
+    mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_NOUN_INPUT
+  jmp .done
+
+  .process_enter:
+    mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_EXECUTING
+    call os_dsky_execute_command
+  jmp .done
+
+  .process_clear:
+    mov byte [_OS_DSKY_VERB_], 0x0
+    mov byte [_OS_DSKY_NOUN_], 0x0
+    mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
+  jmp .done
+
+  .done:
+ret
+
+executed_msg db 'Executing ', 0x0
 
 ; Execute DSKY command
 os_dsky_execute_command:
-  ; Get verb and noun
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+
+  mov si, executed_msg
+  call os_print_str
+
+  mov si, verb_msg
+  call os_print_str
+
   mov al, [_OS_DSKY_VERB_]
-  mov ah, [_OS_DSKY_NOUN_]
+  call os_print_bcd
 
-  ; Look up command in verb-noun table
-  ; ...
+  mov al, CHR_SPACE
+  mov ah, al
+  call os_print_chr_double
 
-  ; Call the command function if found
-  ; ...
+  mov si, noun_msg
+  call os_print_str
+
+  mov ax, [_OS_DSKY_NOUN_]
+  call os_print_bcd
+
+  mov al, CHR_SPACE
+  mov ah, al
+  call os_print_chr_double
+
+  mov al, GLYPH_SYSTEM
+  mov ah, CHR_ARROW_RIGHT
+  call os_print_chr_double
+
+  mov eax, [_OS_TICK_]
+  call os_print_num
+
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+
+
+  mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
 ret
-
 
 ; Print System Tick ============================================================
 ; This function prints system tick to the screen.
 ; Expects: None
 ; Returns: None
 os_print_tick:
-  call os_cursor_pos_get
-  push dx
-
-  mov dl, 0x41
-  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  jz .skip_40
-    mov dl, 0x1A
-  .skip_40:
-  call os_cursor_pos_set
-
   mov al, GLYPH_SYSTEM
   call os_print_chr
   mov eax, [_OS_TICK_]
   call os_print_num
-
-  pop dx
-  call os_cursor_pos_set
 ret
 
 ; Gets Cursor Position =========================================================
@@ -436,20 +522,19 @@ os_print_help:
   call os_print_str
 
   ; Listing of all commands
-  mov si, os_commands_table
+  mov si, os_dsky_command_table
   .cmd_loop:
     lodsb         ; Current character in AL
-    test al, al   ; Test if 0, terminator
+    cmp al, 0xFF   ; Test if 0, terminator
     jz .done
 
     mov bl, CHR_LIST
     call os_print_prompt          ; Prompt
-    cmp al, '!'                   ; First character in ASCII table
-    jl .done                      ; Skip if not a character (enter, arrows)
-    call os_print_chr             ; Character printed
-    mov al, CHR_SPACE             ; Move space character to AL
 
-    call os_print_chr
+    call os_print_num
+    mov al, CHR_SPACE
+
+;    call os_print_num
 
     add si, OS_LENGTH_WORD  ; Skip address, point to description pointer
     push si                       ; Saves os_commands_table
@@ -618,18 +703,27 @@ ret
 ; Expects: None
 ; Returns: None
 os_clear_screen: ; IN: None - OUT: None
- mov al, CHR_SPACE
+  mov al, CHR_SPACE
   mov bl, OS_COLOR_PRIMARY  ; Set color attribute
+  xor cx, cx
+  mov dx, 0x1924
   call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
 ret
 
-; Fill screen with glyph ======================================================
-; This function fills the entire screen with a specified glyph character.
-os_fill_screen_with_glyph: ; IN: AL glyph, BL color - OUT: None
+; Fill rectangle with glyph ====================================================
+; This function fills a rectangular area of the screen with a specified glyph character.
+; Expects:
+;   AL - glyph character to fill with
+;   BL - color attribute
+;   CH - start row (y)
+;   CL - start column (x)
+;   DH - end row (y)
+;   DL - end column (x)
+os_fill_screen_with_glyph:
   pusha
   mov bh, bl           ; Move color attribute to BH (required by INT 10h)
-  mov cx, 0x0000       ; Top left corner (row 0, col 0)
-  mov dx, 0x184F       ; Bottom right corner (row 24, col 79)
+  ;mov cx, 0x0000       ; Top left corner (row 0, col 0)
+  ;mov dx, 0x184F       ; Bottom right corner (row 24, col 79)
   mov ah, 0x09         ; BIOS function to write character and attribute
   mov bl, bh           ; Move color attribute to BL (required format)
   mov cx, 4096         ; 80x25 = 2000 characters on screen
@@ -641,6 +735,7 @@ os_fill_screen_with_glyph: ; IN: AL glyph, BL color - OUT: None
   call os_cursor_pos_reset
   popa
 ret
+
 
 ; Clear Shell ==================================================================
 ; This function clears the shell and resets the display.
@@ -714,49 +809,6 @@ os_load_all_glyphs:
   .done:
 ret
 
-; Interpret character ==========================================================
-; This function interprets the command and performs the appropriate action.
-; Expects: AL = character to interpret (letters)
-; Returns: None
-os_interpret_char:
-  mov si, os_commands_table
-  mov bl, al
-  .loop_commands:
-    lodsb           ; Load next command character
-    test al, al     ; Check for end of table
-    jz .unknown_cmd
-    cmp bl, al
-    je .found_cmd
-    lea si, [si + OS_LENGTH_WORD+OS_LENGTH_WORD]
-    jmp .loop_commands
-
-  .found_cmd:
-    lodsw           ; Load next command address
-    call ax         ; call the command address
-    mov ax, OS_SOUND_SUCCESS
-    call os_sound_play
-ret
-
-  .unknown_cmd:
-    call os_fs_select_file
-    jc .skip_fs_state
-    mov ax, OS_SOUND_SUCCESS
-    call os_sound_play
-ret
-    .skip_fs_state:
-
-    mov ax, OS_SOUND_ERROR
-    call os_sound_play
-    movzx dx, bl
-    mov bl, GLYPH_ERROR
-    call os_print_prompt
-    mov si, unknown_cmd_msg
-    call os_print_str
-    mov al, CHR_SPACE
-    call os_print_chr
-    mov ax, dx
-    call os_print_num
-ret
 
 ; Interpret keyboard input =====================================================
 ; This function interprets the keyboard input and performs associated action.
@@ -2144,7 +2196,7 @@ os_void:
 ret
 
 ; Data section =================================================================
-version_msg           db 'Version 0x0B', 0
+version_msg           db 'Version 0x0C', 0
 system_logo_msg:
 db OS_GLYPH_LOGO+0x0
 db OS_GLYPH_LOGO+0x1
@@ -2157,7 +2209,9 @@ db 0x0
 welcome_msg           db 'Welcome to SMOLiX Operating System', 0x0
 copyright_msg         db '(C)2025 Krzysztof Krystian Jankowski', 0x0
 press_enter_msg       db 'Press ENTER to begin.', 0x0
-more_info_msg         db 'Type "h" for help.', 0x0
+verb_msg              db 'VERB',CHR_ARROW_RIGHT,0x0
+noun_msg              db 'NOUN',CHR_ARROW_RIGHT,0x0
+more_info_msg         db 'Type VERB 00, NOUN 00 for help', 0x0
 available_cmds_msg    db 'Available commands:', 0x0
 unknown_cmd_msg       db 'Unknown command', 0x0
 unsupported_msg       db 'Unsupported', 0x0
@@ -2311,57 +2365,6 @@ os_dsky_command_table:
   dw os_enter_game, msg_cmd_game
 
   db 0xFF
-
-os_commands_table:
-  db 'h'
-  dw os_print_help, msg_cmd_help
-
-  db 'H'
-  dw os_print_manual, msg_cmd_manual
-
-  db 'v'
-  dw os_version, msg_cmd_version
-
-  db 'r'
-  dw os_init, msg_cmd_reset
-
-  db 'R'
-  dw os_reboot, msg_cmd_reboot
-
-  db 'D'
-  dw os_down, msg_cmd_down
-
-  db 'c'
-  dw os_clear_shell, msg_cmd_clear_shell
-
-  db 'x'
-  dw os_toggle_video_mode, msg_cmd_display
-
-  db 's'
-  dw os_system_stats, msg_cmd_stats
-
-  db '`'
-  dw os_glyphs, msg_cmd_glyphs
-
-  db 'l'
-  dw os_fs_list_files, msg_cmd_fs_list
-
-  db 'f'
-  dw os_fs_display_buffer, msg_cmd_fs_display
-
-  db 'W'
-  dw os_fs_file_write, msg_cmd_fs_write
-
-  db 'p'
-  dw os_printer_print_fs_buffer, msg_cmd_print
-
-  db 'g'
-  dw os_enter_game, msg_cmd_game
-
-  db 27
-  dw os_clear_shell, msg_cmd_clear_shell
-
-  db 0x0 ; Terminator
 
 os_keyboard_table:
   db OS_STATE_SPLASH_SCREEN, KBD_KEY_ENTER

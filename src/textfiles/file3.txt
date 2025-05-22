@@ -1,7 +1,10 @@
-0x0C:
-  - introducion of DSKY input interface: VERB/NOUN
-  - removal of old commands system (one letter)
+KERNEL CHANGE LOG
+========================================
 0x0B:
+  - file system:
+    - fixed files positions and size (8K)
+    - added change log as file3
+    - fixed CHS values
   - full printer support
     - printer initialization
     - print one char
