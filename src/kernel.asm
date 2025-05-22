@@ -1,17 +1,24 @@
+; ==============================================================================
 ; SMOLiX: Real Mode, Raw Power.
 ; It is a simple kernel that runs in real mode as God intended.
+;
+; ==============================================================================
 ; Copyright (C) 2025 Krzysztof Krystian Jankowski
 ; This is free and open software. See LICENSE for details.
-
+; ==============================================================================
+;
+; Should run on any x86 processor and system that supports legacy BIOS boot.
 ; Tested hardware:
-; CPU: 486 DX4, 100Mhz
-; Graphics: VGA
-; RAM: 24MB (OS recognize up to 640KB only)
+; * CPU: 486 DX4, 100Mhz
+; * Graphics: VGA
+; * RAM: 24MB (OS recognize up to 640KB only)
 ;
 ; Theoretical minimum requirements:
-; CPU: 386 SX, 16Mhz
-; Graphics: EGA Enchanced (8x16)
-; RAM: 512KB
+; * CPU: 386 SX, 16Mhz
+; * Graphics: EGA Enchanced (8x16)
+; * RAM: 512KB
+;
+; ==============================================================================
 
 org 0x0000
 
@@ -390,8 +397,8 @@ os_dsky_execute_command:
   mov bh, byte [_OS_DSKY_NOUN_]
   .command_loop:
     lodsb
-    cmp al, 0xFF
-    je .unknown_command
+    cmp al, 0xFF          ; Check for terminator
+    je .unknown_command   ; If we at the end then command was not found
 
     cmp al, bl
     je .verb_match
@@ -408,7 +415,7 @@ os_dsky_execute_command:
       lodsw
       jmp .command_found
     .next_command:
-  loop .command_loop
+  jmp .command_loop
 
   .unknown_command:
     mov si, unknown_cmd_msg
@@ -1872,9 +1879,9 @@ os_game_start:
   ; draw level
 
   ; fill tiles
-  mov al, GLYPH_GAME_TILE_A
-  mov bl, OS_COLOR_PRIMARY
-  call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
+  ;mov al, GLYPH_GAME_TILE_A
+  ;mov bl, OS_COLOR_PRIMARY
+  ;call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
 
   ; walls
   mov dx, 0x0000
@@ -2371,7 +2378,7 @@ os_dsky_commands_table:
   dw os_toggle_video_mode, msg_cmd_display
   db 0x11, 0x01 ; todo: set 40
   dw os_void, msg_cmd_void
-  db 11, 02 ; todo: set 80
+  db 0x11, 0x02 ; todo: set 80
   dw os_void, msg_cmd_void
 
   ; Shell
@@ -2382,7 +2389,7 @@ os_dsky_commands_table:
   db 0x30, 0x00
   dw os_fs_list_files, msg_cmd_fs_list
   db 0x31, 0xFF ; noun is the file number
-  dw os_fs_load_buffer
+  dw os_fs_load_buffer, msg_cmd_fs_read
   db 0x32, 0x00
   dw os_fs_display_buffer, msg_cmd_fs_display
   db 0x32, 0x01 ; todo: clear buffer
@@ -2395,7 +2402,7 @@ os_dsky_commands_table:
   db 0x40, 0x01 ; todo: print screen
   dw os_void, msg_cmd_void
 
-  db 50, 00
+  db 0x50, 0x00
   dw os_enter_game, msg_cmd_game
 
   db 0xFF
