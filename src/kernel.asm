@@ -181,7 +181,8 @@ os_reset:
   mov byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
   mov ax, OS_SOUND_STARTUP
   call os_sound_play
-  call os_clear_screen ; IN: None - OUT: None
+  call os_cursor_hide
+  call os_clear_screen
   call os_print_splash_screen
 
 ; Main system loop =============================================================
@@ -285,7 +286,6 @@ os_dsky_display:
 ret
 
 os_dsky_process_input:
-
   cmp al, DSKY_KEY_VERB
   je .process_verb
   cmp al, DSKY_KEY_NOUN
@@ -385,9 +385,10 @@ os_dsky_print_executing:
   mov eax, [_OS_TICK_]
   call os_print_num
 
-  mov bl, GLYPH_SYSTEM
+  mov bl, GLYPH_MSG
   call os_print_prompt
 ret
+
 ; Execute DSKY command
 os_dsky_execute_command:
   call os_dsky_print_executing
@@ -409,8 +410,13 @@ os_dsky_execute_command:
       lodsb
       cmp al, bh
       je .noun_match
+      cmp al, 0xFF
+      je .pass_noun_as_param
+
       add si, OS_LENGTH_WORD + OS_LENGTH_WORD ; cmd, msg
       jmp .next_command
+    .pass_noun_as_param:
+      mov bl, bh
     .noun_match:
       lodsw
       jmp .command_found
@@ -423,9 +429,11 @@ os_dsky_execute_command:
     jmp .done
 
   .command_found:
+    mov si, [si]
+    call os_print_str
     call ax
   .done:
-  mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
+    mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
 ret
 
 ; Print System Tick ============================================================
@@ -433,8 +441,8 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_tick:
-  mov al, GLYPH_SYSTEM
-  call os_print_chr
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
   mov eax, [_OS_TICK_]
   call os_print_num
 ret
@@ -558,6 +566,7 @@ ret
 ; Expects: None
 ; Returns: None
 os_print_help:
+  mov bl, GLYPH_SYSTEM
   call os_print_prompt
   mov si, available_cmds_msg
   call os_print_str
@@ -572,10 +581,16 @@ os_print_help:
     mov bl, CHR_LIST
     call os_print_prompt          ; Prompt
 
-    call os_print_num
-    mov al, CHR_SPACE
+    call os_print_bcd
 
-;    call os_print_num
+    mov al, ':'
+    call os_print_chr
+
+    lodsb
+    call os_print_bcd
+
+    mov al, CHR_SPACE
+    call os_print_chr
 
     add si, OS_LENGTH_WORD  ; Skip address, point to description pointer
     push si                       ; Saves os_commands_table
@@ -743,7 +758,7 @@ ret
 ; This function clears the screen with primary colors.
 ; Expects: None
 ; Returns: None
-os_clear_screen: ; IN: None - OUT: None
+os_clear_screen:
   mov al, CHR_SPACE
   mov bl, OS_COLOR_PRIMARY  ; Set color attribute
   xor cx, cx
@@ -784,7 +799,7 @@ ret
 ; Returns: None
 os_clear_shell:
   pusha
-  call os_clear_screen ; IN: None - OUT: None
+  call os_clear_screen
   call os_print_header
   popa
 ret
@@ -1140,8 +1155,6 @@ ret
 ; Expects: None
 ; Returns: None
 os_fs_list_files:
-  mov byte [_OS_STATE_], OS_STATE_SHELL
-  call os_clear_shell
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
   mov si, fs_files_list_msg
@@ -1183,25 +1196,30 @@ ret
 
 ; File System: select file =====================================================
 ; This function selects a file from the floppy disk to load
-; Expects: BL = ASCII file id
+; Expects: BL = file id
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_select_file:
-  cmp bl, '0'
+  cmp bl, 0
   jl .invalid_select
-  mov al, OS_FS_FILE_LAST
-  add al, '0'
-  cmp bl, al
+  cmp bl, OS_FS_FILE_LAST
   jg .invalid_select
 
-  sub bl, '0'
   mov dl, bl
   call os_fs_load_buffer
   clc
 ret
   .invalid_select:
+  mov si, fs_empty_msg
+  call os_print_str
   stc
 ret
 
+os_fs_clear_buffer:
+  mov di, _OS_FS_BUFFER_
+  xor ax, ax
+  mov cx, OS_FS_FILE_SIZE/2
+  rep stosw               ; Clear buffer
+ret
 
 ; File System: load buffer =====================================================
 ; This function loads a file from the floppy disk to a memory
@@ -1211,11 +1229,7 @@ os_fs_load_buffer:
   cmp byte [_OS_FS_FILE_LOADED_], dl
   je .already_loaded
 
-  .clean_buffer:
-    mov di, _OS_FS_BUFFER_
-    xor ax, ax
-    mov cx, OS_FS_FILE_SIZE/2
-    rep stosw               ; Clear buffer
+  call os_fs_clear_buffer
 
   .load_new_buffer:
     mov byte [_OS_FS_FILE_LOADED_], dl
@@ -1334,6 +1348,10 @@ os_fs_display_buffer:
     mov cx, 0x03
     call os_print_num
     mov si, byte_msg
+    call os_print_str
+    mov al, CHR_SPACE
+    call os_print_chr
+    mov si, fs_read_footer_msg
     call os_print_str
 ret
   .empty_file:
@@ -1552,33 +1570,16 @@ os_print_splash_screen:
   call os_cursor_pos_set
 ret
 
-; Enter shell first time =======================================================
+; Enter/restart shell ==========================================================
 ; This function initializes the shell state and prints welcome message
-; Expects: None
-; Returns: None
-os_enter_from_splash_screen:
-  mov byte [_OS_STATE_], OS_STATE_SHELL
-  call os_clear_screen ; IN: None - OUT: None
-  call os_print_header
-  call os_print_welcome_shell
-  mov bl, GLYPH_PROMPT
-  call os_print_prompt
-ret
-
-; Enter shell ==================================================================
-; This function initializes the shell state
 ; Expects: None
 ; Returns: None
 os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
-  call os_cursor_show
-  call os_clear_screen ; IN: None - OUT: None
+  call os_clear_screen
   call os_print_header
-  mov bl, GLYPH_PROMPT
-  call os_print_prompt
+  call os_print_welcome_shell
 ret
-
-
 
 ; Print full manual ============================================================
 ; This function initializes the help state
@@ -1780,8 +1781,8 @@ ret
 os_enter_game:
   mov byte [_OS_STATE_], OS_STATE_GAME
   mov byte [_OS_GAME_STARTED_], 0x0
-  call os_cursor_hide
-  call os_clear_screen ; IN: None - OUT: None
+
+  call os_clear_screen
 
   mov dx, 0x0303
   call os_cursor_pos_set
@@ -1858,7 +1859,7 @@ ret
 ; Returns: None
 os_game_start:
   mov byte [_OS_GAME_STARTED_], 0x1
-  call os_clear_screen ; IN: None - OUT: None ; IN: None - OUT: None
+  call os_clear_screen
 
   ; initialize player
   mov byte [_OS_GAME_PLAYER_+_POS_X], 0x24
@@ -1879,9 +1880,11 @@ os_game_start:
   ; draw level
 
   ; fill tiles
-  ;mov al, GLYPH_GAME_TILE_A
-  ;mov bl, OS_COLOR_PRIMARY
-  ;call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
+  mov al, GLYPH_GAME_TILE_A
+  mov bl, OS_COLOR_PRIMARY
+  mov cx, 0x00
+  mov dx, 0x1826
+  call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
 
   ; walls
   mov dx, 0x0000
@@ -2254,7 +2257,7 @@ verb_msg              db 'VERB',CHR_ARROW_RIGHT,0x0
 noun_msg              db 'NOUN',CHR_ARROW_RIGHT,0x0
 more_info_msg         db 'Type VERB 00, NOUN 00 for help', 0x0
 executed_msg          db 'Executing ', 0x0
-available_cmds_msg    db 'Available commands:', 0x0
+available_cmds_msg    db 'VERB:NOUN Command:', 0x0
 unknown_cmd_msg       db 'Unknown command', 0x0
 unsupported_msg       db 'Unsupported', 0x0
 supported_msg         db 'Supported', 0x0
@@ -2277,12 +2280,16 @@ apm_batt_ac           db 'AC power', 0x0
 apm_batt_life         db '% charge', 0x0
 success_msg           db 'success.', 0x0
 failure_msg           db 'failure.', 0x0
+
 fs_files_list_msg     db 'Files on floppy:', 0x0
-fs_select_file_msg    db 'Type file number you want to select: ', 0x0
+fs_select_file_msg    db 'Type VERB 31, NOUN <number>', 0x0
 fs_reading_msg        db 'Reading data from disk...', 0x0
 fs_writing_msg        db 'Writing data to disk...', 0x0
 fs_empty_msg          db 'No/empty file. Read data first.', 0x0
+fs_read_footer_msg    db 'PAGEUP/DOWN scroll, ESC end close', 0x0
+
 os_printer_printing_msg db 'Printing...', 0x0
+
 game_name_msg         db '- - - D I R T Y - R A T - - -', 0x0
 game_instruction1_msg db 'Your mission is to collect all floppies.', 0x0
 game_instruction2_msg db 'Go to a flower pot to get dirt on you.', 0x0
@@ -2297,14 +2304,16 @@ msg_cmd_reset         db 'Soft reset', 0x0
 msg_cmd_reboot        db 'Hard reboot', 0x0
 msg_cmd_down          db 'Shutdown', 0x0
 msg_cmd_clear_shell   db 'Clear the shell log', 0x0
-msg_cmd_display       db 'Toggle between 40/80 screen modes', 0x0
+msg_cmd_display       db 'Toggle 40/80 screen modes', 0x0
 msg_cmd_stats         db 'System statistics', 0x0
 msg_cmd_glyphs        db 'Custom charset', 0x0
 msg_cmd_void          db 0x0 ; Nothing
-msg_cmd_fs_list       db 'List files on a floppy', 0x0
-msg_cmd_fs_display    db 'Display & edit loaded file content', 0x0
-msg_cmd_fs_read       db 'Read selected file from a floppy', 0x0
-msg_cmd_fs_write      db 'Write current file to floppy', 0x0
+msg_cmd_fs_list       db 'List files', 0x0
+msg_cmd_fs_display    db 'Display buffer content', 0x0
+msg_cmd_fs_read       db 'Read file (noun) to buffer', 0x0
+msg_cmd_fs_write      db 'Write file to floppy', 0x0
+msg_cmd_fs_clear_buf  db 'Clear file buffer', 0x0
+msg_cmd_fs_edit       db 'Edit current buffer', 0x0
 msg_cmd_game          db 'Play "Dirty Rat" game', 0x0
 msg_cmd_print         db 'Print current file (LPT1)', 0x0
 msg_cmd_tick          db 'System tick', 0x0
@@ -2353,19 +2362,21 @@ os_fs_directory_table:
   db 0xFF
 
 os_dsky_commands_table:
-  ; Help/Informations
+  ; Help
   db 0x00, 0x00
-  dw os_version, msg_cmd_version
-  db 0x00, 0x01
-  dw os_system_stats, msg_cmd_stats
-  db 0x00, 0x02
-  dw os_glyphs, msg_cmd_glyphs
-  db 0x00, 0x03
-  dw os_print_tick, msg_cmd_tick
-  db 0x02, 0x00
   dw os_print_help, msg_cmd_help
-  db 0x02, 0x01
+  db 0x00, 0x01
   dw os_print_manual, msg_cmd_manual
+
+  ; System informations
+  db 0x01, 0x00
+  dw os_print_tick, msg_cmd_tick
+  db 0x01, 0x01
+  dw os_version, msg_cmd_version
+  db 0x01, 0x02
+  dw os_system_stats, msg_cmd_stats
+  db 0x01, 0x03
+  dw os_glyphs, msg_cmd_glyphs
 
   ; Core
   db 0x10, 0x00
@@ -2376,31 +2387,27 @@ os_dsky_commands_table:
   dw os_down, msg_cmd_down
   db 0x11, 0x00
   dw os_toggle_video_mode, msg_cmd_display
-  db 0x11, 0x01 ; todo: set 40
-  dw os_void, msg_cmd_void
-  db 0x11, 0x02 ; todo: set 80
-  dw os_void, msg_cmd_void
 
   ; Shell
   db 0x20, 0x00
-  dw os_clear_shell, msg_cmd_clear_shell
+  dw os_enter_shell, msg_cmd_clear_shell
 
   ; File System
   db 0x30, 0x00
   dw os_fs_list_files, msg_cmd_fs_list
-  db 0x31, 0xFF ; noun is the file number
-  dw os_fs_load_buffer, msg_cmd_fs_read
+  db 0x31, 0xFF
+  dw os_fs_select_file, msg_cmd_fs_read
   db 0x32, 0x00
   dw os_fs_display_buffer, msg_cmd_fs_display
-  db 0x32, 0x01 ; todo: clear buffer
-  dw os_void, msg_cmd_void
-  db 0x33, 0x00
+  db 0x32, 0x01
+  dw os_void, msg_cmd_fs_edit
+  db 0x32, 0x02
   dw os_fs_file_write, msg_cmd_fs_write
+  db 0x32, 0x03
+  dw os_fs_clear_buffer, msg_cmd_fs_clear_buf
 
   db 0x40, 0x00
   dw os_printer_print_fs_buffer, msg_cmd_print
-  db 0x40, 0x01 ; todo: print screen
-  dw os_void, msg_cmd_void
 
   db 0x50, 0x00
   dw os_enter_game, msg_cmd_game
@@ -2409,7 +2416,7 @@ os_dsky_commands_table:
 
 os_keyboard_table:
   db OS_STATE_SPLASH_SCREEN, KBD_KEY_ENTER
-  dw os_enter_from_splash_screen
+  dw os_enter_shell
   db OS_STATE_SHELL, KBD_KEY_ESCAPE
   dw os_clear_shell
 
