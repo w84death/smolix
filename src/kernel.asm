@@ -8,7 +8,7 @@
 ; Graphics: VGA
 ; RAM: 24MB (OS recognize up to 640KB only)
 ;
-; Teoretical minimum requirements:
+; Theoretical minimum requirements:
 ; CPU: 386 SX, 16Mhz
 ; Graphics: EGA Enchanced (8x16)
 ; RAM: 512KB
@@ -343,10 +343,8 @@ os_dsky_process_input:
   .done:
 ret
 
-executed_msg db 'Executing ', 0x0
 
-; Execute DSKY command
-os_dsky_execute_command:
+os_dsky_print_executing:
   mov bl, GLYPH_SYSTEM
   call os_print_prompt
 
@@ -382,8 +380,44 @@ os_dsky_execute_command:
 
   mov bl, GLYPH_SYSTEM
   call os_print_prompt
+ret
+; Execute DSKY command
+os_dsky_execute_command:
+  call os_dsky_print_executing
 
+  mov si, os_dsky_commands_table
+  mov bl, byte [_OS_DSKY_VERB_]
+  mov bh, byte [_OS_DSKY_NOUN_]
+  .command_loop:
+    lodsb
+    cmp al, 0xFF
+    je .unknown_command
 
+    cmp al, bl
+    je .verb_match
+    ; skip noun, cmd, msg
+    add si, OS_LENGTH_BYTE + OS_LENGTH_WORD + OS_LENGTH_WORD
+    jmp .next_command
+    .verb_match:
+      lodsb
+      cmp al, bh
+      je .noun_match
+      add si, OS_LENGTH_WORD + OS_LENGTH_WORD ; cmd, msg
+      jmp .next_command
+    .noun_match:
+      lodsw
+      jmp .command_found
+    .next_command:
+  loop .command_loop
+
+  .unknown_command:
+    mov si, unknown_cmd_msg
+    call os_print_str
+    jmp .done
+
+  .command_found:
+    call ax
+  .done:
   mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
 ret
 
@@ -522,7 +556,7 @@ os_print_help:
   call os_print_str
 
   ; Listing of all commands
-  mov si, os_dsky_command_table
+  mov si, os_dsky_commands_table
   .cmd_loop:
     lodsb         ; Current character in AL
     cmp al, 0xFF   ; Test if 0, terminator
@@ -2212,6 +2246,7 @@ press_enter_msg       db 'Press ENTER to begin.', 0x0
 verb_msg              db 'VERB',CHR_ARROW_RIGHT,0x0
 noun_msg              db 'NOUN',CHR_ARROW_RIGHT,0x0
 more_info_msg         db 'Type VERB 00, NOUN 00 for help', 0x0
+executed_msg          db 'Executing ', 0x0
 available_cmds_msg    db 'Available commands:', 0x0
 unknown_cmd_msg       db 'Unknown command', 0x0
 unsupported_msg       db 'Unsupported', 0x0
@@ -2310,55 +2345,54 @@ os_fs_directory_table:
   db 0x01, 0x01, 0x0C, 'Kernel change log           ', 0x0
   db 0xFF
 
-
-os_dsky_command_table:
+os_dsky_commands_table:
   ; Help/Informations
-  db 00, 00
+  db 0x00, 0x00
   dw os_version, msg_cmd_version
-  db 00, 01
+  db 0x00, 0x01
   dw os_system_stats, msg_cmd_stats
-  db 00, 02
+  db 0x00, 0x02
   dw os_glyphs, msg_cmd_glyphs
-  db 00, 03
+  db 0x00, 0x03
   dw os_print_tick, msg_cmd_tick
-  db 02, 00
+  db 0x02, 0x00
   dw os_print_help, msg_cmd_help
-  db 02, 01
+  db 0x02, 0x01
   dw os_print_manual, msg_cmd_manual
 
   ; Core
-  db 10, 00
+  db 0x10, 0x00
   dw os_reset, msg_cmd_reset
-  db 10, 01
+  db 0x10, 0x01
   dw os_reboot, msg_cmd_reboot
-  db 10, 02
+  db 0x10, 0x02
   dw os_down, msg_cmd_down
-  db 11, 00
+  db 0x11, 0x00
   dw os_toggle_video_mode, msg_cmd_display
-  db 11, 01 ; todo: set 40
+  db 0x11, 0x01 ; todo: set 40
   dw os_void, msg_cmd_void
   db 11, 02 ; todo: set 80
   dw os_void, msg_cmd_void
 
   ; Shell
-  db 20, 00
+  db 0x20, 0x00
   dw os_clear_shell, msg_cmd_clear_shell
 
   ; File System
-  db 30, 00
+  db 0x30, 0x00
   dw os_fs_list_files, msg_cmd_fs_list
-  db 31, 0xFF ; noun is the file number
+  db 0x31, 0xFF ; noun is the file number
   dw os_fs_load_buffer
-  db 32, 00
+  db 0x32, 0x00
   dw os_fs_display_buffer, msg_cmd_fs_display
-  db 32, 01 ; todo: clear buffer
+  db 0x32, 0x01 ; todo: clear buffer
   dw os_void, msg_cmd_void
-  db 33, 00
+  db 0x33, 0x00
   dw os_fs_file_write, msg_cmd_fs_write
 
-  db 40, 00
+  db 0x40, 0x00
   dw os_printer_print_fs_buffer, msg_cmd_print
-  db 40, 01 ; todo: print screen
+  db 0x40, 0x01 ; todo: print screen
   dw os_void, msg_cmd_void
 
   db 50, 00
