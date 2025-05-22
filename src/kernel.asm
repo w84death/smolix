@@ -70,10 +70,30 @@ OS_FS_FILE_ID_MANUAL            equ 0x00
 
 OS_GAME_DELAY                   equ 0x02
 
-OS_COLOR_PRIMARY                equ 0x1F
-OS_COLOR_SECONDARY              equ 0x2F
-OS_LENGTH_BYTE                  equ 0x01
-OS_LENGTH_WORD                  equ 0x02
+OS_COLOR_WHITE_ON_BLUE          equ 0x1F
+OS_COLOR_WHITE_ON_GREEN         equ 0x2F
+OS_COLOR_WHITE_ON_RED           equ 0x4F
+OS_COLOR_WHITE_ON_BLACK         equ 0x0F
+
+OS_COLOR_BLACK_ON_BLUE          equ 0x10
+OS_COLOR_BLUE_ON_BLUE           equ 0x11
+OS_COLOR_GREEN_ON_BLUE          equ 0x12
+OS_COLOR_CYAN_ON_BLUE           equ 0x13
+OS_COLOR_RED_ON_BLUE            equ 0x14
+OS_COLOR_MAGENTA_ON_BLUE        equ 0x15
+OS_COLOR_BROWN_ON_BLUE          equ 0x16
+OS_COLOR_LIGHT_GRAY_ON_BLUE     equ 0x17
+OS_COLOR_DARK_GRAY_ON_BLUE      equ 0x18
+OS_COLOR_LIGHT_BLUE_ON_BLUE     equ 0x19
+OS_COLOR_LIGHT_GREEN_ON_BLUE    equ 0x1A
+OS_COLOR_LIGHT_CYAN_ON_BLUE     equ 0x1B
+OS_COLOR_LIGHT_RED_ON_BLUE      equ 0x1C
+OS_COLOR_LIGHT_MAGENTA_ON_BLUE  equ 0x1D
+OS_COLOR_YELLOW_ON_BLUE         equ 0x1E
+OS_COLOR_WHITE_ON_BLUE          equ 0x1F
+
+BYTE                            equ 0x01
+WORD                            equ 0x02
 
 OS_SOUND_STARTUP                equ 1500
 OS_SOUND_SUCCESS                equ 1700
@@ -275,14 +295,29 @@ os_dsky_display:
   call os_cursor_pos_set
   mov si, verb_msg
   call os_print_str
+
+  mov bl, OS_COLOR_WHITE_ON_BLACK
+  cmp byte [_OS_DSKY_STATE_], OS_DSKY_STATE_VERB_INPUT
+  jne .skip_verb_color
+    mov bl, OS_COLOR_WHITE_ON_RED
+  .skip_verb_color:
+
   mov al, [_OS_DSKY_VERB_]
-  call os_print_bcd
+  call os_print_bcd_color
+
   mov dx, 0x0018
   call os_cursor_pos_set
   mov si, noun_msg
   call os_print_str
+
+  mov bl, OS_COLOR_WHITE_ON_BLACK
+  cmp byte [_OS_DSKY_STATE_], OS_DSKY_STATE_NOUN_INPUT
+  jne .skip_noun_color
+    mov bl, OS_COLOR_WHITE_ON_RED
+  .skip_noun_color:
+
   mov al, [_OS_DSKY_NOUN_]
-  call os_print_bcd
+  call os_print_bcd_color
 ret
 
 os_dsky_process_input:
@@ -327,12 +362,10 @@ os_dsky_process_input:
       jmp .done
 
   .process_verb:
-    mov word [_OS_DSKY_VERB_], 0x0
     mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_VERB_INPUT
   jmp .done
 
   .process_noun:
-    mov word [_OS_DSKY_NOUN_], 0x0
     mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_NOUN_INPUT
   jmp .done
 
@@ -384,9 +417,6 @@ os_dsky_print_executing:
 
   mov eax, [_OS_TICK_]
   call os_print_num
-
-  mov bl, GLYPH_MSG
-  call os_print_prompt
 ret
 
 ; Execute DSKY command
@@ -404,7 +434,7 @@ os_dsky_execute_command:
     cmp al, bl
     je .verb_match
     ; skip noun, cmd, msg
-    add si, OS_LENGTH_BYTE + OS_LENGTH_WORD + OS_LENGTH_WORD
+    add si, BYTE + WORD + WORD
     jmp .next_command
     .verb_match:
       lodsb
@@ -413,7 +443,7 @@ os_dsky_execute_command:
       cmp al, 0xFF
       je .pass_noun_as_param
 
-      add si, OS_LENGTH_WORD + OS_LENGTH_WORD ; cmd, msg
+      add si, WORD + WORD ; cmd, msg
       jmp .next_command
     .pass_noun_as_param:
       mov bl, bh
@@ -424,11 +454,15 @@ os_dsky_execute_command:
   jmp .command_loop
 
   .unknown_command:
+    mov bl, GLYPH_ERROR
+    call os_print_prompt
     mov si, unknown_cmd_msg
     call os_print_str
     jmp .done
 
   .command_found:
+    mov bl, GLYPH_MSG
+    call os_print_prompt
     mov si, [si]
     call os_print_str
     call ax
@@ -478,7 +512,7 @@ os_print_header:
     mov dl, 0x27      ; 40 columns
   .set_color:
   mov ax, 0x0600    ; Function 06h (scroll window up)
-  mov bh, OS_COLOR_SECONDARY
+  mov bh, OS_COLOR_WHITE_ON_GREEN
   mov cx, 0x0000    ; Top left corner (row 0, col 0)
   int 0x10
 
@@ -592,13 +626,13 @@ os_print_help:
     mov al, CHR_SPACE
     call os_print_chr
 
-    add si, OS_LENGTH_WORD  ; Skip address, point to description pointer
+    add si, WORD  ; Skip address, point to description pointer
     push si                       ; Saves os_commands_table
     mov si, [si]                  ; Gets the description message address
     call os_print_str             ; Print description string
     pop si                        ; Restore os_commands_table
 
-    add si, OS_LENGTH_WORD      ; Move to next command
+    add si, WORD      ; Move to next command
     jmp .cmd_loop
 .done:
 ret
@@ -614,8 +648,25 @@ os_print_prompt:
   mov al, CHR_SPACE
   call os_print_chr
   mov al, bl                ; The glyph
-  MOV AH, CHR_SPACE
-  call os_print_chr_double
+
+  mov bl, OS_COLOR_CYAN_ON_BLUE
+  cmp al, GLYPH_ERROR
+  jne .skip_color_err
+    mov bl, OS_COLOR_RED_ON_BLUE
+  .skip_color_err:
+  cmp al, GLYPH_SYSTEM
+  jne .skip_color_sys
+    mov bl, OS_COLOR_YELLOW_ON_BLUE
+  .skip_color_sys:
+  cmp al, GLYPH_MSG
+  jne .skip_color_msg
+    mov bl, OS_COLOR_GREEN_ON_BLUE
+  .skip_color_msg:
+
+
+  call os_print_chr_color
+  mov al, CHR_SPACE
+  call os_print_chr
   pop ax
 ret
 
@@ -699,6 +750,25 @@ os_print_chr:
   pop ax
 ret
 
+; Print character with color ===================================================
+; This function prints a character to the screen with a specified color.
+; Expects: AL = character to print, BL = color
+; Returns: None
+os_print_chr_color:
+  pusha
+  mov ah, 0x09    ; BIOS function to print character with color
+  mov bh, 0x00    ; Page number (0 for default)
+  mov cx, 0x01    ; Number of characters to print
+  int 0x10        ; BIOS teletype output function
+  ; Move cursor forward after printing
+  push dx
+  call os_cursor_pos_get
+  inc dl                  ; Move cursor one position right
+  call os_cursor_pos_set
+  pop dx
+  popa
+ret
+
 ; Print Two Characters =========================================================
 ; This function prints two characters to the screen.
 ; Expects: AL = first character, AH = second character
@@ -760,7 +830,7 @@ ret
 ; Returns: None
 os_clear_screen:
   mov al, CHR_SPACE
-  mov bl, OS_COLOR_PRIMARY  ; Set color attribute
+  mov bl, OS_COLOR_WHITE_ON_BLUE  ; Set color attribute
   xor cx, cx
   mov dx, 0x1924
   call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
@@ -777,11 +847,8 @@ ret
 ;   DL - end column (x)
 os_fill_screen_with_glyph:
   pusha
-  mov bh, bl           ; Move color attribute to BH (required by INT 10h)
-  ;mov cx, 0x0000       ; Top left corner (row 0, col 0)
-  ;mov dx, 0x184F       ; Bottom right corner (row 24, col 79)
   mov ah, 0x09         ; BIOS function to write character and attribute
-  mov bl, bh           ; Move color attribute to BL (required format)
+  mov bh, 0x00    ; Page number (0 for default)
   mov cx, 4096         ; 80x25 = 2000 characters on screen
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   je .skip_40
@@ -885,9 +952,9 @@ os_interpret_kb:
     je .found
     jmp .next_entry
     .skip_kb:
-    add si, OS_LENGTH_BYTE
+    add si, BYTE
     .next_entry:
-    add si, OS_LENGTH_WORD
+    add si, WORD
   jmp .loop_kbd
 
   .found:
@@ -1111,6 +1178,21 @@ os_print_bcd:
   and al, 0x0F           ; Get low nibble
   add al, '0'            ; Convert to ASCII
   call os_print_chr      ; Print it
+ret
+
+; Print BCD with Color =========================================================
+; This function prints a BCD value with a specific color
+; Expects: AL = BCD value to print, BL = color attribute
+; Returns: None
+os_print_bcd_color:
+  push ax                ; Save the original BCD value
+  shr al, 4              ; Get high nibble
+  add al, '0'            ; Convert to ASCII
+  call os_print_chr_color ; Print it with color
+  pop ax                 ; Restore the original BCD value
+  and al, 0x0F           ; Get low nibble
+  add al, '0'            ; Convert to ASCII
+  call os_print_chr_color ; Print it with color
 ret
 
 ; Sound Initialization =========================================================
@@ -1595,6 +1677,8 @@ os_print_manual:
   call os_fs_display_buffer
 ret
   .error:
+  mov byte [_OS_STATE_], OS_STATE_SHELL ; give back the control
+  stc
 ret
 
 ; Hide cursor ==================================================================
@@ -1881,7 +1965,7 @@ os_game_start:
 
   ; fill tiles
   mov al, GLYPH_GAME_TILE_A
-  mov bl, OS_COLOR_PRIMARY
+  mov bl, OS_COLOR_GREEN_ON_BLUE
   mov cx, 0x00
   mov dx, 0x1826
   call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
@@ -2016,7 +2100,8 @@ os_game_spawn_items:
     mov dx, [si+bp]
     call os_cursor_pos_set
     mov al, [bp+4]
-    call os_print_chr
+    mov bl, OS_COLOR_LIGHT_GREEN_ON_BLUE
+    call os_print_chr_color
     add si, 2
   loop .item_loop
 
@@ -2039,7 +2124,8 @@ os_game_player_draw:
   mov al, GLYPH_GAME_RAT_IDLE_L
   .skip_draw_left:
   add al, [_OS_GAME_PLAYER_+_FRAME]
-  call os_print_chr
+  mov bl, OS_COLOR_WHITE_ON_BLUE
+  call os_print_chr_color
 ret
 
 ; Draw broom ===================================================================
@@ -2052,7 +2138,8 @@ os_game_broom_draw:
   call os_cursor_pos_set
   mov al, GLYPH_GAME_BROOM1
   add al, [_OS_GAME_BROOM_+_FRAME]
-  call os_print_chr
+  mov bl, OS_COLOR_LIGHT_RED_ON_BLUE
+  call os_print_chr_color
 ret
 
 ; Validate position ============================================================
@@ -2061,7 +2148,6 @@ ret
 ; Returns: Carry if can't move (wall)
 ;          AL - tile type
 os_game_validate_pos:
-
   call os_read_chr
   cmp al, GLYPH_GAME_TILE_A
   je .can_move
@@ -2081,7 +2167,8 @@ os_game_player_move:
     mov word dx, [_OS_GAME_PLAYER_]
     call os_cursor_pos_set
     mov al, [_OS_GAME_PLAYER_+_LAST_TILE]
-    call os_print_chr
+    mov bl, OS_COLOR_LIGHT_GREEN_ON_BLUE
+    call os_print_chr_color
 
   .move_player:
     cmp bl, KBD_KEY_UP
@@ -2134,7 +2221,8 @@ os_move_broom:
     mov word dx, [_OS_GAME_BROOM_]
     call os_cursor_pos_set
     mov al, [_OS_GAME_BROOM_+_LAST_TILE]
-    call os_print_chr
+    mov bl, OS_COLOR_LIGHT_GREEN_ON_BLUE
+    call os_print_chr_color
 
   .check_move:
     cmp bl, 0
