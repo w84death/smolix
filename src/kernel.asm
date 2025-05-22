@@ -830,10 +830,8 @@ ret
 ; Returns: None
 os_clear_screen:
   mov al, CHR_SPACE
-  mov bl, OS_COLOR_WHITE_ON_BLUE  ; Set color attribute
-  xor cx, cx
-  mov dx, 0x1924
-  call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
+  mov bl, OS_COLOR_WHITE_ON_BLUE
+  call os_fill_screen_with_glyph
 ret
 
 ; Fill rectangle with glyph ====================================================
@@ -847,8 +845,11 @@ ret
 ;   DL - end column (x)
 os_fill_screen_with_glyph:
   pusha
+  mov bh, bl           ; Move color attribute to BH (required by INT 10h)
+  mov cx, 0x0000       ; Top left corner (row 0, col 0)
+  mov dx, 0x184F       ; Bottom right corner (row 24, col 79)
   mov ah, 0x09         ; BIOS function to write character and attribute
-  mov bh, 0x00    ; Page number (0 for default)
+  mov bl, bh           ; Move color attribute to BL (required format)
   mov cx, 4096         ; 80x25 = 2000 characters on screen
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   je .skip_40
@@ -1965,10 +1966,8 @@ os_game_start:
 
   ; fill tiles
   mov al, GLYPH_GAME_TILE_A
-  mov bl, OS_COLOR_GREEN_ON_BLUE
-  mov cx, 0x00
-  mov dx, 0x1826
-  call os_fill_screen_with_glyph ; IN: AL glyph, BL color - OUT: None
+  mov bl, OS_COLOR_WHITE_ON_BLUE
+  call os_fill_screen_with_glyph
 
   ; walls
   mov dx, 0x0000
@@ -2167,7 +2166,7 @@ os_game_player_move:
     mov word dx, [_OS_GAME_PLAYER_]
     call os_cursor_pos_set
     mov al, [_OS_GAME_PLAYER_+_LAST_TILE]
-    mov bl, OS_COLOR_LIGHT_GREEN_ON_BLUE
+    mov bl, OS_COLOR_WHITE_ON_BLUE
     call os_print_chr_color
 
   .move_player:
@@ -2221,7 +2220,7 @@ os_move_broom:
     mov word dx, [_OS_GAME_BROOM_]
     call os_cursor_pos_set
     mov al, [_OS_GAME_BROOM_+_LAST_TILE]
-    mov bl, OS_COLOR_LIGHT_GREEN_ON_BLUE
+    mov bl, OS_COLOR_WHITE_ON_BLUE
     call os_print_chr_color
 
   .check_move:
