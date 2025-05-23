@@ -330,6 +330,8 @@ os_dsky_process_input:
   cmp ah, DSKY_KEY_CLEAR
   je .process_clear
 
+  call os_convert_keypad_numbers
+
   .check_if_digit:
     sub al, '0'
     cmp al, 0
@@ -469,6 +471,55 @@ os_dsky_execute_command:
   .done:
     mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
 ret
+
+; Mathematical conversion for keypad scan codes
+; Input: AH = scan code
+; Output: AL = ASCII digit ('0'-'9') or 0 if not keypad
+os_convert_keypad_numbers:
+  cmp ah, 0x47      ; Keypad 7
+  je .keypad_7
+  cmp ah, 0x48      ; Keypad 8
+  je .keypad_8
+  cmp ah, 0x49      ; Keypad 9
+  je .keypad_9
+  cmp ah, 0x4B      ; Keypad 4
+  je .keypad_4
+  cmp ah, 0x4C      ; Keypad 5
+  je .keypad_5
+  cmp ah, 0x4D      ; Keypad 6
+  je .keypad_6
+  cmp ah, 0x4F      ; Keypad 1
+  je .keypad_1
+  cmp ah, 0x50      ; Keypad 2
+  je .keypad_2
+  cmp ah, 0x51      ; Keypad 3
+  je .keypad_3
+  cmp ah, 0x52      ; Keypad 0
+  je .keypad_0
+
+ret
+
+.keypad_0: mov al, '0'
+ret
+.keypad_1: mov al, '1'
+ret
+.keypad_2: mov al, '2'
+ret
+.keypad_3: mov al, '3'
+ret
+.keypad_4: mov al, '4'
+ret
+.keypad_5: mov al, '5'
+ret
+.keypad_6: mov al, '6'
+ret
+.keypad_7: mov al, '7'
+ret
+.keypad_8: mov al, '8'
+ret
+.keypad_9: mov al, '9'
+ret
+
 
 ; Print System Tick ============================================================
 ; This function prints system tick to the screen.
@@ -2147,6 +2198,7 @@ ret
 ; Returns: Carry if can't move (wall)
 ;          AL - tile type
 os_game_validate_pos:
+xchg bx,bx
   call os_read_chr
   cmp al, GLYPH_GAME_TILE_A
   je .can_move
