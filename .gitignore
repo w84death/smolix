@@ -1,5 +1,5 @@
 .vscode
 bx_enh_dbg.ini
 build
-tool/venv
-tool/data.asm
+tools/venv
+tools/data.asm

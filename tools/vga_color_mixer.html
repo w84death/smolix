@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VGA Color Mixer</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #555;
+            z-index: 1000;
+            min-width: 300px;
+        }
+        
+        .color-group {
+            margin-bottom: 20px;
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .color-btn {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #666;
+            cursor: pointer;
+            border-radius: 4px;
+            position: relative;
+        }
+        
+        .color-btn.selected {
+            border-color: #fff;
+            border-width: 3px;
+        }
+        
+        .color-btn:hover {
+            border-color: #ccc;
+        }
+        
+        .color-info {
+            text-align: center;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        
+        .result {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .preview-area {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            line-height: 1.2;
+            white-space: pre;
+            overflow: hidden;
+            z-index: 1;
+        }
+        
+        h3 {
+            margin-top: 0;
+            color: #ffff00;
+        }
+        
+        label {
+            color: #cccccc;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-area" id="preview"></div>
+    
+    <div class="controls">
+        <h3>VGA Color Mixer</h3>
+        
+        <div class="color-group">
+            <label>Foreground Color:</label>
+            <div class="color-grid" id="fgColors"></div>
+        </div>
+        
+        <div class="color-group">
+            <label>Background Color:</label>
+            <div class="color-grid" id="bgColors"></div>
+        </div>
+        
+        <div class="result">
+            <strong>VGA Color Value: <span id="colorValue">0x07</span></strong><br>
+            <small>Decimal: <span id="colorDecimal">7</span></small><br>
+            <small>Formula: FG + (BG × 16)</small>
+        </div>
+    </div>
+
+    <script>
+        const vgaColors = [
+            { name: 'Black', hex: '#000000' },
+            { name: 'Blue', hex: '#0000AA' },
+            { name: 'Green', hex: '#00AA00' },
+            { name: 'Cyan', hex: '#00AAAA' },
+            { name: 'Red', hex: '#AA0000' },
+            { name: 'Magenta', hex: '#AA00AA' },
+            { name: 'Brown', hex: '#AA5500' },
+            { name: 'Light Gray', hex: '#AAAAAA' },
+            { name: 'Dark Gray', hex: '#555555' },
+            { name: 'Light Blue', hex: '#5555FF' },
+            { name: 'Light Green', hex: '#55FF55' },
+            { name: 'Light Cyan', hex: '#55FFFF' },
+            { name: 'Light Red', hex: '#FF5555' },
+            { name: 'Light Magenta', hex: '#FF55FF' },
+            { name: 'Yellow', hex: '#FFFF55' },
+            { name: 'White', hex: '#FFFFFF' }
+        ];
+
+        let selectedFg = 7; // Light Gray
+        let selectedBg = 0; // Black
+
+        function createColorGrid(containerId, isBackground = false) {
+            const container = document.getElementById(containerId);
+            
+            vgaColors.forEach((color, index) => {
+                const btn = document.createElement('div');
+                btn.className = 'color-btn';
+                btn.style.backgroundColor = color.hex;
+                btn.title = `${index}: ${color.name}`;
+                
+                if ((!isBackground && index === selectedFg) || (isBackground && index === selectedBg)) {
+                    btn.classList.add('selected');
+                }
+                
+                const info = document.createElement('div');
+                info.className = 'color-info';
+                info.textContent = index;
+                info.style.color = index < 8 ? '#ffffff' : '#000000';
+                btn.appendChild(info);
+                
+                btn.addEventListener('click', () => {
+                    container.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    
+                    if (isBackground) {
+                        selectedBg = index;
+                    } else {
+                        selectedFg = index;
+                    }
+                    
+                    updatePreview();
+                });
+                
+                container.appendChild(btn);
+            });
+        }
+
+        function updatePreview() {
+            const colorValue = selectedFg + (selectedBg * 16);
+            document.getElementById('colorValue').textContent = `0x${colorValue.toString(16).toUpperCase().padStart(2, '0')}`;
+            document.getElementById('colorDecimal').textContent = colorValue;
+            
+            const preview = document.getElementById('preview');
+            preview.style.color = vgaColors[selectedFg].hex;
+            preview.style.backgroundColor = vgaColors[selectedBg].hex;
+            
+            // Fill screen with sample text
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?/~`';
+            const cols = Math.floor(window.innerWidth / 10);
+            const rows = Math.floor(window.innerHeight / 19);
+            
+            let content = '';
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    content += chars[Math.floor(Math.random() * chars.length)];
+                }
+                content += '\n';
+            }
+            
+            preview.textContent = content;
+        }
+
+        // Initialize
+        createColorGrid('fgColors', false);
+        createColorGrid('bgColors', true);
+        updatePreview();
+
+        // Update preview on window resize
+        window.addEventListener('resize', updatePreview);
+    </script>
+</body>
+</html>

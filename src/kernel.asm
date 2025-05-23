@@ -70,6 +70,13 @@ OS_FS_FILE_ID_MANUAL            equ 0x00
 
 OS_GAME_DELAY                   equ 0x02
 
+GAME_COLOR_POT                  equ 0x1A
+GAME_COLOR_DOOR                 equ 0x1D
+GAME_COLOR_FLOPPY               equ 0x1E
+GAME_COLOR_BROOM                equ 0x1C
+GAME_COLOR_RAT                  equ 0x1F
+GAME_COLOR_FLOOR                equ 0x12
+
 OS_COLOR_WHITE_ON_BLUE          equ 0x1F
 OS_COLOR_WHITE_ON_GREEN         equ 0x2F
 OS_COLOR_WHITE_ON_RED           equ 0x4F
@@ -2009,7 +2016,7 @@ os_game_start:
 
   ; fill tiles
   mov al, GLYPH_GAME_TILE_A
-  mov bl, OS_COLOR_WHITE_ON_GREEN
+  mov bl, GAME_COLOR_FLOOR
   call os_fill_screen_with_glyph
 
   ; walls
@@ -2071,16 +2078,18 @@ os_game_start:
 
   ; props
   push 0x0404
-  push 0x0E04
+  push 0x0F09
   push 0x0420
-  push 0x0E20
+  push 0x1420
+  push GAME_COLOR_POT
   mov al, GLYPH_GAME_POT
   mov ah, 0x04
   push ax
   call os_game_spawn_items
 
   push 0x0608
-  push 0x0C1D
+  push 0x0B1C
+  push GAME_COLOR_FLOPPY
   mov al, GLYPH_FLOPPY
   mov ah, 0x02
   push ax
@@ -2088,6 +2097,7 @@ os_game_start:
 
   push 0x0024
   push 0x1425
+  push GAME_COLOR_DOOR
   mov al, GLYPH_GAME_DOOR
   mov ah, 0x02
   push ax
@@ -2129,20 +2139,21 @@ ret
 
 os_game_spawn_items:
   push bp
-  mov bp, sp
+  mov bp, sp          ; save stack pointer
 
-  mov al, [bp+5]
+  mov al, [bp+5]      ; get number of items
+  inc al              ; one more for the color
   shl al, 1
   add al, 2
-  mov [.return+1], al
+  mov [.return+1], al ; set return value for clearing stack
 
-  mov si, 0x6
+  mov si, 0x8
   mov cl, [bp+5]
   .item_loop:
-    mov dx, [si+bp]
+    mov dx, [bp+si]
     call os_cursor_pos_set
     mov al, [bp+4]
-    mov bl, OS_COLOR_LIGHT_GREEN_ON_BLUE
+    mov bl, [bp+6]
     call os_print_chr_color
     add si, 2
   loop .item_loop
@@ -2166,7 +2177,7 @@ os_game_player_draw:
   mov al, GLYPH_GAME_RAT_IDLE_L
   .skip_draw_left:
   add al, [_OS_GAME_PLAYER_+_FRAME]
-  mov bl, OS_COLOR_WHITE_ON_BLUE
+  mov bl, GAME_COLOR_RAT
   call os_print_chr_color
 ret
 
@@ -2180,7 +2191,7 @@ os_game_broom_draw:
   call os_cursor_pos_set
   mov al, GLYPH_GAME_BROOM1
   add al, [_OS_GAME_BROOM_+_FRAME]
-  mov bl, OS_COLOR_LIGHT_RED_ON_BLUE
+  mov bl, GAME_COLOR_BROOM
   call os_print_chr_color
 ret
 
@@ -2190,7 +2201,6 @@ ret
 ; Returns: Carry if can't move (wall)
 ;          AL - tile type
 os_game_validate_pos:
-xchg bx,bx
   call os_read_chr
   cmp al, GLYPH_GAME_TILE_A
   je .can_move
@@ -2207,11 +2217,13 @@ xchg bx,bx
 os_game_player_move:
 
   .clear_background:
+    push bx
     mov word dx, [_OS_GAME_PLAYER_]
     call os_cursor_pos_set
     mov al, [_OS_GAME_PLAYER_+_LAST_TILE]
-    mov bl, OS_COLOR_WHITE_ON_BLUE
+    mov bl, GAME_COLOR_FLOOR
     call os_print_chr_color
+    pop bx
 
   .move_player:
     cmp bl, KBD_KEY_UP
@@ -2261,11 +2273,13 @@ ret
 os_move_broom:
 
   .clear_background:
+    push bx
     mov word dx, [_OS_GAME_BROOM_]
     call os_cursor_pos_set
     mov al, [_OS_GAME_BROOM_+_LAST_TILE]
-    mov bl, OS_COLOR_WHITE_ON_BLUE
+    mov bl, GAME_COLOR_FLOOR
     call os_print_chr_color
+    pop bx
 
   .check_move:
     cmp bl, 0
@@ -2348,6 +2362,7 @@ os_game_loop:
   mov bl, [_OS_GAME_BROOM_+_DIR]  ; Use current direction
 
   .move_broom:
+
   call os_move_broom
 
 
