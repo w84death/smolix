@@ -82,7 +82,7 @@ burn: $(FLOPPY_IMG)
 	@echo "Make sure $(USB_FLOPPY) is your USB floppy drive, not another drive!"
 	@echo "Press Ctrl+C to cancel, or Enter to continue..."
 	@read dummy
-	sudo $(DD) if=$(FLOPPY_IMG) of=$(USB_FLOPPY) bs=1024 conv=notrunc
+	sudo $(DD) if=$(FLOPPY_IMG) of=$(USB_FLOPPY) bs=512 conv=notrunc,sync,fsync status=progress
 	@echo "Floppy image successfully burned to $(USB_FLOPPY)"
 	@echo "You may now safely eject the floppy disk."
 
@@ -91,4 +91,11 @@ clean:
 	$(RM) $(BOOTLOADER) $(KERNEL) $(FLOPPY_IMG) $(IMG_DIR)/floppy_empty.img
 	$(RMDIR) $(BUILD_DIR)
 
-.PHONY: all run clean burn debug
+# Test floppy drive
+test-floppy:
+	@echo "Testing floppy drive $(USB_FLOPPY)..."
+	@if sudo fdisk -l $(USB_FLOPPY) 2>/dev/null; then \
+		echo "Drive detected successfully"; \
+	else echo "Drive not detected or accessible"; fi
+
+.PHONY: all run clean burn debug test-floppy

@@ -27,7 +27,7 @@ boot_start:
 	mov al, 0x00    ; Set to default text mode
 	int 0x10
 
-  mov si, welcome_msg
+	mov si, welcome_msg
   call boot_print_str
 
 ; Load kernel ==================================================================
@@ -39,7 +39,7 @@ boot_load_kernel:
   call boot_print_str
 
   ; Reset disk system first
-  xor ax, ax
+  movzx ax, byte [floppy_drive_number]
   int 0x13               ; Reset disk system (DL is already 0x00 from BIOS)
   jc boot_disk_reset_error
 
@@ -54,7 +54,7 @@ boot_load_kernel:
   mov ch, 0              ; Cylinder 0
   mov cl, 2              ; Start from sector 2
   mov dh, 0              ; Head 0
-  mov dl, 0x00           ; Drive 0 (first floppy drive)
+  mov dl, [floppy_drive_number]           ; Drive 0 (first floppy drive)
 
   int 0x13               ; BIOS disk interrupt
   jc boot_kernel_error   ; Error if carry flag set
@@ -97,8 +97,26 @@ boot_kernel_error:
 ; Expects: None
 ; Returns: None
 boot_error_recovery:
+
+  .swap_floppy_drive:
+    mov al, [floppy_drive_number]
+    dec al
+    jnz .not_zero
+    jmp .zero
+    .not_zero:
+      mov al, 0x1
+    .zero:
+    mov byte [floppy_drive_number], al
+  push ax
+  mov si, floppy_drive_msg
+  call boot_print_str
+  pop ax
+  add ax, '0'
+  call boot_print_chr
+
   mov si, again_msg
   call boot_print_str
+
   xor ax, ax
   int 0x16               ; Wait for key press
   jmp boot_load_kernel   ; Try again
@@ -124,6 +142,17 @@ boot_kernel_success:
   mov sp, KERNEL_STACK_POINTER
   jmp KERNEL_SEGMENT:KERNEL_OFFSET
 
+; Print character ==============================================================
+; This function prints a character to the screen.
+; Expects: AL = character to print
+; Returns: None
+boot_print_chr:
+  push ax
+  mov ah, 0x0e    ; BIOS teletype output function
+  int 0x10        ; BIOS teletype output function
+  pop ax
+ret
+
 ; Print string =================================================================
 ; This function prints a string to the screen.
 ; Expects: DS:SI = pointer to string
@@ -140,14 +169,16 @@ boot_print_str:
 ret
 
 ; Print statements =============================================================
-welcome_msg db          'SMOLiX Bootloader Version 0.1e',0x0A,0x0D,0x0
+welcome_msg db          'SMOLiX Bootloader Version 0.2',0x0A,0x0D,0x0
 loading_msg db          'Loading kernel... ',0x0A,0x0D,0x0
 disk_read_error_msg db  '<!> Disk read error.',0x0A,0x0D,0x0
 reset_err_msg db        '<!> Disk reset error.',0x0A,0x0D,0x0
 count_err_msg db        '<!> Disk sector count error.',0x0A,0x0D,0x0
 done_msg db             '\o/ Success.',0x0A,0x0D,0x0
-again_msg db            '<*> Press any key to try again.',0x0A,0x0D,0x0
+again_msg db            0x0A,0x0D,'<*> Press any key to try again.',0x0A,0x0D,0x0
 kernel_jump_msg db      'Booting SMOLiX kernel...',0x0A,0x0D,0x0
+floppy_drive_msg db     'Floppy drive number: ',0x0
+floppy_drive_number db  0x00
 
 ; Bootloader signature =========================================================
 times 507 - ($ - $$) db 0   ; Pad to 510 bytes

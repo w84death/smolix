@@ -364,10 +364,12 @@ os_dsky_process_input:
       jmp .done
 
   .process_verb:
+    mov byte [_OS_DSKY_VERB_], 0x0
     mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_VERB_INPUT
   jmp .done
 
   .process_noun:
+    mov byte [_OS_DSKY_NOUN_], 0x0
     mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_NOUN_INPUT
   jmp .done
 
@@ -448,7 +450,7 @@ os_dsky_execute_command:
       add si, WORD + WORD ; cmd, msg
       jmp .next_command
     .pass_noun_as_param:
-      mov bl, bh
+      mov dl, bh
     .noun_match:
       lodsw
       jmp .command_found
@@ -468,10 +470,18 @@ os_dsky_execute_command:
     mov si, [si]
     call os_print_str
     call ax
+    jc .error
   .done:
     mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
+    mov ax, OS_SOUND_ERROR
+    call os_sound_play
+    clc
 ret
-
+.error:
+  mov ax, OS_SOUND_ERROR
+  call os_sound_play
+  stc
+stc
 ; Mathematical conversion for keypad scan codes
 ; Input: AH = scan code
 ; Output: AL = ASCII digit ('0'-'9') or 0 if not keypad
@@ -700,7 +710,7 @@ os_print_prompt:
   call os_print_chr
   mov al, bl                ; The glyph
 
-  mov bl, OS_COLOR_CYAN_ON_BLUE
+  mov bl, OS_COLOR_LIGHT_BLUE_ON_BLUE
   cmp al, GLYPH_ERROR
   jne .skip_color_err
     mov bl, OS_COLOR_RED_ON_BLUE
@@ -709,11 +719,6 @@ os_print_prompt:
   jne .skip_color_sys
     mov bl, OS_COLOR_YELLOW_ON_BLUE
   .skip_color_sys:
-  cmp al, GLYPH_MSG
-  jne .skip_color_msg
-    mov bl, OS_COLOR_GREEN_ON_BLUE
-  .skip_color_msg:
-
 
   call os_print_chr_color
   mov al, CHR_SPACE
@@ -890,25 +895,20 @@ ret
 ; Expects:
 ;   AL - glyph character to fill with
 ;   BL - color attribute
-;   CH - start row (y)
-;   CL - start column (x)
-;   DH - end row (y)
-;   DL - end column (x)
 os_fill_screen_with_glyph:
-  pusha
-  mov bh, bl           ; Move color attribute to BH (required by INT 10h)
-  mov cx, 0x0000       ; Top left corner (row 0, col 0)
-  mov dx, 0x184F       ; Bottom right corner (row 24, col 79)
+
+  call os_cursor_pos_reset
+
+  mov bh, 0            ; Page
   mov ah, 0x09         ; BIOS function to write character and attribute
-  mov bl, bh           ; Move color attribute to BL (required format)
-  mov cx, 4096         ; 80x25 = 2000 characters on screen
+  mov cx, 2000         ; 80x25 = 2000 characters on screen
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
   je .skip_40
   shr cx, 1
   .skip_40:
   int 0x10             ; Call BIOS
   call os_cursor_pos_reset
-  popa
+
 ret
 
 
@@ -1014,11 +1014,13 @@ os_interpret_kb:
     call ax         ; call the command address
     mov ax, OS_SOUND_SUCCESS
     call os_sound_play
+    clc
 ret
 
   .unknown:
     mov ax, OS_SOUND_ERROR
     call os_sound_play
+    stc
 ret
 
 ; Print debug info =============================================================
@@ -1330,22 +1332,10 @@ ret
 
 ; File System: select file =====================================================
 ; This function selects a file from the floppy disk to load
-; Expects: BL = file id
+; Expects: DL = file id
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_select_file:
-  cmp bl, 0
-  jl .invalid_select
-  cmp bl, OS_FS_FILE_LAST
-  jg .invalid_select
-
-  mov dl, bl
   call os_fs_load_buffer
-  clc
-ret
-  .invalid_select:
-  mov si, fs_empty_msg
-  call os_print_str
-  stc
 ret
 
 os_fs_clear_buffer:
@@ -1353,6 +1343,8 @@ os_fs_clear_buffer:
   xor ax, ax
   mov cx, OS_FS_FILE_SIZE/2
   rep stosw               ; Clear buffer
+
+  clc
 ret
 
 ; File System: load buffer =====================================================
@@ -1381,7 +1373,7 @@ os_fs_load_buffer:
     int 0x13               ; Reset disk system
     jc .disk_error
 
-    .preapare_file_position:
+  .preapare_file_position:
     movzx bx, [_OS_FS_FILE_LOADED_]
     shl bx, 5
     mov ch, [os_fs_directory_table + bx]      ; Cylinder
@@ -2017,7 +2009,7 @@ os_game_start:
 
   ; fill tiles
   mov al, GLYPH_GAME_TILE_A
-  mov bl, OS_COLOR_WHITE_ON_BLUE
+  mov bl, OS_COLOR_WHITE_ON_GREEN
   call os_fill_screen_with_glyph
 
   ; walls

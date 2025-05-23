@@ -9,6 +9,9 @@ Future planned changes:
 
 Current version changes:
 0x0C:
+  - bootloader: switching between floppy A: and B:
+  - lot of bugfixes
+  - more colors
   - introducion of DSKY input interface: VERB/NOUN
   - removal of old commands system (one letter)
 0x0B:
