@@ -26,23 +26,27 @@ _OS_MEMORY_BASE_                equ 0x2000    ; Define memory base address
 _OS_TICK_                       equ _OS_MEMORY_BASE_ + 0x00   ; 4b
 _OS_VIDEO_MODE_                 equ _OS_MEMORY_BASE_ + 0x04   ; 1b
 _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
-_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x06   ; 1b
-_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x07   ; 2b
-_RNG_                           equ _OS_MEMORY_BASE_ + 0x09   ; 2b
-_OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x0B   ; 1b
-_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x0C   ; 1b
-_OS_GAME_PLAYER_                equ _OS_MEMORY_BASE_ + 0x0D   ; 6b
-_OS_GAME_BROOM_                 equ _OS_MEMORY_BASE_ + 0x13   ; 6b
+
+_OS_DSKY_STATE_                 equ _OS_MEMORY_BASE_ + 0x06   ; 1b
+_OS_DSKY_VERB_                  equ _OS_MEMORY_BASE_ + 0x07   ; 2b
+_OS_DSKY_NOUN_                  equ _OS_MEMORY_BASE_ + 0x09   ; 2b
+
+_RNG_                           equ _OS_MEMORY_BASE_ + 0x0B   ; 2b
+
+_OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x10   ; 1b
+_OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x11   ; 1b
+_OS_GAME_ENTITIES_              equ _OS_MEMORY_BASE_ + 0x12   ; 6b per entity
+
 _POS_X                          equ 0x0
 _POS_Y                          equ 0x1
 _DIR                            equ 0x2
 _FRAME                          equ 0x3
 _DIRT                           equ 0x4
 _LAST_TILE                      equ 0x5
-_OS_DSKY_STATE_                 equ _OS_MEMORY_BASE_ + 0x1A   ; 1b
-_OS_DSKY_VERB_                  equ _OS_MEMORY_BASE_ + 0x1B   ; 2b
-_OS_DSKY_NOUN_                  equ _OS_MEMORY_BASE_ + 0x1D   ; 2b
-_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x20
+
+_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x100   ; 1b
+_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x101   ; 2b
+_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x103
 
 OS_STATE_INIT                   equ 0x01
 OS_STATE_SPLASH_SCREEN          equ 0x02
@@ -1997,21 +2001,33 @@ os_game_start:
   call os_clear_screen
 
   ; initialize player
-  mov byte [_OS_GAME_PLAYER_+_POS_X], 0x24
-  mov byte [_OS_GAME_PLAYER_+_POS_Y], 0x02
-  mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
-  mov byte [_OS_GAME_PLAYER_+_FRAME], 0x0
-  mov byte [_OS_GAME_PLAYER_+_DIRT], 0x0
-  mov byte [_OS_GAME_PLAYER_+_LAST_TILE], GLYPH_GAME_TILE_A
+  mov si, _OS_GAME_ENTITIES_
+  mov byte [si+_POS_X], 0x24
+  mov byte [si+_POS_Y], 0x02
+  mov byte [si+_DIR], 0x0
+  mov byte [si+_FRAME], 0x0
+  mov byte [si+_DIRT], 0x0
+  mov byte [si+_LAST_TILE], GLYPH_GAME_TILE_A
 
-  ; initialize broom
-  mov byte [_OS_GAME_BROOM_+_POS_X], 0x0C
-  mov byte [_OS_GAME_BROOM_+_POS_Y], 0x0D
-  mov byte [_OS_GAME_BROOM_+_DIR], 0x0
-  mov byte [_OS_GAME_BROOM_+_FRAME], 0x1
-  mov byte [_OS_GAME_BROOM_+_DIRT], 0x0
-  mov byte [_OS_GAME_BROOM_+_LAST_TILE], GLYPH_GAME_TILE_A
+  add si, 0x06
+  ; initialize broom(s)
+  mov byte [si+_POS_X], 0x0C
+  mov byte [si+_POS_Y], 0x0D
+  mov byte [si+_DIR], 0x0
+  mov byte [si+_FRAME], 0x1
+  mov byte [si+_DIRT], 0x0
+  mov byte [si+_LAST_TILE], GLYPH_GAME_TILE_A
 
+  add si, 0x06
+  ; initialize broom(s)
+  mov byte [si+_POS_X], 0x0F
+  mov byte [si+_POS_Y], 0x12
+  mov byte [si+_DIR], 0x0
+  mov byte [si+_FRAME], 0x1
+  mov byte [si+_DIRT], 0x0
+  mov byte [si+_LAST_TILE], GLYPH_GAME_TILE_A
+  add si, 0x06
+  mov byte [si], 0x0
   ; draw level
 
   ; fill tiles
@@ -2168,29 +2184,29 @@ ret 0xFF
 ; Expects: None
 ; Returns: None
 os_game_player_draw:
-  mov byte dl, [_OS_GAME_PLAYER_+_POS_X]
-  mov byte dh, [_OS_GAME_PLAYER_+_POS_Y]
+  mov byte dl, [_OS_GAME_ENTITIES_+_POS_X]
+  mov byte dh, [_OS_GAME_ENTITIES_+_POS_Y]
   call os_cursor_pos_set
   mov al, GLYPH_GAME_RAT_IDLE_R
-  cmp byte [_OS_GAME_PLAYER_+_DIR], 0x0
+  cmp byte [_OS_GAME_ENTITIES_+_DIR], 0x0
   je .skip_draw_left
   mov al, GLYPH_GAME_RAT_IDLE_L
   .skip_draw_left:
-  add al, [_OS_GAME_PLAYER_+_FRAME]
+  add al, [_OS_GAME_ENTITIES_+_FRAME]
   mov bl, GAME_COLOR_RAT
   call os_print_chr_color
 ret
 
 ; Draw broom ===================================================================
 ; This function draws the broom on the screen
-; Expects: None
+; Expects: SI - entity pointer
 ; Returns: None
 os_game_broom_draw:
-  mov byte dl, [_OS_GAME_BROOM_+_POS_X]
-  mov byte dh, [_OS_GAME_BROOM_+_POS_Y]
+  mov byte dl, [si+_POS_X]
+  mov byte dh, [si+_POS_Y]
   call os_cursor_pos_set
   mov al, GLYPH_GAME_BROOM1
-  add al, [_OS_GAME_BROOM_+_FRAME]
+  add al, [si+_FRAME]
   mov bl, GAME_COLOR_BROOM
   call os_print_chr_color
 ret
@@ -2218,9 +2234,9 @@ os_game_player_move:
 
   .clear_background:
     push bx
-    mov word dx, [_OS_GAME_PLAYER_]
+    mov word dx, [_OS_GAME_ENTITIES_]
     call os_cursor_pos_set
-    mov al, [_OS_GAME_PLAYER_+_LAST_TILE]
+    mov al, [_OS_GAME_ENTITIES_+_LAST_TILE]
     mov bl, GAME_COLOR_FLOOR
     call os_print_chr_color
     pop bx
@@ -2246,12 +2262,12 @@ os_game_player_move:
 
   .left:
     dec dl
-    mov byte [_OS_GAME_PLAYER_+_DIR], 0x0
+    mov byte [_OS_GAME_ENTITIES_+_DIR], 0x0
     jmp .validate
 
   .right:
     inc dl
-    mov byte [_OS_GAME_PLAYER_+_DIR], 0x1
+    mov byte [_OS_GAME_ENTITIES_+_DIR], 0x1
     jmp .validate
 
   .validate:
@@ -2259,9 +2275,9 @@ os_game_player_move:
     jc .end
 
   .animate:
-    mov byte [_OS_GAME_PLAYER_+_LAST_TILE], al
-    mov word [_OS_GAME_PLAYER_], dx
-    mov byte [_OS_GAME_PLAYER_+_FRAME], 0x02
+    mov byte [_OS_GAME_ENTITIES_+_LAST_TILE], al
+    mov word [_OS_GAME_ENTITIES_], dx
+    mov byte [_OS_GAME_ENTITIES_+_FRAME], 0x02
   .end:
     call os_game_player_draw
 ret
@@ -2274,9 +2290,9 @@ os_move_broom:
 
   .clear_background:
     push bx
-    mov word dx, [_OS_GAME_BROOM_]
+    mov word dx, [si]
     call os_cursor_pos_set
-    mov al, [_OS_GAME_BROOM_+_LAST_TILE]
+    mov al, [si+_LAST_TILE]
     mov bl, GAME_COLOR_FLOOR
     call os_print_chr_color
     pop bx
@@ -2313,11 +2329,11 @@ os_move_broom:
     jc .end
 
   .animate:
-    mov byte [_OS_GAME_BROOM_+_LAST_TILE], al
-    mov word [_OS_GAME_BROOM_], dx
+    mov byte [si+_LAST_TILE], al
+    mov word [si], dx
   .end:
     call os_game_broom_draw
-    mov byte [_OS_GAME_BROOM_+_DIR], bl
+    mov byte [si+_DIR], bl
 ret
 
 ; Get random ===================================================================
@@ -2338,44 +2354,77 @@ ret
 ; Expects: None
 ; Returns: None
 os_game_loop:
-  cmp byte [_OS_GAME_PLAYER_+_FRAME], 0x0
+  cmp byte [_OS_GAME_ENTITIES_+_FRAME], 0x0
   je .idle
-    dec byte [_OS_GAME_PLAYER_+_FRAME]
+    dec byte [_OS_GAME_ENTITIES_+_FRAME]
     call os_game_player_draw
   .idle:
 
-  call os_get_random
-  mov bl, al
+  mov si, _OS_GAME_ENTITIES_
+  add si, 0x06
+  .entites_loop:
+    mov al, [si]
+    test al,al
+    jz .done
 
-  ; 1 in 4 chance to change direction randomly
-  and bl, 0x03
-  cmp bl, 0
-  jne .use_current_dir
-
-  ; Choose random direction
-  call os_get_random
-  and al, 0x03          ; Get a value 0-3 for direction
-  mov bl, al
-  jmp .move_broom
-
-  .use_current_dir:
-  mov bl, [_OS_GAME_BROOM_+_DIR]  ; Use current direction
-
-  .move_broom:
-
-  call os_move_broom
-
-
-  call os_game_broom_draw
-  cmp byte [_OS_GAME_BROOM_+_FRAME], 0x0
-  jz .rewind
-  mov byte [_OS_GAME_BROOM_+_FRAME], 0x0
-  jmp .skip_rewind
-  .rewind:
-  mov byte [_OS_GAME_BROOM_+_FRAME], 0x01
-  .skip_rewind:
-
+    call os_game_broom_ai
+    call os_game_broom_draw
+    cmp byte [si+_FRAME], 0x0
+    jz .rewind
+    mov byte [si+_FRAME], 0x0
+    jmp .skip_rewind
+    .rewind:
+    mov byte [si+_FRAME], 0x01
+    .skip_rewind:
+    add si, 0x06
+  jmp .entites_loop
+  .done:
 ret
+
+os_game_broom_ai:
+
+  call os_get_random
+  and ax, 0x05
+  cmp ax, 0x01
+  jl .follow_y
+  je .follow_x
+
+  call os_get_random
+  and ax, 0x03
+  mov dx, ax
+  jmp .move
+
+  .follow_x:
+  mov al, [_OS_GAME_ENTITIES_+_POS_X]
+  cmp al, [si+_POS_X]
+  jl .positive_x
+  jg .negative_x
+  jmp .move
+  .negative_x:
+  mov dx, 0x1
+  jmp .move
+  .positive_x:
+  mov dx, 0x3
+  jmp .move
+
+  .follow_y:
+  mov al, [_OS_GAME_ENTITIES_+_POS_Y]
+  cmp al, [si+_POS_Y]
+  jl .positive_y
+  jg .negative_y
+  je .move
+  .negative_y:
+  mov dx, 0x2
+  jmp .move
+  .positive_y:
+  mov dx, 0x0
+  jmp .move
+
+  .move:
+  mov bl, dl
+  call os_move_broom
+ret
+
 
 ; Void =========================================================================
 ; This is a placeholder function

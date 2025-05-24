@@ -39,8 +39,9 @@ boot_load_kernel:
   call boot_print_str
 
   ; Reset disk system first
-  movzx ax, byte [floppy_drive_number]
-  int 0x13               ; Reset disk system (DL is already 0x00 from BIOS)
+  mov ah, 0x00           ; Reset disk system function
+  mov dl, [floppy_drive_number]  ; Drive number
+  int 0x13               ; Reset disk system
   jc boot_disk_reset_error
 
   ; Set up memory location for loading kernel
