@@ -82,7 +82,7 @@ burn: $(FLOPPY_IMG)
 	@echo "Make sure $(USB_FLOPPY) is your USB floppy drive, not another drive!"
 	@echo "Press Ctrl+C to cancel, or Enter to continue..."
 	@read dummy
-	sudo $(DD) if=$(FLOPPY_IMG) of=$(USB_FLOPPY) bs=512 conv=notrunc,sync,fsync status=progress
+	sudo $(DD) if=$(FLOPPY_IMG) of=$(USB_FLOPPY) bs=512 conv=notrunc,sync,fsync oflag=direct status=progress
 	@echo "Floppy image successfully burned to $(USB_FLOPPY)"
 	@echo "You may now safely eject the floppy disk."
 
