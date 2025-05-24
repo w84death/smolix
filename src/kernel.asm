@@ -186,6 +186,12 @@ KBD_KEY_HOME                    equ 0x47
 KBD_KEY_END                     equ 0x4F
 KBD_KEY_INSERT                  equ 0x52
 
+; ==============================================================================
+;
+; CORE SYSTEM LOOP
+;
+; ==============================================================================
+
 ; Initialize OS ================================================================
 ; This is the main entry
 os_init:
@@ -214,7 +220,7 @@ os_reset:
   call os_sound_play
   call os_cursor_hide
   call os_clear_screen
-  call os_print_splash_screen
+  call os_display_splash_screen
 
 ; Main system loop =============================================================
 ; This is the main loop of the operating system.
@@ -261,7 +267,7 @@ os_main_loop:
     jmp .cpu_delay
 
   .print_splash:
-    call os_print_splash_screen
+    call os_display_splash_screen
 
   .cpu_delay:
     xor ax, ax            ; Function 00h: Read system timer counter
@@ -300,6 +306,12 @@ os_main_loop:
   .skip_game_loop:
 
 jmp os_main_loop
+
+; ==============================================================================
+;
+; DSKY FUNCTIONS
+;
+; ==============================================================================
 
 os_dsky_display:
   mov dx, 0x000D
@@ -398,7 +410,6 @@ os_dsky_process_input:
   .done:
 ret
 
-
 os_dsky_print_executing:
   mov bl, GLYPH_SYSTEM
   call os_print_prompt
@@ -493,54 +504,65 @@ ret
   call os_sound_play
   stc
 stc
-; Mathematical conversion for keypad scan codes
-; Input: AH = scan code
-; Output: AL = ASCII digit ('0'-'9') or 0 if not keypad
-os_convert_keypad_numbers:
-  cmp ah, 0x47      ; Keypad 7
-  je .keypad_7
-  cmp ah, 0x48      ; Keypad 8
-  je .keypad_8
-  cmp ah, 0x49      ; Keypad 9
-  je .keypad_9
-  cmp ah, 0x4B      ; Keypad 4
-  je .keypad_4
-  cmp ah, 0x4C      ; Keypad 5
-  je .keypad_5
-  cmp ah, 0x4D      ; Keypad 6
-  je .keypad_6
-  cmp ah, 0x4F      ; Keypad 1
-  je .keypad_1
-  cmp ah, 0x50      ; Keypad 2
-  je .keypad_2
-  cmp ah, 0x51      ; Keypad 3
-  je .keypad_3
-  cmp ah, 0x52      ; Keypad 0
-  je .keypad_0
 
-ret
+os_dsky_commands_table:
+  ; Help
+  db 0x00, 0x00
+  dw os_display_quick_help, msg_cmd_help
+  db 0x00, 0x01
+  dw os_enter_manual, msg_cmd_manual
 
-.keypad_0: mov al, '0'
-ret
-.keypad_1: mov al, '1'
-ret
-.keypad_2: mov al, '2'
-ret
-.keypad_3: mov al, '3'
-ret
-.keypad_4: mov al, '4'
-ret
-.keypad_5: mov al, '5'
-ret
-.keypad_6: mov al, '6'
-ret
-.keypad_7: mov al, '7'
-ret
-.keypad_8: mov al, '8'
-ret
-.keypad_9: mov al, '9'
-ret
+  ; System informations
+  db 0x01, 0x00
+  dw os_print_tick, msg_cmd_tick
+  db 0x01, 0x01
+  dw os_display_kernel_version, msg_cmd_version
+  db 0x01, 0x02
+  dw os_display_system_stats, msg_cmd_stats
+  db 0x01, 0x03
+  dw os_glyphs_print_all, msg_cmd_glyphs
 
+  ; Core
+  db 0x10, 0x00
+  dw os_reset, msg_cmd_reset
+  db 0x10, 0x01
+  dw os_reboot, msg_cmd_reboot
+  db 0x10, 0x02
+  dw os_down, msg_cmd_down
+  db 0x11, 0x00
+  dw os_toggle_video_mode, msg_cmd_display
+
+  ; Shell
+  db 0x20, 0x00
+  dw os_enter_shell, msg_cmd_clear_shell
+
+  ; File System
+  db 0x30, 0x00
+  dw os_fs_list_files, msg_cmd_fs_list
+  db 0x31, 0xFF
+  dw os_fs_select_file, msg_cmd_fs_read
+  db 0x32, 0x00
+  dw os_fs_display_buffer, msg_cmd_fs_display
+  db 0x32, 0x01
+  dw os_void, msg_cmd_fs_edit
+  db 0x32, 0x02
+  dw os_fs_file_write, msg_cmd_fs_write
+  db 0x32, 0x03
+  dw os_fs_clear_buffer, msg_cmd_fs_clear_buf
+
+  db 0x40, 0x00
+  dw os_printer_print_fs_buffer, msg_cmd_print
+
+  db 0x50, 0x00
+  dw os_enter_game, msg_cmd_game
+
+  db 0xFF
+
+; ==============================================================================
+;
+; SYSTEM FUNCTIONS
+;
+; ==============================================================================
 
 ; Print System Tick ============================================================
 ; This function prints system tick to the screen.
@@ -667,48 +689,6 @@ os_print_error_status:
   popa
 ret
 
-; Print help message ===========================================================
-; This function prints the help message to the screen.
-; Expects: None
-; Returns: None
-os_print_help:
-  mov bl, GLYPH_SYSTEM
-  call os_print_prompt
-  mov si, available_cmds_msg
-  call os_print_str
-
-  ; Listing of all commands
-  mov si, os_dsky_commands_table
-  .cmd_loop:
-    lodsb         ; Current character in AL
-    cmp al, 0xFF   ; Test if 0, terminator
-    jz .done
-
-    mov bl, CHR_LIST
-    call os_print_prompt          ; Prompt
-
-    call os_print_bcd
-
-    mov al, ':'
-    call os_print_chr
-
-    lodsb
-    call os_print_bcd
-
-    mov al, CHR_SPACE
-    call os_print_chr
-
-    add si, WORD  ; Skip address, point to description pointer
-    push si                       ; Saves os_commands_table
-    mov si, [si]                  ; Gets the description message address
-    call os_print_str             ; Print description string
-    pop si                        ; Restore os_commands_table
-
-    add si, WORD      ; Move to next command
-    jmp .cmd_loop
-.done:
-ret
-
 ; Print prompt =================================================================
 ; This function prints the prompt for the user.
 ; Expects: BL = type of glyph
@@ -772,38 +752,38 @@ ret
 os_reboot:
   jmp 0FFFFh:0000h
 
-; System version ===============================================================
-; This function returns the version of the kernel.
+
+; Hide cursor ==================================================================
+; This function hides the cursor.
 ; Expects: None
 ; Returns: None
-os_version:
-  mov bl, GLYPH_SYSTEM
-  call os_print_prompt
-  mov si, version_msg
-  call os_print_str
+os_cursor_hide:
+  mov ah, 0x01       ; Set cursor type function
+  mov cx, 0x2000     ; Bit 15 set (0x2000) disables the cursor
+  int 0x10           ; Call BIOS
 ret
 
-; Print welcome message ========================================================
-; This function prints the welcome message to the screen.
+; Show cursor ==================================================================
+; This function shows the cursor.
 ; Expects: None
 ; Returns: None
-os_print_welcome_shell:
-  mov bl, GLYPH_SYSTEM
-  call os_print_prompt
-  mov si, welcome_msg
-  call os_print_str
+os_cursor_show:
+  mov ah, 0x01       ; Set cursor type function
+  mov cx, 0x0607     ; Normal cursor (start scan line 6, end scan line 7)
+  int 0x10           ; Call BIOS
+ret
 
-  ; Print the copyright message
-  mov bl, GLYPH_MSG
-  call os_print_prompt
-  mov si, copyright_msg
-  call os_print_str
-
-  ; Print the more info message
-  mov bl, GLYPH_MSG
-  call os_print_prompt
-  mov si, more_info_msg
-  call os_print_str
+; Get random ===================================================================
+; This function generates a random number
+; Expects: None
+; Returns: AX - Random number
+os_get_random:
+    mov ax, [_RNG_]
+    inc ax
+    rol ax, 1
+    xor ax, 0x1337
+    add ax, [_OS_TICK_]
+    mov [_RNG_], ax
 ret
 
 ; Print character ==============================================================
@@ -891,180 +871,6 @@ os_read_chr:
   int 10h            ; Call BIOS interrupt
 ret
 
-; Clear screen =================================================================
-; This function clears the screen with primary colors.
-; Expects: None
-; Returns: None
-os_clear_screen:
-  mov al, CHR_SPACE
-  mov bl, OS_COLOR_WHITE_ON_BLUE
-  call os_fill_screen_with_glyph
-ret
-
-; Fill rectangle with glyph ====================================================
-; This function fills a rectangular area of the screen with a specified glyph character.
-; Expects:
-;   AL - glyph character to fill with
-;   BL - color attribute
-os_fill_screen_with_glyph:
-
-  call os_cursor_pos_reset
-
-  mov bh, 0            ; Page
-  mov ah, 0x09         ; BIOS function to write character and attribute
-  mov cx, 2000         ; 80x25 = 2000 characters on screen
-  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  je .skip_40
-  shr cx, 1
-  .skip_40:
-  int 0x10             ; Call BIOS
-  call os_cursor_pos_reset
-
-ret
-
-
-; Clear Shell ==================================================================
-; This function clears the shell and resets the display.
-; Expects: None
-; Returns: None
-os_clear_shell:
-  pusha
-  call os_clear_screen
-  call os_print_header
-  popa
-ret
-
-; Cursor position reset ========================================================
-; This function resets the cursor position to the top left of the screen.
-; Expects: None
-; Returns: None
-os_cursor_pos_reset:
-  xor dx, dx        ; Page 0
-  mov ah, 0x2       ; Set cursor
-  xor bh, bh        ; Position 0, 0
-  int 0x10
-ret
-
-; Set color ====================================================================
-; This function sets the color of the text on the screen.
-; Expects: BL = color attribute
-; Returns: None
-os_set_color:
-  mov ah, 0x0B
-  mov bh, 0x00
-  int 0x10
-ret
-
-; Load glyph ===================================================================
-; This function loads a custom glyph into the VGA font memory using BIOS.
-; Expects: AL = character code to replace
-; Returns: None
-os_load_glyph:
-  pusha
-  movzx bx, al          ; Move character code to BX, clears AH
-  push bx               ; Save character code
-  shl bx, 1             ; Multiply by 2 (each entry is 2 bytes)
-  mov bp, [glyph_table + bx]  ; Get pointer to the right entry
-  push ds
-  pop es                ; Ensure ES = DS (BIOS expects ES:BP for font data)
-  mov ax, 1100h         ; BIOS function to load 9×16 user-defined font
-  mov bh, 10h           ; Number of bytes per character (16 for 8/9×16 glyph)
-  mov bl, 00h           ; RAM block (0 for default)
-  mov cx, 0x01          ; Number of characters to replace (single)
-  pop dx                ; Restore character code
-  add dx, OS_GLYPH_ADDRESS   ; Adjust character code for extended ASCII
-  int 10h               ; Call BIOS video interrupt to load the font
-  popa
-ret
-
-; Load all glyphs ==============================================================
-; This function loads all custom glyphs into the VGA font memory using BIOS.
-; Expects: None
-; Returns: None
-os_load_all_glyphs:
-  mov si, glyph_table
-  xor cx, cx
-  .loop_glyphs:
-    lodsw
-    cmp ax, 0x0
-    je .done
-    mov ax, cx
-    call os_load_glyph
-    inc cx
-    jmp .loop_glyphs
-  .done:
-ret
-
-
-; Interpret keyboard input =====================================================
-; This function interprets the keyboard input and performs associated action.
-; Expects: AH = character to interpret (control)
-; Returns: None
-os_interpret_kb:
-  mov si, os_keyboard_table
-  mov bl, ah
-  mov bh, [_OS_STATE_]
-  .loop_kbd:
-    lodsb
-    test al, al
-    jz .unknown
-    cmp al, bh
-    jne .skip_kb
-    lodsb
-    cmp bl, al
-    je .found
-    jmp .next_entry
-    .skip_kb:
-    add si, BYTE
-    .next_entry:
-    add si, WORD
-  jmp .loop_kbd
-
-  .found:
-    lodsw           ; Load next command address
-    call ax         ; call the command address
-    mov ax, OS_SOUND_SUCCESS
-    call os_sound_play
-    clc
-ret
-
-  .unknown:
-    mov ax, OS_SOUND_ERROR
-    call os_sound_play
-    stc
-ret
-
-; Print debug info =============================================================
-; This function prints debug information.
-; Expects: None
-; Returns: None
-os_glyphs:
-mov dx, 0
-mov cx, 0x02
-  .looper:
-    push cx
-    mov bl, GLYPH_MSG
-    call os_print_prompt
-    mov al, OS_GLYPH_ADDRESS
-    add al, dl
-    call os_print_chr
-    mov cx, 0x1F            ; 32 glyphs
-    .loop_chars:
-      inc al
-      call os_print_chr
-    loop .loop_chars
-
-    mov bl, GLYPH_MSG
-    call os_print_prompt
-    mov si, hex_ruler_msg
-    call os_print_str
-    call os_print_str
-
-    add dx, 0x20
-    pop cx
-  loop .looper
-ret
-
 ; Print Number =================================================================
 ; This function prints a number in decimal format
 ; Expects: EAX - number to print
@@ -1137,97 +943,37 @@ os_toggle_video_mode:
   mov byte [_OS_VIDEO_MODE_], al
   jmp os_reset
 
-; Print statistics =============================================================
-; This function prints system statistics.
+
+; Clear screen =================================================================
+; This function clears the screen with primary colors.
 ; Expects: None
 ; Returns: None
-os_system_stats:
-  mov bl, GLYPH_SYSTEM
-  call os_print_prompt
-  mov si, cpu_family_msg
-  call os_print_str
-  call os_print_cpuid
+os_clear_screen:
+  mov al, CHR_SPACE
+  mov bl, OS_COLOR_WHITE_ON_BLUE
+  call os_fill_screen_with_glyph
+ret
 
-  ; Get conventional memory size (first 640KB)
-  mov bx, GLYPH_MEM
-  call os_print_prompt
-  mov si, memory_installed_msg
-  call os_print_str
 
-  mov ah, 0x12
-  int 0x12                  ; Returns KB in AX
-  call os_print_num
+; Cursor position reset ========================================================
+; This function resets the cursor position to the top left of the screen.
+; Expects: None
+; Returns: None
+os_cursor_pos_reset:
+  xor dx, dx        ; Page 0
+  mov ah, 0x2       ; Set cursor
+  xor bh, bh        ; Position 0, 0
+  int 0x10
+ret
 
-  mov si, kb_msg
-  call os_print_str
-
-  ; Kernel size
-  mov bx, GLYPH_MEM
-  call os_print_prompt
-
-  mov si, kernel_size_msg
-  call os_print_str
-  mov ax, os_kernel_end     ; Last place in memory in B
-  call os_print_num
-  mov si, byte_msg
-  call os_print_str
-
-  ; Get BIOS date
-  mov bx, GLYPH_CAL
-  call os_print_prompt
-  mov si, bios_date_msg
-  call os_print_str
-
+; Set color ====================================================================
+; This function sets the color of the text on the screen.
+; Expects: BL = color attribute
+; Returns: None
+os_set_color:
   mov ah, 0x0B
-  int 0x1A
-  jc .unsuported
-
-  movzx ax, cl
-  call os_print_bcd
-  mov al, CHR_SLASH
-  call os_print_chr
-  movzx ax, dh
-  call os_print_bcd
-  mov al, CHR_SLASH
-  call os_print_chr
-  movzx ax, dl
-  call os_print_bcd
-  jmp .supported
-  .unsuported:
-  mov si, unsupported_msg
-  call os_print_str
-  .supported:
-
-  ; Battery status
-  mov bx, GLYPH_BAT
-  call os_print_prompt
-  mov si, apm_batt_msg
-  call os_print_str
-
-  mov ax, 530Ah         ; Get Power Status
-  mov bx, 0001h         ; All devices
-  int 15h               ; Returns battery status in BL, BH
-
-  cmp bl, 0xFF
-  je .apm_unsuported
-
-  test bl, bl
-  jz .ac_power
-
-  movzx ax, cl
-  call os_print_num
-  mov si, apm_batt_life
-  call os_print_str
-  jmp .apm_done
-
-  .ac_power:
-    mov si, apm_batt_ac
-    call os_print_str
-    jmp .apm_done
-  .apm_unsuported:
-    mov si, unsupported_msg
-    call os_print_str
-  .apm_done:
+  mov bh, 0x00
+  int 0x10
 ret
 
 ; Print a BCD value ============================================================
@@ -1259,6 +1005,233 @@ os_print_bcd_color:
   add al, '0'            ; Convert to ASCII
   call os_print_chr_color ; Print it with color
 ret
+
+; ==============================================================================
+;
+; KEYBOARD FUNCTIONS
+;
+; ==============================================================================
+
+
+; Mathematical conversion for keypad scan codes
+; Input: AH = scan code
+; Output: AL = ASCII digit ('0'-'9') or 0 if not keypad
+os_convert_keypad_numbers:
+  cmp ah, 0x47      ; Keypad 7
+  je .keypad_7
+  cmp ah, 0x48      ; Keypad 8
+  je .keypad_8
+  cmp ah, 0x49      ; Keypad 9
+  je .keypad_9
+  cmp ah, 0x4B      ; Keypad 4
+  je .keypad_4
+  cmp ah, 0x4C      ; Keypad 5
+  je .keypad_5
+  cmp ah, 0x4D      ; Keypad 6
+  je .keypad_6
+  cmp ah, 0x4F      ; Keypad 1
+  je .keypad_1
+  cmp ah, 0x50      ; Keypad 2
+  je .keypad_2
+  cmp ah, 0x51      ; Keypad 3
+  je .keypad_3
+  cmp ah, 0x52      ; Keypad 0
+  je .keypad_0
+ret
+
+.keypad_0: mov al, '0'
+ret
+.keypad_1: mov al, '1'
+ret
+.keypad_2: mov al, '2'
+ret
+.keypad_3: mov al, '3'
+ret
+.keypad_4: mov al, '4'
+ret
+.keypad_5: mov al, '5'
+ret
+.keypad_6: mov al, '6'
+ret
+.keypad_7: mov al, '7'
+ret
+.keypad_8: mov al, '8'
+ret
+.keypad_9: mov al, '9'
+ret
+
+; Interpret keyboard input =====================================================
+; This function interprets the keyboard input and performs associated action.
+; Expects: AH = character to interpret (control)
+; Returns: None
+os_interpret_kb:
+  mov si, os_keyboard_table
+  mov bl, ah
+  mov bh, [_OS_STATE_]
+  .loop_kbd:
+    lodsb
+    test al, al
+    jz .unknown
+    cmp al, bh
+    jne .skip_kb
+    lodsb
+    cmp bl, al
+    je .found
+    jmp .next_entry
+    .skip_kb:
+    add si, BYTE
+    .next_entry:
+    add si, WORD
+  jmp .loop_kbd
+
+  .found:
+    lodsw           ; Load next command address
+    call ax         ; call the command address
+    mov ax, OS_SOUND_SUCCESS
+    call os_sound_play
+    clc
+ret
+
+  .unknown:
+    mov ax, OS_SOUND_ERROR
+    call os_sound_play
+    stc
+ret
+
+os_keyboard_table:
+  db OS_STATE_SPLASH_SCREEN, KBD_KEY_ENTER
+  dw os_enter_shell
+  db OS_STATE_SHELL, KBD_KEY_ESCAPE
+  dw os_clear_shell
+
+  db OS_STATE_FS, KBD_KEY_PAGEUP
+  dw os_fs_scroll_up
+  db OS_STATE_FS, KBD_KEY_PAGEDOWN
+  dw os_fs_scroll_down
+  db OS_STATE_FS, KBD_KEY_ESCAPE
+  dw os_enter_shell
+
+  db OS_STATE_GAME, KBD_KEY_UP
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_DOWN
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_LEFT
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_RIGHT
+  dw os_game_player_move
+  db OS_STATE_GAME, KBD_KEY_ENTER
+  dw os_game_start
+  db OS_STATE_GAME, KBD_KEY_ESCAPE
+  dw os_enter_shell
+
+  db 0x0
+
+; ==============================================================================
+;
+; GLYPHS FUNCTIONS
+;
+; ==============================================================================
+
+; Glyphs =======================================================================
+; This section includes the glyphs definitions
+include 'glyphs.asm'
+
+; Load glyph ===================================================================
+; This function loads a custom glyph into the VGA font memory using BIOS.
+; Expects: AL = character code to replace
+; Returns: None
+os_load_glyph:
+  pusha
+  movzx bx, al          ; Move character code to BX, clears AH
+  push bx               ; Save character code
+  shl bx, 1             ; Multiply by 2 (each entry is 2 bytes)
+  mov bp, [glyph_table + bx]  ; Get pointer to the right entry
+  push ds
+  pop es                ; Ensure ES = DS (BIOS expects ES:BP for font data)
+  mov ax, 1100h         ; BIOS function to load 9×16 user-defined font
+  mov bh, 10h           ; Number of bytes per character (16 for 8/9×16 glyph)
+  mov bl, 00h           ; RAM block (0 for default)
+  mov cx, 0x01          ; Number of characters to replace (single)
+  pop dx                ; Restore character code
+  add dx, OS_GLYPH_ADDRESS   ; Adjust character code for extended ASCII
+  int 10h               ; Call BIOS video interrupt to load the font
+  popa
+ret
+
+; Load all glyphs ==============================================================
+; This function loads all custom glyphs into the VGA font memory using BIOS.
+; Expects: None
+; Returns: None
+os_load_all_glyphs:
+  mov si, glyph_table
+  xor cx, cx
+  .loop_glyphs:
+    lodsw
+    cmp ax, 0x0
+    je .done
+    mov ax, cx
+    call os_load_glyph
+    inc cx
+    jmp .loop_glyphs
+  .done:
+ret
+
+; Print all glyphs =============================================================
+; This function prints loaded glyphs.
+; Expects: None
+; Returns: None
+os_glyphs_print_all:
+mov dx, 0
+mov cx, 0x02
+  .looper:
+    push cx
+    mov bl, GLYPH_MSG
+    call os_print_prompt
+    mov al, OS_GLYPH_ADDRESS
+    add al, dl
+    call os_print_chr
+    mov cx, 0x1F            ; 32 glyphs
+    .loop_chars:
+      inc al
+      call os_print_chr
+    loop .loop_chars
+
+    mov bl, GLYPH_MSG
+    call os_print_prompt
+    mov si, hex_ruler_msg
+    call os_print_str
+    call os_print_str
+
+    add dx, 0x20
+    pop cx
+  loop .looper
+ret
+
+; Fill rectangle with glyph ====================================================
+; This function fills a rectangular area of the screen with a specified glyph character.
+; Expects:
+;   AL - glyph character to fill with
+;   BL - color attribute
+os_fill_screen_with_glyph:
+  call os_cursor_pos_reset
+
+  mov bh, 0            ; Page
+  mov ah, 0x09         ; BIOS function to write character and attribute
+  mov cx, 2000         ; 80x25 = 2000 characters on screen
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  je .skip_40
+  shr cx, 1
+  .skip_40:
+  int 0x10             ; Call BIOS
+
+  call os_cursor_pos_reset
+ret
+
+; ==============================================================================
+;
+; SOUND SYSTEM FUNCTIONS
+;
+; ==============================================================================
 
 ; Sound Initialization =========================================================
 ; This function initializes the sound system.
@@ -1296,6 +1269,48 @@ os_sound_stop:
   out 61h, al           ; Disable speaker output
   .already_stopped:
 ret
+
+; ==============================================================================
+;
+; SHELL FUNCTIONS
+;
+; ==============================================================================
+
+; Enter/restart shell ==========================================================
+; This function initializes the shell state and prints welcome message
+; Expects: None
+; Returns: None
+os_enter_shell:
+  mov byte [_OS_STATE_], OS_STATE_SHELL
+  call os_clear_screen
+  call os_print_header
+  call os_display_welcome_shell
+ret
+
+; Clear Shell ==================================================================
+; This function clears the shell and resets the display.
+; Expects: None
+; Returns: None
+os_clear_shell:
+  pusha
+  call os_clear_screen
+  call os_print_header
+  popa
+ret
+
+; ==============================================================================
+;
+; FILE SYSTEM
+;
+; ==============================================================================
+
+;  Cylinder, Head, Sector, Filename
+os_fs_directory_table:
+  db 0x00, 0x00, 0x12, 'Full System Manual          ', 0x0
+  db 0x00, 0x01, 0x10, 'ASCII Art gallery           ', 0x0
+  db 0x01, 0x00, 0x0E, 'Notepad                     ', 0x0
+  db 0x01, 0x01, 0x0C, 'Kernel change log           ', 0x0
+  db 0xFF
 
 ; File System: list files ======================================================
 ; This function lists the files on the floppy disk.
@@ -1339,7 +1354,6 @@ os_fs_list_files:
   mov si, fs_select_file_msg
   call os_print_str
 ret
-
 
 ; File System: select file =====================================================
 ; This function selects a file from the floppy disk to load
@@ -1567,12 +1581,199 @@ os_fs_file_write:
     stc                  ; Set carry flag (error)
     ret
 
+; ==============================================================================
+;
+; SYSTEM INFORMATION FUNCTIONS
+;
+; ==============================================================================
+
+; System version ===============================================================
+; This function returns the version of the kernel.
+; Expects: None
+; Returns: None
+os_display_kernel_version:
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+  mov si, version_msg
+  call os_print_str
+ret
+
+; Print help message ===========================================================
+; This function prints the help message to the screen.
+; Expects: None
+; Returns: None
+os_display_quick_help:
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+  mov si, available_cmds_msg
+  call os_print_str
+
+  ; Listing of all commands
+  mov si, os_dsky_commands_table
+  .cmd_loop:
+    lodsb         ; Current character in AL
+    cmp al, 0xFF   ; Test if 0, terminator
+    jz .done
+
+    mov bl, CHR_LIST
+    call os_print_prompt          ; Prompt
+
+    call os_print_bcd
+
+    mov al, ':'
+    call os_print_chr
+
+    lodsb
+    call os_print_bcd
+
+    mov al, CHR_SPACE
+    call os_print_chr
+
+    add si, WORD  ; Skip address, point to description pointer
+    push si                       ; Saves os_commands_table
+    mov si, [si]                  ; Gets the description message address
+    call os_print_str             ; Print description string
+    pop si                        ; Restore os_commands_table
+
+    add si, WORD      ; Move to next command
+    jmp .cmd_loop
+.done:
+ret
+
+; Print welcome message ========================================================
+; This function prints the welcome message to the screen.
+; Expects: None
+; Returns: None
+os_display_welcome_shell:
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+  mov si, welcome_msg
+  call os_print_str
+
+  ; Print the copyright message
+  mov bl, GLYPH_MSG
+  call os_print_prompt
+  mov si, copyright_msg
+  call os_print_str
+
+  ; Print the more info message
+  mov bl, GLYPH_MSG
+  call os_print_prompt
+  mov si, more_info_msg
+  call os_print_str
+ret
+
+; Print statistics =============================================================
+; This function prints system statistics.
+; Expects: None
+; Returns: None
+os_display_system_stats:
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
+  mov si, cpu_family_msg
+  call os_print_str
+  call os_display_cpuid
+
+  ; Get conventional memory size (first 640KB)
+  mov bx, GLYPH_MEM
+  call os_print_prompt
+  mov si, memory_installed_msg
+  call os_print_str
+
+  mov ah, 0x12
+  int 0x12                  ; Returns KB in AX
+  call os_print_num
+
+  mov si, kb_msg
+  call os_print_str
+
+  ; Kernel size
+  mov bx, GLYPH_MEM
+  call os_print_prompt
+
+  mov si, kernel_size_msg
+  call os_print_str
+  mov ax, os_kernel_end     ; Last place in memory in B
+  call os_print_num
+  mov si, byte_msg
+  call os_print_str
+
+  ; Get BIOS date
+  mov bx, GLYPH_CAL
+  call os_print_prompt
+  mov si, bios_date_msg
+  call os_print_str
+
+  mov ah, 0x0B
+  int 0x1A
+  jc .unsuported
+
+  movzx ax, cl
+  call os_print_bcd
+  mov al, CHR_SLASH
+  call os_print_chr
+  movzx ax, dh
+  call os_print_bcd
+  mov al, CHR_SLASH
+  call os_print_chr
+  movzx ax, dl
+  call os_print_bcd
+  jmp .supported
+  .unsuported:
+  mov si, unsupported_msg
+  call os_print_str
+  .supported:
+
+  ; Battery status
+  mov bx, GLYPH_BAT
+  call os_print_prompt
+  mov si, apm_batt_msg
+  call os_print_str
+
+  mov ax, 530Ah         ; Get Power Status
+  mov bx, 0001h         ; All devices
+  int 15h               ; Returns battery status in BL, BH
+
+  cmp bl, 0xFF
+  je .apm_unsuported
+
+  test bl, bl
+  jz .ac_power
+
+  movzx ax, cl
+  call os_print_num
+  mov si, apm_batt_life
+  call os_print_str
+  jmp .apm_done
+
+  .ac_power:
+    mov si, apm_batt_ac
+    call os_print_str
+    jmp .apm_done
+  .apm_unsuported:
+    mov si, unsupported_msg
+    call os_print_str
+  .apm_done:
+ret
+
+os_cpu_family_table:
+  dw cpu_family_other
+  dw cpu_family_other
+  dw cpu_family_other
+  dw cpu_family_3
+  dw cpu_family_4
+  dw cpu_family_5
+  dw cpu_family_6
+  dw cpu_family_7
+  dw cpu_family_8
+  dw cpu_family_other
+  dw 0x0
 
 ; CPUID ========================================================================
 ; This function detects and prints the CPU family
 ; Expects: None
 ; Return: None
-os_print_cpuid:
+os_display_cpuid:
   ; Check for CPUID support before executing to not crash 386 PCs
   pushfd                      ; Save EFLAGS
   pop eax                     ; Get EFLAGS into EAX
@@ -1618,7 +1819,7 @@ ret
 ; This function prints the system splash screen
 ; Expects: None
 ; Return: None
-os_print_splash_screen:
+os_display_splash_screen:
   mov cx, 0x25
   mov dx, 0x0A27
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
@@ -1707,22 +1908,11 @@ os_print_splash_screen:
   call os_cursor_pos_set
 ret
 
-; Enter/restart shell ==========================================================
-; This function initializes the shell state and prints welcome message
-; Expects: None
-; Returns: None
-os_enter_shell:
-  mov byte [_OS_STATE_], OS_STATE_SHELL
-  call os_clear_screen
-  call os_print_header
-  call os_print_welcome_shell
-ret
-
 ; Print full manual ============================================================
 ; This function initializes the help state
 ; Expects: None
 ; Returns: None
-os_print_manual:
+os_enter_manual:
   mov byte [_OS_STATE_], OS_STATE_FS
   call os_clear_shell
 
@@ -1736,25 +1926,11 @@ ret
   stc
 ret
 
-; Hide cursor ==================================================================
-; This function hides the cursor.
-; Expects: None
-; Returns: None
-os_cursor_hide:
-  mov ah, 0x01       ; Set cursor type function
-  mov cx, 0x2000     ; Bit 15 set (0x2000) disables the cursor
-  int 0x10           ; Call BIOS
-ret
-
-; Show cursor ==================================================================
-; This function shows the cursor.
-; Expects: None
-; Returns: None
-os_cursor_show:
-  mov ah, 0x01       ; Set cursor type function
-  mov cx, 0x0607     ; Normal cursor (start scan line 6, end scan line 7)
-  int 0x10           ; Call BIOS
-ret
+; ==============================================================================
+;
+; PRINTING SYSTEM (DOT-MATRIX PRINTERS)
+;
+; ==============================================================================
 
 ; Initialize Printer ===========================================================
 ; This function initializes the printer.
@@ -1913,6 +2089,12 @@ ret
     stc
 ret
 
+; ==============================================================================
+;
+; THE GAME FUNCTIONS
+;
+; ==============================================================================
+
 ; Enter Game ===================================================================
 ; This function initializes the game state and draws welcome screen
 ; Expects: None
@@ -1989,8 +2171,15 @@ os_enter_game:
   call os_cursor_pos_set
   mov si, copyright_msg
   call os_print_str
-
 ret
+
+game_instructions_table:
+  dw game_instruction1_msg
+  dw game_instruction2_msg
+  dw game_instruction3_msg
+  dw game_instruction4_msg
+  dw game_instruction5_msg
+  dw 0x0
 
 ; Game start ===================================================================
 ; Thus functuion starts game, draws board and initiates entities
@@ -2144,7 +2333,6 @@ os_game_draw_vertical_wall: ; IN: DX pos, CL len
   loop .vertical_walls_loop
 ret
 
-
 os_game_draw_status_bar:
   ; draw LIFE 0
   ; draw LEVEL 0
@@ -2192,7 +2380,9 @@ os_game_player_draw:
   je .skip_draw_left
   mov al, GLYPH_GAME_RAT_IDLE_L
   .skip_draw_left:
-  add al, [_OS_GAME_ENTITIES_+_FRAME]
+  mov bl, [_OS_GAME_ENTITIES_+_FRAME]
+  shr bl, 1
+  add al, bl
   mov bl, GAME_COLOR_RAT
   call os_print_chr_color
 ret
@@ -2277,7 +2467,7 @@ os_game_player_move:
   .animate:
     mov byte [_OS_GAME_ENTITIES_+_LAST_TILE], al
     mov word [_OS_GAME_ENTITIES_], dx
-    mov byte [_OS_GAME_ENTITIES_+_FRAME], 0x02
+    mov byte [_OS_GAME_ENTITIES_+_FRAME], 0x05
   .end:
     call os_game_player_draw
 ret
@@ -2336,17 +2526,50 @@ os_move_broom:
     mov byte [si+_DIR], bl
 ret
 
-; Get random ===================================================================
-; This function generates a random number
-; Expects: None
-; Returns: AX - Random number
-os_get_random:
-    mov ax, [_RNG_]
-    inc ax
-    rol ax, 1
-    xor ax, 0x1337
-    add ax, [_OS_TICK_]
-    mov [_RNG_], ax
+
+os_game_broom_ai:
+  call os_get_random
+  and ax, 0x03        ; Values 0-3
+  cmp ax, 0x01
+  jl .follow_y        ; follow player vertically if 0
+  je .follow_x        ; or horizontally if 1
+  ; random move otherwise if 2-3
+
+  .randome_move_xy:
+    call os_get_random
+    and ax, 0x03
+    mov dx, ax
+    jmp .move
+
+  .follow_x:
+    mov al, [_OS_GAME_ENTITIES_+_POS_X]
+    cmp al, [si+_POS_X]
+    jl .positive_x
+    jg .negative_x
+    jmp .move
+    .negative_x:
+    mov dx, 0x1
+    jmp .move
+    .positive_x:
+    mov dx, 0x3
+    jmp .move
+
+  .follow_y:
+    mov al, [_OS_GAME_ENTITIES_+_POS_Y]
+    cmp al, [si+_POS_Y]
+    jl .positive_y
+    jg .negative_y
+    je .move
+    .negative_y:
+    mov dx, 0x2
+    jmp .move
+    .positive_y:
+    mov dx, 0x0
+    jmp .move
+
+  .move:
+    mov bl, dl
+    call os_move_broom
 ret
 
 ; Game loop ====================================================================
@@ -2381,60 +2604,26 @@ os_game_loop:
   .done:
 ret
 
-os_game_broom_ai:
-
-  call os_get_random
-  and ax, 0x05
-  cmp ax, 0x01
-  jl .follow_y
-  je .follow_x
-
-  call os_get_random
-  and ax, 0x03
-  mov dx, ax
-  jmp .move
-
-  .follow_x:
-  mov al, [_OS_GAME_ENTITIES_+_POS_X]
-  cmp al, [si+_POS_X]
-  jl .positive_x
-  jg .negative_x
-  jmp .move
-  .negative_x:
-  mov dx, 0x1
-  jmp .move
-  .positive_x:
-  mov dx, 0x3
-  jmp .move
-
-  .follow_y:
-  mov al, [_OS_GAME_ENTITIES_+_POS_Y]
-  cmp al, [si+_POS_Y]
-  jl .positive_y
-  jg .negative_y
-  je .move
-  .negative_y:
-  mov dx, 0x2
-  jmp .move
-  .positive_y:
-  mov dx, 0x0
-  jmp .move
-
-  .move:
-  mov bl, dl
-  call os_move_broom
-ret
-
+; ==============================================================================
+;
+; THE VOID
+;
+; ==============================================================================
 
 ; Void =========================================================================
-; This is a placeholder function
+; This is a placeholder function.
 ; Expects: None
 ; Returns: None
 os_void:
   nop
 ret
 
-; Data section =================================================================
+; ==============================================================================
+;
+; DATA SECTION
+;
+; ==============================================================================
+
 version_msg           db 'Version 0x0C', 0
 system_logo_msg:
 db OS_GLYPH_LOGO+0x0
@@ -2480,8 +2669,8 @@ fs_files_list_msg     db 'Files on floppy:', 0x0
 fs_select_file_msg    db 'Type VERB 31, NOUN <number>', 0x0
 fs_reading_msg        db 'Reading data from disk...', 0x0
 fs_writing_msg        db 'Writing data to disk...', 0x0
-fs_empty_msg          db 'No/empty file. Read data first.', 0x0
-fs_read_footer_msg    db 'PAGEUP/DOWN scroll, ESC end close', 0x0
+fs_empty_msg          db 'Empty buffer. Read data first.', 0x0
+fs_read_footer_msg    db 'PAGEUP/DOWN scroll, ESC close', 0x0
 
 os_printer_printing_msg db 'Printing...', 0x0
 
@@ -2526,120 +2715,6 @@ db GLYPH_RULER_START,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GL
 db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x01
 db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x02
 db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_END, 0x0
-
-game_instructions_table:
-  dw game_instruction1_msg
-  dw game_instruction2_msg
-  dw game_instruction3_msg
-  dw game_instruction4_msg
-  dw game_instruction5_msg
-  dw 0x0
-
-os_cpu_family_table:
-  dw cpu_family_other
-  dw cpu_family_other
-  dw cpu_family_other
-  dw cpu_family_3
-  dw cpu_family_4
-  dw cpu_family_5
-  dw cpu_family_6
-  dw cpu_family_7
-  dw cpu_family_8
-  dw cpu_family_other
-  dw 0x0
-
-;  Cylinder, Head, Sector, Filename
-os_fs_directory_table:
-  db 0x00, 0x00, 0x12, 'Full System Manual          ', 0x0
-  db 0x00, 0x01, 0x10, 'ASCII Art gallery           ', 0x0
-  db 0x01, 0x00, 0x0E, 'Notepad                     ', 0x0
-  db 0x01, 0x01, 0x0C, 'Kernel change log           ', 0x0
-  db 0xFF
-
-os_dsky_commands_table:
-  ; Help
-  db 0x00, 0x00
-  dw os_print_help, msg_cmd_help
-  db 0x00, 0x01
-  dw os_print_manual, msg_cmd_manual
-
-  ; System informations
-  db 0x01, 0x00
-  dw os_print_tick, msg_cmd_tick
-  db 0x01, 0x01
-  dw os_version, msg_cmd_version
-  db 0x01, 0x02
-  dw os_system_stats, msg_cmd_stats
-  db 0x01, 0x03
-  dw os_glyphs, msg_cmd_glyphs
-
-  ; Core
-  db 0x10, 0x00
-  dw os_reset, msg_cmd_reset
-  db 0x10, 0x01
-  dw os_reboot, msg_cmd_reboot
-  db 0x10, 0x02
-  dw os_down, msg_cmd_down
-  db 0x11, 0x00
-  dw os_toggle_video_mode, msg_cmd_display
-
-  ; Shell
-  db 0x20, 0x00
-  dw os_enter_shell, msg_cmd_clear_shell
-
-  ; File System
-  db 0x30, 0x00
-  dw os_fs_list_files, msg_cmd_fs_list
-  db 0x31, 0xFF
-  dw os_fs_select_file, msg_cmd_fs_read
-  db 0x32, 0x00
-  dw os_fs_display_buffer, msg_cmd_fs_display
-  db 0x32, 0x01
-  dw os_void, msg_cmd_fs_edit
-  db 0x32, 0x02
-  dw os_fs_file_write, msg_cmd_fs_write
-  db 0x32, 0x03
-  dw os_fs_clear_buffer, msg_cmd_fs_clear_buf
-
-  db 0x40, 0x00
-  dw os_printer_print_fs_buffer, msg_cmd_print
-
-  db 0x50, 0x00
-  dw os_enter_game, msg_cmd_game
-
-  db 0xFF
-
-os_keyboard_table:
-  db OS_STATE_SPLASH_SCREEN, KBD_KEY_ENTER
-  dw os_enter_shell
-  db OS_STATE_SHELL, KBD_KEY_ESCAPE
-  dw os_clear_shell
-
-  db OS_STATE_FS, KBD_KEY_PAGEUP
-  dw os_fs_scroll_up
-  db OS_STATE_FS, KBD_KEY_PAGEDOWN
-  dw os_fs_scroll_down
-  db OS_STATE_FS, KBD_KEY_ESCAPE
-  dw os_enter_shell
-
-  db OS_STATE_GAME, KBD_KEY_UP
-  dw os_game_player_move
-  db OS_STATE_GAME, KBD_KEY_DOWN
-  dw os_game_player_move
-  db OS_STATE_GAME, KBD_KEY_LEFT
-  dw os_game_player_move
-  db OS_STATE_GAME, KBD_KEY_RIGHT
-  dw os_game_player_move
-  db OS_STATE_GAME, KBD_KEY_ENTER
-  dw os_game_start
-  db OS_STATE_GAME, KBD_KEY_ESCAPE
-  dw os_enter_shell
-
-  db 0x0
-
-; Glyphs =======================================================================
-; This section includes the glyphs definitions
-include 'glyphs.asm'
 
 db "P1X"            ; Use HEX viewer to see `P1X` at the end of binary
 os_kernel_end:

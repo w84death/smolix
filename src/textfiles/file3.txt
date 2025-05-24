@@ -1,5 +1,13 @@
 KERNEL CHANGE LOG
 ========================================
+0x0C:
+  - codebase rearanged, better comments/headers
+  - better rat animation handling
+  - bootloader: switching between floppy A: and B:
+  - lot of bugfixes
+  - more colors
+  - introducion of DSKY input interface: VERB/NOUN
+  - removal of old commands system (one letter)
 0x0B:
   - file system:
     - fixed files positions and size (8K)

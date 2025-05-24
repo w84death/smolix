@@ -9,6 +9,8 @@ Future planned changes:
 
 Current version changes:
 0x0C:
+  - codebase rearanged, better comments/headers
+  - better rat animation handling
   - bootloader: switching between floppy A: and B:
   - lot of bugfixes
   - more colors
