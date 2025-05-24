@@ -35,8 +35,10 @@ _RNG_                           equ _OS_MEMORY_BASE_ + 0x0B   ; 2b
 
 _OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x10   ; 1b
 _OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x11   ; 1b
-_OS_GAME_ENTITIES_              equ _OS_MEMORY_BASE_ + 0x12   ; 6b per entity
-
+_OS_GAME_SCORE_                 equ _OS_MEMORY_BASE_ + 0x12   ; 1b
+_OS_GAME_CURRENT_LEVEL_         equ _OS_MEMORY_BASE_ + 0x13   ; 2b
+_OS_GAME_FLOPPY_                equ _OS_MEMORY_BASE_ + 0x15   ; 1b
+_OS_GAME_ENTITIES_              equ _OS_MEMORY_BASE_ + 0x16   ; 6b per entity
 _POS_X                          equ 0x0
 _POS_Y                          equ 0x1
 _DIR                            equ 0x2
@@ -80,6 +82,8 @@ GAME_COLOR_FLOPPY               equ 0x1E
 GAME_COLOR_BROOM                equ 0x1C
 GAME_COLOR_RAT                  equ 0x1F
 GAME_COLOR_FLOOR                equ 0x12
+GAME_HORIZONTAL_WALL            equ 0x0
+GAME_VERTICAL_WALL              equ 0x1
 
 OS_COLOR_WHITE_ON_BLUE          equ 0x1F
 OS_COLOR_WHITE_ON_GREEN         equ 0x2F
@@ -1328,7 +1332,7 @@ os_fs_list_files:
     mov bx, cx
     shl bx, 5
     cmp byte [os_fs_directory_table+bx], 0xFF
-    je .end_of_list
+    je .skip_move_of_list
     add bx, 3
     mov si, os_fs_directory_table
     add si, bx
@@ -1348,7 +1352,7 @@ os_fs_list_files:
     inc cx
   jmp .list_loop
 
-  .end_of_list:
+  .skip_move_of_list:
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
   mov si, fs_select_file_msg
@@ -2102,7 +2106,6 @@ ret
 os_enter_game:
   mov byte [_OS_STATE_], OS_STATE_GAME
   mov byte [_OS_GAME_STARTED_], 0x0
-
   call os_clear_screen
 
   mov dx, 0x0303
@@ -2187,99 +2190,90 @@ game_instructions_table:
 ; Returns: None
 os_game_start:
   mov byte [_OS_GAME_STARTED_], 0x1
+  mov byte [_OS_GAME_SCORE_], 0x0
+
+  ; Level 0
+  mov byte [_OS_GAME_CURRENT_LEVEL_], GLYPH_GAME_TILE_A
+  mov byte [_OS_GAME_CURRENT_LEVEL_+1], GAME_COLOR_FLOOR
+
+  .init_entities:
+    ; initialize player
+    mov si, _OS_GAME_ENTITIES_
+    mov byte [si+_POS_X], 0x24
+    mov byte [si+_POS_Y], 0x02
+    mov byte [si+_DIR], 0x0
+    mov byte [si+_FRAME], 0x0
+    mov byte [si+_DIRT], 0x0
+    mov al, [_OS_GAME_CURRENT_LEVEL_]
+    mov byte [si+_LAST_TILE], al
+
+    add si, 0x06
+    ; initialize broom
+    mov byte [si+_POS_X], 0x0C
+    mov byte [si+_POS_Y], 0x0D
+    mov byte [si+_DIR], 0x0
+    mov byte [si+_FRAME], 0x1
+    mov byte [si+_DIRT], 0x0
+    mov al, [_OS_GAME_CURRENT_LEVEL_]
+    mov byte [si+_LAST_TILE], al
+
+    add si, 0x06
+    ; initialize broom
+    mov byte [si+_POS_X], 0x0F
+    mov byte [si+_POS_Y], 0x12
+    mov byte [si+_DIR], 0x0
+    mov byte [si+_FRAME], 0x1
+    mov byte [si+_DIRT], 0x0
+    mov al, [_OS_GAME_CURRENT_LEVEL_]
+    mov byte [si+_LAST_TILE], al
+
+    add si, 0x06
+    ; terminator
+    mov byte [si], 0x0
+
+  ; draw level
   call os_clear_screen
 
-  ; initialize player
-  mov si, _OS_GAME_ENTITIES_
-  mov byte [si+_POS_X], 0x24
-  mov byte [si+_POS_Y], 0x02
-  mov byte [si+_DIR], 0x0
-  mov byte [si+_FRAME], 0x0
-  mov byte [si+_DIRT], 0x0
-  mov byte [si+_LAST_TILE], GLYPH_GAME_TILE_A
-
-  add si, 0x06
-  ; initialize broom(s)
-  mov byte [si+_POS_X], 0x0C
-  mov byte [si+_POS_Y], 0x0D
-  mov byte [si+_DIR], 0x0
-  mov byte [si+_FRAME], 0x1
-  mov byte [si+_DIRT], 0x0
-  mov byte [si+_LAST_TILE], GLYPH_GAME_TILE_A
-
-  add si, 0x06
-  ; initialize broom(s)
-  mov byte [si+_POS_X], 0x0F
-  mov byte [si+_POS_Y], 0x12
-  mov byte [si+_DIR], 0x0
-  mov byte [si+_FRAME], 0x1
-  mov byte [si+_DIRT], 0x0
-  mov byte [si+_LAST_TILE], GLYPH_GAME_TILE_A
-  add si, 0x06
-  mov byte [si], 0x0
-  ; draw level
-
   ; fill tiles
-  mov al, GLYPH_GAME_TILE_A
-  mov bl, GAME_COLOR_FLOOR
+  mov al, [_OS_GAME_CURRENT_LEVEL_]
+  mov bl, [_OS_GAME_CURRENT_LEVEL_+1]
   call os_fill_screen_with_glyph
 
-  ; walls
-  mov dx, 0x0000
-  mov cx, 0x0B
-  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
+  ; vertical walls
+  push 0x0000
+  push 0x0B
+  push 0x001B
+  push 0x0B
+  push 0x050C
+  push 0x0E
+  push 0x0D00
+  push 0x06
+  push 0x0D14
+  push 0x12
+  push 0x1114
+  push 0x10
+  push 0x1807 ; position
+  push 0x1D   ; length
+  push 0x0700 ; number of walls + type
+  call os_game_spawn_walls
 
-  mov dx, 0x001B
-  mov cx, 0x0B
-  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
-
-  mov dx, 0x0100
-  mov cx, 0x0C
-  call os_game_draw_vertical_wall ; IN: DX pos, CL len
-
-  mov dx, 0x010C
-  mov cx, 0x04
-  call os_game_draw_vertical_wall ; IN: DX pos, CL len
-
-  mov dx, 0x050C
-  mov cx, 0x0E
-  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
-
-  mov dx, 0x011B
-  mov cx, 0x04
-  call os_game_draw_vertical_wall ; IN: DX pos, CL len
-
-  mov dx, 0x0127
-  mov cx, 0x0C
-  call os_game_draw_vertical_wall ; IN: DX pos, CL len
-
-  mov dx, 0x0D00
-  mov cx, 0x06
-  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
-
-  mov dx, 0x0D07
-  mov cx, 0x0B
-  call os_game_draw_vertical_wall ; IN: DX pos, CL len
-
-  mov dx, 0x0D14
-  mov cx, 0x12
-  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
-
-  mov dx, 0x0D14
-  mov cx, 0x04
-  call os_game_draw_vertical_wall ; IN: DX pos, CL len
-
-  mov dx, 0x1114
-  mov cx, 0x10
-  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
-
-  mov dx, 0x1807
-  mov cx, 0x1D
-  call os_game_draw_horizontal_wall ; IN: DX pos, CL len
-
-  mov dx, 0x1225
-  mov cx, 0x06
-  call os_game_draw_vertical_wall ; IN: DX pos, CL len
+  ; horizontal walls
+  push 0x0100
+  push 0x0C
+  push 0x010C
+  push 0x04
+  push 0x011B
+  push 0x04
+  push 0x0127
+  push 0x0C
+  push 0x0D07
+  push 0x0B
+  push 0x0D14
+  push 0x04
+  push 0x1225   ; pos
+  push 0x06     ; length
+  push 0x0701   ; number of walls + type
+  call os_game_spawn_walls
 
   ; props
   push 0x0404
@@ -2341,25 +2335,60 @@ os_game_draw_status_bar:
   ; draw TIMER
 ret
 
+os_game_spawn_walls:
+  push bp
+  mov bp, sp          ; save stack pointer
+
+  mov al, [bp+5]      ; get number of items
+  shl al, 2           ; double for word + double for 2 elements per entry
+  add al, 2           ; initial values
+  mov [.return+1], al ; set return value for clearing stack
+
+  mov si, 0x6         ; positions position
+  movzx cx, [bp+5]      ; number of items
+  .item_loop:
+    push cx
+
+    mov cl, [bp+si]   ; length
+    mov dx, [bp+si+2] ; position
+
+    cmp byte [bp+4], GAME_HORIZONTAL_WALL
+    je .horizontal_wall
+    .vertical_wall:
+      call os_game_draw_vertical_wall
+      jmp .next_entry
+    .horizontal_wall:
+      call os_game_draw_horizontal_wall
+    .next_entry:
+    add si, 4         ; next entry
+
+    pop cx
+  loop .item_loop
+
+  mov sp, bp
+  pop bp
+  .return:
+ret 0xFF
+
 os_game_spawn_items:
   push bp
   mov bp, sp          ; save stack pointer
 
   mov al, [bp+5]      ; get number of items
   inc al              ; one more for the color
-  shl al, 1
-  add al, 2
+  shl al, 1           ; double for word
+  add al, 2           ; length + glyph values
   mov [.return+1], al ; set return value for clearing stack
 
-  mov si, 0x8
-  mov cl, [bp+5]
+  mov si, 0x8         ; positions position
+  mov cl, [bp+5]      ; number of items
   .item_loop:
-    mov dx, [bp+si]
+    mov dx, [bp+si]   ; position
     call os_cursor_pos_set
-    mov al, [bp+4]
-    mov bl, [bp+6]
+    mov al, [bp+4]    ; character
+    mov bl, [bp+6]    ; color
     call os_print_chr_color
-    add si, 2
+    add si, 2         ; next entry
   loop .item_loop
 
   mov sp, bp
@@ -2408,7 +2437,7 @@ ret
 ;          AL - tile type
 os_game_validate_pos:
   call os_read_chr
-  cmp al, GLYPH_GAME_TILE_A
+  cmp al, [_OS_GAME_CURRENT_LEVEL_]
   je .can_move
   stc
   ret
@@ -2427,11 +2456,11 @@ os_game_player_move:
     mov word dx, [_OS_GAME_ENTITIES_]
     call os_cursor_pos_set
     mov al, [_OS_GAME_ENTITIES_+_LAST_TILE]
-    mov bl, GAME_COLOR_FLOOR
+    mov bl, [_OS_GAME_CURRENT_LEVEL_+1]
     call os_print_chr_color
     pop bx
 
-  .move_player:
+  .check_direction:
     cmp bl, KBD_KEY_UP
     je .up
     cmp bl, KBD_KEY_DOWN
@@ -2440,7 +2469,7 @@ os_game_player_move:
     je .left
     cmp bl, KBD_KEY_RIGHT
     je .right
-    jmp .end
+    jmp .skip_move
 
   .up:
     dec dh
@@ -2462,13 +2491,34 @@ os_game_player_move:
 
   .validate:
     call os_game_validate_pos
-    jc .end
+    jc .check_obstacle
+    jmp .move_player
 
-  .animate:
+  .check_obstacle:
+    cmp al, GLYPH_FLOPPY
+    je .get_floppy
+    cmp al, GLYPH_GAME_POT
+    je .broke_pot
+    jmp .skip_move  ; Enything else is probably a wall
+    .get_floppy:
+      ; remove floppy from map
+      call os_cursor_pos_set
+      mov al, [_OS_GAME_CURRENT_LEVEL_]
+      mov bl, [_OS_GAME_CURRENT_LEVEL_+1]
+      call os_print_chr_color
+      ; inc floppy count
+      ; beep
+      jmp .move_player
+    .broke_pot:
+      ; change pot to broken
+      ; spawn dirt around
+      jmp .skip_move
+
+  .move_player:
     mov byte [_OS_GAME_ENTITIES_+_LAST_TILE], al
     mov word [_OS_GAME_ENTITIES_], dx
     mov byte [_OS_GAME_ENTITIES_+_FRAME], 0x05
-  .end:
+  .skip_move:
     call os_game_player_draw
 ret
 
@@ -2483,7 +2533,7 @@ os_move_broom:
     mov word dx, [si]
     call os_cursor_pos_set
     mov al, [si+_LAST_TILE]
-    mov bl, GAME_COLOR_FLOOR
+    mov bl, [_OS_GAME_CURRENT_LEVEL_+1]
     call os_print_chr_color
     pop bx
 
@@ -2496,7 +2546,7 @@ os_move_broom:
     je .down
     cmp bl, 3
     je .left
-    jmp .end
+    jmp .skip_move
 
   .up:
     dec dh
@@ -2516,12 +2566,12 @@ os_move_broom:
 
   .validate:
     call os_game_validate_pos
-    jc .end
+    jc .skip_move
 
-  .animate:
+  .move_player:
     mov byte [si+_LAST_TILE], al
     mov word [si], dx
-  .end:
+  .skip_move:
     call os_game_broom_draw
     mov byte [si+_DIR], bl
 ret
