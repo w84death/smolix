@@ -217,7 +217,7 @@ os_init:
   mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
 
 ; Entry point / System reset ===================================================
-; This function resets the system.
+; resets the system.
 ; Expects: None
 ; Returns: None
 os_reset:
@@ -598,7 +598,7 @@ os_dsky_commands_table:
 ; ==============================================================================
 
 ; Print System Tick ============================================================
-; This function prints system tick to the screen.
+; prints system tick to the screen.
 ; Expects: None
 ; Returns: None
 os_print_tick:
@@ -609,7 +609,7 @@ os_print_tick:
 ret
 
 ; Gets Cursor Position =========================================================
-; This function gets the current cursor position on the screen.
+; gets the current cursor position on the screen.
 ; Expects: None
 ; Returns: DX = column, DX = row
 os_cursor_pos_get:
@@ -619,7 +619,7 @@ os_cursor_pos_get:
 ret
 
 ; Sets Cursor Position =========================================================
-; This function sets the cursor position on the screen.
+; sets the cursor position on the screen.
 ; Expects: DX = column (0-79), DX = row (0-24)
 ; Returns: None
 os_cursor_pos_set:
@@ -629,7 +629,7 @@ os_cursor_pos_set:
 ret
 
 ; Print Header =================================================================
-; This function prints the header information to the screen.
+; prints the header information to the screen.
 ; Expects: None
 ; Returns: None
 os_print_header:
@@ -707,7 +707,7 @@ os_print_header:
 ret
 
 ; Print Error Status ===========================================================
-; This function prints the status of the last operation.
+; prints the status of the last operation.
 ; Expects: CF = clear for success, set for error
 ; Returns: None
 os_print_error_status:
@@ -723,7 +723,7 @@ os_print_error_status:
 ret
 
 ; Print prompt =================================================================
-; This function prints the prompt for the user.
+; prints the prompt for the user.
 ; Expects: BL = type of glyph
 ; Returns: None
 os_print_prompt:
@@ -751,7 +751,7 @@ os_print_prompt:
 ret
 
 ; System shutdown ==============================================================
-; This function shuts down or restarts the system.
+; shuts down or restarts the system.
 ; Expects: None
 ; Returns: None
 os_down:
@@ -779,7 +779,7 @@ os_down:
 ret
 
 ; Reboot System ================================================================
-; This function reboots the system.
+; reboots the system.
 ; Expects: None
 ; Returns: None
 os_reboot:
@@ -787,7 +787,7 @@ os_reboot:
 
 
 ; Hide cursor ==================================================================
-; This function hides the cursor.
+; hides the cursor.
 ; Expects: None
 ; Returns: None
 os_cursor_hide:
@@ -797,7 +797,7 @@ os_cursor_hide:
 ret
 
 ; Show cursor ==================================================================
-; This function shows the cursor.
+; shows the cursor.
 ; Expects: None
 ; Returns: None
 os_cursor_show:
@@ -807,7 +807,7 @@ os_cursor_show:
 ret
 
 ; Get random ===================================================================
-; This function generates a random number
+; generates a random number
 ; Expects: None
 ; Returns: AX - Random number
 os_get_random:
@@ -820,7 +820,7 @@ os_get_random:
 ret
 
 ; Print character ==============================================================
-; This function prints a character to the screen.
+; prints a character to the screen.
 ; Expects: AL = character to print
 ; Returns: None
 os_print_chr:
@@ -831,7 +831,7 @@ os_print_chr:
 ret
 
 ; Print character with color ===================================================
-; This function prints a character to the screen with a specified color.
+; prints a character to the screen with a specified color.
 ; Expects: AL = character to print, BL = color
 ; Returns: None
 os_print_chr_color:
@@ -850,7 +850,7 @@ os_print_chr_color:
 ret
 
 ; Print Two Characters =========================================================
-; This function prints two characters to the screen.
+; prints two characters to the screen.
 ; Expects: AL = first character, AH = second character
 ; Returns: None
 os_print_chr_double:
@@ -860,7 +860,7 @@ os_print_chr_double:
 ret
 
 ; Print Character Multiple Times ===============================================
-; This function prints a character multiple times to the screen.
+; prints a character multiple times to the screen.
 ; Expects: AL = character
 ;          AH = number of times to print
 ; Returns: None
@@ -874,7 +874,7 @@ os_print_chr_mul:
 ret
 
 ; Print string =================================================================
-; This function prints a string to the screen.
+; prints a string to the screen.
 ; Expects: SI = pointer to string
 ; Returns: None
 os_print_str:
@@ -893,7 +893,7 @@ os_print_str:
 ret
 
 ; Read Character ==============================================================
-; This function reads a character from the screen.
+; reads a character from the screen.
 ; Expects: DX = coordinates of cursor position
 ; Returns: AL = character read from keyboard
 os_read_chr:
@@ -905,7 +905,7 @@ os_read_chr:
 ret
 
 ; Print Number =================================================================
-; This function prints a number in decimal format
+; prints a number in decimal format
 ; Expects: EAX - number to print
 ; Returns: None
 os_print_num:
@@ -961,7 +961,7 @@ os_print_num:
 ret
 
 ; Toggle Video Mode ============================================================
-; This function toggles between 40 and 80 column video modes
+; toggles between 40 and 80 column video modes
 ; Expects: None
 ; Returns: None
 os_toggle_video_mode:
@@ -978,7 +978,7 @@ os_toggle_video_mode:
 
 
 ; Clear screen =================================================================
-; This function clears the screen with primary colors.
+; clears the screen with primary colors.
 ; Expects: None
 ; Returns: None
 os_clear_screen:
@@ -989,7 +989,7 @@ ret
 
 
 ; Cursor position reset ========================================================
-; This function resets the cursor position to the top left of the screen.
+; resets the cursor position to the top left of the screen.
 ; Expects: None
 ; Returns: None
 os_cursor_pos_reset:
@@ -1000,7 +1000,7 @@ os_cursor_pos_reset:
 ret
 
 ; Set color ====================================================================
-; This function sets the color of the text on the screen.
+; sets the color of the text on the screen.
 ; Expects: BL = color attribute
 ; Returns: None
 os_set_color:
@@ -1010,7 +1010,7 @@ os_set_color:
 ret
 
 ; Print a BCD value ============================================================
-; This function prints a BCD value to the console.
+; prints a BCD value to the console.
 ; Expects: AX = BCD value
 ; Returns: None
 os_print_bcd:
@@ -1025,7 +1025,7 @@ os_print_bcd:
 ret
 
 ; Print BCD with Color =========================================================
-; This function prints a BCD value with a specific color
+; prints a BCD value with a specific color
 ; Expects: AL = BCD value to print, BL = color attribute
 ; Returns: None
 os_print_bcd_color:
@@ -1094,7 +1094,7 @@ ret
 ret
 
 ; Interpret keyboard input =====================================================
-; This function interprets the keyboard input and performs associated action.
+; interprets the keyboard input and performs associated action.
 ; Expects: AH = character to interpret (control)
 ; Returns: None
 os_interpret_kb:
@@ -1170,7 +1170,7 @@ os_keyboard_table:
 include 'glyphs.asm'
 
 ; Load glyph ===================================================================
-; This function loads a custom glyph into the VGA font memory using BIOS.
+; loads a custom glyph into the VGA font memory using BIOS.
 ; Expects: AL = character code to replace
 ; Returns: None
 os_load_glyph:
@@ -1192,7 +1192,7 @@ os_load_glyph:
 ret
 
 ; Load all glyphs ==============================================================
-; This function loads all custom glyphs into the VGA font memory using BIOS.
+; loads all custom glyphs into the VGA font memory using BIOS.
 ; Expects: None
 ; Returns: None
 os_load_all_glyphs:
@@ -1210,7 +1210,7 @@ os_load_all_glyphs:
 ret
 
 ; Print all glyphs =============================================================
-; This function prints loaded glyphs.
+; prints loaded glyphs.
 ; Expects: None
 ; Returns: None
 os_glyphs_print_all:
@@ -1241,7 +1241,7 @@ mov cx, 0x02
 ret
 
 ; Fill rectangle with glyph ====================================================
-; This function fills a rectangular area of the screen with a specified glyph character.
+; fills a rectangular area of the screen with a specified glyph character.
 ; Expects:
 ;   AL - glyph character to fill with
 ;   BL - color attribute
@@ -1265,7 +1265,7 @@ ret
 ; ==============================================================================
 
 ; Sound Initialization =========================================================
-; This function initializes the sound system.
+; initializes the sound system.
 ; Expects: None
 ; Returns: None
 os_sound_init:
@@ -1274,7 +1274,7 @@ os_sound_init:
 ret
 
 ; Sound Play ===================================================================
-; This function sets the sound to play a tone
+; sets the sound to play a tone
 ; Expects: AX = note
 ; Returns: None
 os_sound_play:
@@ -1289,7 +1289,7 @@ os_sound_play:
 ret
 
 ; Stop sound playback ==========================================================
-; This function stops the sound playback
+; stops the sound playback
 ; Expects: None
 ; Returns: None
 os_sound_stop:
@@ -1308,7 +1308,7 @@ ret
 ; ==============================================================================
 
 ; Enter/restart shell ==========================================================
-; This function initializes the shell state and prints welcome message
+; initializes the shell state and prints welcome message
 ; Expects: None
 ; Returns: None
 os_enter_shell:
@@ -1321,7 +1321,7 @@ os_enter_shell:
 ret
 
 ; Clear Shell ==================================================================
-; This function clears the shell and resets the display.
+; clears the shell and resets the display.
 ; Expects: None
 ; Returns: None
 os_clear_shell:
@@ -1346,7 +1346,7 @@ os_fs_directory_table:
   db 0xFF
 
 ; File System: list files ======================================================
-; This function lists the files on the floppy disk.
+; lists the files on the floppy disk.
 ; Expects: None
 ; Returns: None
 os_fs_list_files:
@@ -1389,7 +1389,7 @@ os_fs_list_files:
 ret
 
 ; File System: select file =====================================================
-; This function selects a file from the floppy disk to load
+; selects a file from the floppy disk to load
 ; Expects: DL = file id
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_select_file:
@@ -1406,7 +1406,7 @@ os_fs_clear_buffer:
 ret
 
 ; File System: load buffer =====================================================
-; This function loads a file from the floppy disk to a memory
+; loads a file from the floppy disk to a memory
 ; Expects: DL = file id
 ; Returns: CF = 0 on success, CF = 1 on failure
 os_fs_load_buffer:
@@ -1463,7 +1463,7 @@ ret
 ret
 
 ; File System: display buffer ==================================================
-; This function displays the loaded file contents from memory to the screen
+; displays the loaded file contents from memory to the screen
 ; Expects: None
 ; Returns: None
 os_fs_display_buffer:
@@ -1577,7 +1577,7 @@ os_fs_scroll_down:
 ret
 
 ; File System: file write ======================================================
-; This function writes data to a file on the disk
+; writes data to a file on the disk
 ; Expects: None
 ; Returns: CF = 0 on success, CF = 1 on error
 os_fs_file_write:
@@ -1621,7 +1621,7 @@ os_fs_file_write:
 ; ==============================================================================
 
 ; System version ===============================================================
-; This function returns the version of the kernel.
+; returns the version of the kernel.
 ; Expects: None
 ; Returns: None
 os_display_kernel_version:
@@ -1634,46 +1634,57 @@ ret
 ; Expects: None
 ; Returns: None
 os_display_screen_saver:
-  call os_get_random
 
-  ; Set Y coordinate (row) - same for both modes (0-24)
-  and al, 0x1F      ; 0-31 values
-  cmp al, 24        ; row bound (0-24 for 25 rows)
-  jle .no_bound_y
-  jmp .skip_drawing_char
-  .no_bound_y:
+  mov cx, 0x3
+  .char_loop:
+  push cx
+    call os_get_random
 
-  ; Set X coordinate (column) - depends on video mode
-  and ah, 0x7F      ; 0-127 values
-  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
-  je .check_80_mode
+    .bound_y:
+      and al, 0x1F      ; 0-31 values
+      cmp al, 25        ; row bound
+      jl .no_bound_y
+      jmp .skip_drawing_char
+      .no_bound_y:
 
-  ; 40-column mode bounds (0-39)
-  cmp ah, 39
-  jle .no_bound_x
-  jmp .skip_drawing_char
-  jmp .no_bound_x
+    .set_column_bound:
+      and ah, 0x7F      ; 0-127 values
+      mov bl, 80
+      cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+      je .skip_40
+      mov bl, 40
+      .skip_40:
 
-  .check_80_mode:
-  ; 80-column mode bounds (0-79)
-  cmp ah, 79
-  jle .no_bound_x
-  jmp .skip_drawing_char
+    .bound_x:
+      cmp ah, bl
+      jl .no_bound_x
+      jmp .skip_drawing_char
+      .no_bound_x:
 
-  .no_bound_x:
-  mov dh, al        ; DL = column (AH), DH = row (AL)
-  mov dl, ah
-  call os_cursor_pos_set
+    .set_cursor:
+      mov dh, al        ; DL = column (AH), DH = row (AL)
+      mov dl, ah
+      call os_cursor_pos_set
 
-  call os_get_random
-  and al, 0x0F
-  add al, 0x80
-  mov bl, OS_COLOR_GREEN_ON_BLACK
-  call os_print_chr_color
-  .skip_drawing_char:
+    .draw_random_char:
+      call os_get_random
+      ;mov bl, al
+      and al, 0x07
+      add al, OS_GLYPH_ADDRESS
+      mov bl, OS_COLOR_GREEN_ON_BLACK
+      ;or bl, OS_COLOR_GREEN_ON_BLACK
+
+      call os_print_chr_color
+
+    .skip_drawing_char:
+    pop cx
+  loop .char_loop
 ret
 
-
+; Virtual screen ===============================================================
+; Set the virtual screen mode.
+; Parameters: None
+; Returns: None
 os_virual_screen_set:
   push ax
   mov byte [_OS_VIRTUAL_SCREEN_], al
@@ -1683,7 +1694,7 @@ os_virual_screen_set:
 ret
 
 ; Print help message ===========================================================
-; This function prints the help message to the screen.
+; Prints the help message to the screen.
 ; Expects: None
 ; Returns: None
 os_display_quick_help:
@@ -1725,7 +1736,7 @@ os_display_quick_help:
 ret
 
 ; Print welcome message ========================================================
-; This function prints the welcome message to the screen.
+; Prints the welcome message to the screen.
 ; Expects: None
 ; Returns: None
 os_display_welcome_shell:
@@ -1748,7 +1759,7 @@ os_display_welcome_shell:
 ret
 
 ; Print statistics =============================================================
-; This function prints system statistics.
+; Prints system statistics.
 ; Expects: None
 ; Returns: None
 os_display_system_stats:
@@ -1854,7 +1865,7 @@ os_cpu_family_table:
   dw 0x0
 
 ; CPUID ========================================================================
-; This function detects and prints the CPU family
+; Detects and prints the CPU family
 ; Expects: None
 ; Return: None
 os_display_cpuid:
@@ -1900,7 +1911,7 @@ ret
 ret
 
 ; Splash screen ================================================================
-; This function prints the system splash screen
+; prints the system splash screen
 ; Expects: None
 ; Return: None
 os_display_splash_screen:
@@ -1993,7 +2004,7 @@ os_display_splash_screen:
 ret
 
 ; Print full manual ============================================================
-; This function initializes the help state
+; initializes the help state
 ; Expects: None
 ; Returns: None
 os_enter_manual:
@@ -2017,7 +2028,7 @@ ret
 ; ==============================================================================
 
 ; Initialize Printer ===========================================================
-; This function initializes the printer.
+; initializes the printer.
 ; Expects: None
 ; Returns: CF = 0 for success, CF = 1 for error
 os_printer_init:
@@ -2061,7 +2072,7 @@ ret
 ret
 
 ; Print Character to Printer ===================================================
-; This function sends a character to the printer.
+; sends a character to the printer.
 ; Expects: AL = character to print
 ; Returns: CF = 0 for success, CF = 1 for error
 os_printer_char:
@@ -2101,7 +2112,7 @@ ret
 
 
 ; Print String to Printer ======================================================
-; This function sends a string to the printer.
+; sends a string to the printer.
 ; Expects: SI = pointer to null-terminated string
 ; Returns: CF = 0 for success, CF = 1 for error
 os_printer_string:
@@ -2118,7 +2129,7 @@ os_printer_string:
 ret
 
 ; Printing: send LF&CR =========================================================
-; This function is used to move the printer head to the next line.
+; is used to move the printer head to the next line.
 ; Expects: None
 ; Returns: None
 os_printer_send_lfcr:
@@ -2129,7 +2140,7 @@ os_printer_send_lfcr:
 ret
 
 ; Printing: send Feed ==========================================================
-; This function is used to move the printer head to the next page.
+; is used to move the printer head to the next page.
 ; Expects: None
 ; Returns: None
 os_printer_send_feed:
@@ -2138,7 +2149,7 @@ os_printer_send_feed:
 ret
 
 ; Print test =================================================================
-; This function prints a test data to the printer.
+; prints a test data to the printer.
 ; TODO: CHANGE TO PROPER FILE BUFFER PRINTING
 ; Expects: None
 ; Returns: None
@@ -2180,7 +2191,7 @@ ret
 ; ==============================================================================
 
 ; Enter Game ===================================================================
-; This function initializes the game state and draws welcome screen
+; initializes the game state and draws welcome screen
 ; Expects: None
 ; Returns: None
 os_enter_game:
@@ -2479,7 +2490,7 @@ os_game_spawn_items:
 ret 0xFF
 
 ; Draw player ==================================================================
-; This function draws the player on the screen
+; draws the player on the screen
 ; Expects: None
 ; Returns: None
 os_game_player_draw:
@@ -2499,7 +2510,7 @@ os_game_player_draw:
 ret
 
 ; Draw broom ===================================================================
-; This function draws the broom on the screen
+; draws the broom on the screen
 ; Expects: SI - entity pointer
 ; Returns: None
 os_game_broom_draw:
@@ -2513,7 +2524,7 @@ os_game_broom_draw:
 ret
 
 ; Validate position ============================================================
-; This function validates the new position
+; validates the new position
 ; Expects: DX - position
 ; Returns: Carry if can't move (wall)
 ;          AL - tile type
@@ -2528,7 +2539,7 @@ os_game_validate_pos:
   ret
 
 ; Player movement ==============================================================
-; This function moves the player
+; moves the player
 ; Expects: BL - keyboard input
 ; Returns: None
 os_game_player_move:
@@ -2605,7 +2616,7 @@ os_game_player_move:
 ret
 
 ; Move broom ===================================================================
-; This function moves the broom, handles edge detection and bouncing
+; moves the broom, handles edge detection and bouncing
 ; Expects: BL: 0=up, 1=right, 2=down, 3=left
 ; Returns: None
 os_move_broom:
@@ -2705,7 +2716,7 @@ os_game_broom_ai:
 ret
 
 ; Game loop ====================================================================
-; This function handles the main game loop
+; handles the main game loop
 ; Expects: None
 ; Returns: None
 os_game_loop:
