@@ -246,12 +246,6 @@ os_main_loop:
     int 16h             ; Call BIOS interrupt
     jz .continue
 
-    ; check if in screensaver and exit
-    cmp word [_OS_INACTIVE_TIMER_], 0x1
-    ja .reset_timer
-      mov al, OS_VIRT_PAGE_SCR_SAVER
-      call os_virual_screen_set
-    .reset_timer:
     mov word [_OS_INACTIVE_TIMER_], 0xFF
 
     mov ah, 00h         ; BIOS keyboard read function
@@ -274,12 +268,16 @@ os_main_loop:
   .continue:
     cmp word [_OS_INACTIVE_TIMER_], 0x0
     je .screen_saver
-
+    cmp byte [_OS_STATE_], OS_STATE_SHELL
+    je .print_shell
     cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
     je .print_splash
     cmp byte [_OS_STATE_], OS_STATE_GAME
     je .cpu_delay
 
+  .print_shell:
+    mov al, OS_VIRT_PAGE_SHELL
+    call os_virual_screen_set
   .print_header:
     call os_cursor_pos_get
     push dx
@@ -323,10 +321,11 @@ os_main_loop:
     inc dword [_OS_TICK_]
 
   call os_sound_stop
-  dec word [_OS_INACTIVE_TIMER_]
+
 
   cmp byte [_OS_STATE_], OS_STATE_GAME
   je .game_loop
+  dec word [_OS_INACTIVE_TIMER_]
   jmp .skip_game_loop
 
   .game_loop:
