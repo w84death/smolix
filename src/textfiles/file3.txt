@@ -1,6 +1,8 @@
 KERNEL CHANGE LOG
 ========================================
-0x0C:
+0x0C [RELEASED]:
+  - virtual screens (paging)
+  - simple screen saver (for CRT monitors and fun)
   - codebase rearanged, better comments/headers
   - better rat animation handling
   - bootloader: switching between floppy A: and B:

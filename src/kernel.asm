@@ -30,8 +30,9 @@ _OS_STATE_                      equ _OS_MEMORY_BASE_ + 0x05   ; 1b
 _OS_DSKY_STATE_                 equ _OS_MEMORY_BASE_ + 0x06   ; 1b
 _OS_DSKY_VERB_                  equ _OS_MEMORY_BASE_ + 0x07   ; 2b
 _OS_DSKY_NOUN_                  equ _OS_MEMORY_BASE_ + 0x09   ; 2b
-
-_RNG_                           equ _OS_MEMORY_BASE_ + 0x0B   ; 2b
+_OS_RNG_                        equ _OS_MEMORY_BASE_ + 0x0B   ; 2b
+_OS_INACTIVE_TIMER_             equ _OS_MEMORY_BASE_ + 0x0D   ; 2b
+_OS_VIRTUAL_SCREEN_             equ _OS_MEMORY_BASE_ + 0x0F   ; 1b
 
 _OS_GAME_TICK_                  equ _OS_MEMORY_BASE_ + 0x10   ; 1b
 _OS_GAME_STARTED_               equ _OS_MEMORY_BASE_ + 0x11   ; 1b
@@ -55,6 +56,11 @@ OS_STATE_SPLASH_SCREEN          equ 0x02
 OS_STATE_SHELL                  equ 0x03
 OS_STATE_FS                     equ 0x04
 OS_STATE_GAME                   equ 0x05
+
+OS_VIRT_PAGE_SHELL              equ 0x00
+OS_VIRT_PAGE_FS                 equ 0x01
+OS_VIRT_PAGE_GAME               equ 0x02
+OS_VIRT_PAGE_SCR_SAVER          equ 0x03
 
 OS_DSKY_STATE_IDLE              equ 0x00
 OS_DSKY_STATE_VERB_INPUT        equ 0x01
@@ -89,7 +95,7 @@ OS_COLOR_WHITE_ON_BLUE          equ 0x1F
 OS_COLOR_WHITE_ON_GREEN         equ 0x2F
 OS_COLOR_WHITE_ON_RED           equ 0x4F
 OS_COLOR_WHITE_ON_BLACK         equ 0x0F
-
+OS_COLOR_GREEN_ON_BLACK         equ 0x02
 OS_COLOR_BLACK_ON_BLUE          equ 0x10
 OS_COLOR_BLUE_ON_BLUE           equ 0x11
 OS_COLOR_GREEN_ON_BLUE          equ 0x12
@@ -205,7 +211,9 @@ os_init:
   mov word [_OS_DSKY_NOUN_], 0x0
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
-  mov dword [_OS_TICK_], 0
+  mov dword [_OS_TICK_], 00
+  mov word [_OS_INACTIVE_TIMER_], 0xFFFF
+  mov byte [_OS_VIRTUAL_SCREEN_], OS_VIRT_PAGE_SHELL
   mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
 
 ; Entry point / System reset ===================================================
@@ -238,6 +246,14 @@ os_main_loop:
     int 16h             ; Call BIOS interrupt
     jz .continue
 
+    ; check if in screensaver and exit
+    cmp word [_OS_INACTIVE_TIMER_], 0x1
+    ja .reset_timer
+      mov al, OS_VIRT_PAGE_SCR_SAVER
+      call os_virual_screen_set
+    .reset_timer:
+    mov word [_OS_INACTIVE_TIMER_], 0xFF
+
     mov ah, 00h         ; BIOS keyboard read function
     int 16h
 
@@ -256,6 +272,9 @@ os_main_loop:
     call os_interpret_kb
 
   .continue:
+    cmp word [_OS_INACTIVE_TIMER_], 0x0
+    je .screen_saver
+
     cmp byte [_OS_STATE_], OS_STATE_SPLASH_SCREEN
     je .print_splash
     cmp byte [_OS_STATE_], OS_STATE_GAME
@@ -270,7 +289,16 @@ os_main_loop:
     call os_cursor_pos_set
     jmp .cpu_delay
 
+  .screen_saver:
+    mov word [_OS_INACTIVE_TIMER_], 0x01
+    mov al, OS_VIRT_PAGE_SCR_SAVER
+    call os_virual_screen_set
+    call os_display_screen_saver
+    jmp .cpu_delay
+
   .print_splash:
+    mov al, OS_VIRT_PAGE_SHELL
+    call os_virual_screen_set
     call os_display_splash_screen
 
   .cpu_delay:
@@ -295,6 +323,7 @@ os_main_loop:
     inc dword [_OS_TICK_]
 
   call os_sound_stop
+  dec word [_OS_INACTIVE_TIMER_]
 
   cmp byte [_OS_STATE_], OS_STATE_GAME
   je .game_loop
@@ -585,7 +614,7 @@ ret
 ; Returns: DX = column, DX = row
 os_cursor_pos_get:
   mov ax, 0x0300    ; Get cursor position and size
-  xor bh, bh        ; Page 0
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   int 0x10          ; Call BIOS
 ret
 
@@ -595,7 +624,7 @@ ret
 ; Returns: None
 os_cursor_pos_set:
   mov ax, 0x0200    ; Set cursor position
-  xor bh, bh        ; Page 0
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   int 0x10          ; Call BIOS
 ret
 
@@ -782,12 +811,12 @@ ret
 ; Expects: None
 ; Returns: AX - Random number
 os_get_random:
-    mov ax, [_RNG_]
+    mov ax, [_OS_RNG_]
     inc ax
     rol ax, 1
     xor ax, 0x1337
     add ax, [_OS_TICK_]
-    mov [_RNG_], ax
+    mov [_OS_RNG_], ax
 ret
 
 ; Print character ==============================================================
@@ -808,7 +837,7 @@ ret
 os_print_chr_color:
   pusha
   mov ah, 0x09    ; BIOS function to print character with color
-  mov bh, 0x00    ; Page number (0 for default)
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   mov cx, 0x01    ; Number of characters to print
   int 0x10        ; BIOS teletype output function
   ; Move cursor forward after printing
@@ -850,7 +879,7 @@ ret
 ; Returns: None
 os_print_str:
   pusha
-  xor bx, bx          ; Clear page number
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   mov ah, 0x0e        ; BIOS teletype output function
   .next_char:
     ; SI = pointer to string
@@ -869,7 +898,7 @@ ret
 ; Returns: AL = character read from keyboard
 os_read_chr:
   mov ah, 02h         ; First set cursor position
-  mov bh, 0          ; Page number
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   int 10h            ; Move cursor
   mov ah, 08h        ; Then read character
   int 10h            ; Call BIOS interrupt
@@ -964,9 +993,9 @@ ret
 ; Expects: None
 ; Returns: None
 os_cursor_pos_reset:
-  xor dx, dx        ; Page 0
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   mov ah, 0x2       ; Set cursor
-  xor bh, bh        ; Position 0, 0
+  mov dx, 0x0000    ; DH = row 0, DL = column 0 (top-left)
   int 0x10
 ret
 
@@ -976,7 +1005,7 @@ ret
 ; Returns: None
 os_set_color:
   mov ah, 0x0B
-  mov bh, 0x00
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   int 0x10
 ret
 
@@ -1218,8 +1247,7 @@ ret
 ;   BL - color attribute
 os_fill_screen_with_glyph:
   call os_cursor_pos_reset
-
-  mov bh, 0            ; Page
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   mov ah, 0x09         ; BIOS function to write character and attribute
   mov cx, 2000         ; 80x25 = 2000 characters on screen
   cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
@@ -1227,7 +1255,6 @@ os_fill_screen_with_glyph:
   shr cx, 1
   .skip_40:
   int 0x10             ; Call BIOS
-
   call os_cursor_pos_reset
 ret
 
@@ -1286,6 +1313,8 @@ ret
 ; Returns: None
 os_enter_shell:
   mov byte [_OS_STATE_], OS_STATE_SHELL
+  mov al, OS_VIRT_PAGE_SHELL
+  call os_virual_screen_set
   call os_clear_screen
   call os_print_header
   call os_display_welcome_shell
@@ -1600,6 +1629,40 @@ os_display_kernel_version:
   call os_print_prompt
   mov si, version_msg
   call os_print_str
+ret
+
+
+; Display screen saver =========================================================
+; This function displays the screen saver.
+; Expects: None
+; Returns: None
+os_display_screen_saver:
+  call os_get_random
+  cmp ah, 0x14
+  jle .no_bound_x
+    xor ah,ah
+  .no_bound_x:
+  cmp al, 0x28
+  jle .no_bound_y
+    xor al,al
+  .no_bound_y:
+  mov dx, ax
+  call os_cursor_pos_set
+
+  call os_get_random
+  and al, 0x0F
+  add al, 'a'
+  mov bl, OS_COLOR_GREEN_ON_BLACK
+  call os_print_chr_color
+
+ret
+
+os_virual_screen_set:
+  push ax
+  mov byte [_OS_VIRTUAL_SCREEN_], al
+  mov ah, 0x05
+  int 0x10
+  pop ax
 ret
 
 ; Print help message ===========================================================
@@ -2105,6 +2168,8 @@ ret
 ; Returns: None
 os_enter_game:
   mov byte [_OS_STATE_], OS_STATE_GAME
+  mov al, OS_VIRT_PAGE_GAME
+  call os_virual_screen_set
   mov byte [_OS_GAME_STARTED_], 0x0
   call os_clear_screen
 

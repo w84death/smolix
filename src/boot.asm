@@ -23,6 +23,8 @@ boot_start:
   mov ds, ax
   mov es, ax
 
+  mov [floppy_drive_number], dl ; Boot drive number (passed in DL by BIOS)
+
 	mov ah, 0x00		; Set video mode
 	mov al, 0x00    ; Set to default text mode
 	int 0x10
@@ -98,17 +100,6 @@ boot_kernel_error:
 ; Expects: None
 ; Returns: None
 boot_error_recovery:
-
-  .swap_floppy_drive:
-    mov al, [floppy_drive_number]
-    dec al
-    jnz .not_zero
-    jmp .zero
-    .not_zero:
-      mov al, 0x1
-    .zero:
-    mov byte [floppy_drive_number], al
-  push ax
   mov si, floppy_drive_msg
   call boot_print_str
   pop ax
@@ -171,7 +162,7 @@ ret
 
 ; Print statements =============================================================
 welcome_msg db          'SMOLiX Bootloader Version 0.2',0x0A,0x0D,0x0
-loading_msg db          'Loading kernel... ',0x0A,0x0D,0x0
+loading_msg db          'Loading SMOLiX kernel... ',0x0A,0x0D,0x0
 disk_read_error_msg db  '<!> Disk read error.',0x0A,0x0D,0x0
 reset_err_msg db        '<!> Disk reset error.',0x0A,0x0D,0x0
 count_err_msg db        '<!> Disk sector count error.',0x0A,0x0D,0x0

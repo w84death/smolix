@@ -1,21 +1,24 @@
 Future planned changes:
-- screen saver
-- editing files (hemingway and insert modes)
-- Dirty Rat game
+- 0xD editing files (hemingway and insert modes)
+- 0xE Dirty Rat game
   - status bar
   - actual levels for the game (3x)
   - game logic (collecting floppies, exiting to next level)
   - dirt!
 
 Current version changes:
-0x0C:
+
+Released versions:
+0x0C [RELEASED]:
+  - virtual screens (paging)
+  - simple screen saver (for CRT monitors and fun)
   - codebase rearanged, better comments/headers
   - progress on Dirty Rat game
     - better rat animation handling
     - colors
     - collecting floppies
     - function for drawing walls from stack data
-  - bootloader: switching between floppy A: and B:
+  - bootloader: check for floppy drive number
   - lot of bugfixes
   - more colors
   - introducion of DSKY input interface: VERB/NOUN
@@ -42,8 +45,6 @@ Current version changes:
   - bugfixes, checks, stability testing
   - show/hide cursor (shell/game)
   - updated logo (removed 16bit part)
-
-Released versions:
 alpha9 [RELEASED]:
   - start of a Dirty Rat mini game
   - initial printing support (theoretical)
