@@ -999,16 +999,6 @@ os_cursor_pos_reset:
   int 0x10
 ret
 
-; Set color ====================================================================
-; sets the color of the text on the screen.
-; Expects: BL = color attribute
-; Returns: None
-os_set_color:
-  mov ah, 0x0B
-  mov bh, [_OS_VIRTUAL_SCREEN_]
-  int 0x10
-ret
-
 ; Print a BCD value ============================================================
 ; prints a BCD value to the console.
 ; Expects: AX = BCD value
@@ -2332,7 +2322,7 @@ os_game_start:
   mov bl, [_OS_GAME_CURRENT_LEVEL_+1]
   call os_fill_screen_with_glyph
 
-  ; vertical walls
+  ; horizontal walls
   push 0x0000
   push 0x0B
   push 0x001B
@@ -2345,12 +2335,12 @@ os_game_start:
   push 0x12
   push 0x1114
   push 0x10
-  push 0x1807 ; position
+  push 0x1607 ; position
   push 0x1D   ; length
   push 0x0700 ; number of walls + type
   call os_game_spawn_walls
 
-  ; horizontal walls
+  ; vertical walls
   push 0x0100
   push 0x0C
   push 0x010C
@@ -2360,11 +2350,11 @@ os_game_start:
   push 0x0127
   push 0x0C
   push 0x0D07
-  push 0x0B
+  push 0x09
   push 0x0D14
   push 0x04
   push 0x1225   ; pos
-  push 0x06     ; length
+  push 0x04     ; length
   push 0x0701   ; number of walls + type
   call os_game_spawn_walls
 
@@ -2420,12 +2410,39 @@ os_game_draw_vertical_wall: ; IN: DX pos, CL len
   loop .vertical_walls_loop
 ret
 
+os_game_score_msg       db 'SCORE',0x00
+os_game_high_score_msg  db 'HISCORE',0x00
+os_game_level_msg       db 'LEVEL',0x00
+
 os_game_draw_status_bar:
-  ; draw LIFE 0
-  ; draw LEVEL 0
-  ; draw SCORE 00000
-  ; drew HI SCORE 00000
-  ; draw TIMER
+  mov dx, 0x1804
+  call os_cursor_pos_set
+
+  mov si, os_game_level_msg
+  call os_print_str
+  mov al, 0x01
+  mov bl, OS_COLOR_LIGHT_CYAN_ON_BLUE
+  call os_print_bcd_color
+
+  mov al, CHR_SPACE
+  mov ah, CHR_SPACE
+  call os_print_chr_double
+
+  mov si, os_game_score_msg
+  call os_print_str
+  mov al, byte [_OS_GAME_SCORE_]
+
+  call os_print_bcd_color
+
+  mov al, CHR_SPACE
+  mov ah, CHR_SPACE
+  call os_print_chr_double
+
+  mov si, os_game_high_score_msg
+  call os_print_str
+  mov al, 0x99
+
+  call os_print_bcd_color
 ret
 
 os_game_spawn_walls:
@@ -2745,6 +2762,7 @@ os_game_loop:
     add si, 0x06
   jmp .entites_loop
   .done:
+  call os_game_draw_status_bar
 ret
 
 ; ==============================================================================
