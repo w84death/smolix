@@ -212,7 +212,7 @@ os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
   mov dword [_OS_TICK_], 00
-  mov word [_OS_INACTIVE_TIMER_], 0xFFFF
+  mov word [_OS_INACTIVE_TIMER_], 0xFF
   mov byte [_OS_VIRTUAL_SCREEN_], OS_VIRT_PAGE_SHELL
   mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
 
@@ -325,6 +325,7 @@ os_main_loop:
 
   cmp byte [_OS_STATE_], OS_STATE_GAME
   je .game_loop
+
   dec word [_OS_INACTIVE_TIMER_]
   jmp .skip_game_loop
 
@@ -1630,31 +1631,48 @@ os_display_kernel_version:
   call os_print_str
 ret
 
-
-; Display screen saver =========================================================
-; This function displays the screen saver.
 ; Expects: None
 ; Returns: None
 os_display_screen_saver:
   call os_get_random
-  cmp ah, 0x14
-  jle .no_bound_x
-    xor ah,ah
-  .no_bound_x:
-  cmp al, 0x28
+
+  ; Set Y coordinate (row) - same for both modes (0-24)
+  and al, 0x1F      ; 0-31 values
+  cmp al, 24        ; row bound (0-24 for 25 rows)
   jle .no_bound_y
-    xor al,al
+  jmp .skip_drawing_char
   .no_bound_y:
-  mov dx, ax
+
+  ; Set X coordinate (column) - depends on video mode
+  and ah, 0x7F      ; 0-127 values
+  cmp byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_80
+  je .check_80_mode
+
+  ; 40-column mode bounds (0-39)
+  cmp ah, 39
+  jle .no_bound_x
+  jmp .skip_drawing_char
+  jmp .no_bound_x
+
+  .check_80_mode:
+  ; 80-column mode bounds (0-79)
+  cmp ah, 79
+  jle .no_bound_x
+  jmp .skip_drawing_char
+
+  .no_bound_x:
+  mov dh, al        ; DL = column (AH), DH = row (AL)
+  mov dl, ah
   call os_cursor_pos_set
 
   call os_get_random
   and al, 0x0F
-  add al, 'a'
+  add al, 0x80
   mov bl, OS_COLOR_GREEN_ON_BLACK
   call os_print_chr_color
-
+  .skip_drawing_char:
 ret
+
 
 os_virual_screen_set:
   push ax
