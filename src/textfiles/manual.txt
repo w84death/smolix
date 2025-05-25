@@ -2,145 +2,302 @@
 ==============================
 
 SMOLiX - Real Mode, Raw Power.
+Version 0x0C
 
 ## TABLE OF CONTENTS
 1. Introduction
-2. User Interface
-3. Command System
+2. DSKY Interface System
+3. Command Reference
 4. File Operations
-5. System Settings
+5. System Features
 6. Playing Games
 7. Technical Information
+8. Troubleshooting
 
 ## 1. INTRODUCTION
 --------------
-SMOLiX is a minimal operating system designed for x86 processors running in real mode.
-It provides a simple but functional environment with a command-line interface
-that embraces the simplicity and raw performance of direct hardware access.
+SMOLiX is a minimalist operating system designed for x86 processors running in real mode.
+It provides a unique graphical user interface with Apollo-inspired DSKY (Display & Keyboard)
+command system that embraces the simplicity and raw performance of direct hardware access.
 
-The system uses a unique one-letter command system for efficiency and offers
-basic file operations, system information, and includes a game.
+The system uses a VERB/NOUN command structure for precise control and offers comprehensive
+file operations, system monitoring, virtual screen management, and includes the "Dirty Rat" game.
 
-## 2. USER INTERFACE
------------------
-SMOLiX uses a text-based user interface. The primary interface is the command prompt,
-where users can enter commands to interact with the system.
-
-The interface features:
-- Permanent header with logo and version information
-- Command-line prompt for user input
-- 16-color support via EGA/VGA
+Key Features:
+- Apollo Guidance Computer inspired DSKY interface
+- Virtual screen paging system
+- Built-in screen saver for CRT protection
+- Comprehensive file system operations
+- Real-time system monitoring
+- 16-color EGA/VGA graphics support
 - Multiple video modes (40x25, 80x25)
-- Sound feedback for commands
 
-## 3. COMMAND SYSTEM
-----------------
-SMOLiX uses a unique one-letter command system. This minimalist approach allows for
-quick interaction without complex typing. Simply press a single key to execute the
-corresponding command.
+## 2. DSKY INTERFACE SYSTEM
+-------------------------
+SMOLiX uses a DSKY (Display & Keyboard) interface inspired by the Apollo Guidance Computer.
+This system uses a two-part command structure: VERB (action) and NOUN (data object).
 
-### Available Commands:
+### DSKY Display
+The DSKY interface shows:
+- VERB field: Action to perform (00-99)
+- NOUN field: Data object or parameter (00-99)
+- Status indicators and feedback
 
-| Command | Description                         |
-|---------|-------------------------------------|
-| h       | Display quick help                  |
-| H       | View full system manual             |
-| v       | Show system version                 |
-| r       | Perform soft reset                  |
-| R       | Perform hard reboot                 |
-| D       | Shutdown the system                 |
-| c       | Clear the shell log                 |
-| x       | Toggle between 40/80 screen modes   |
-| s       | Display system statistics           |
-| l       | List files on floppy disk           |
-| f       | Display & edit loaded file content  |
-| W       | Write current file to floppy        |
-| g       | Play "Dirty Rat" game               |
-| p       | Test printer                        |
-| ESC     | Clear shell / Exit current mode     |
+### How to Use DSKY
+1. Press 'v' to enter VERB input mode
+   - The VERB field will highlight in red
+   - Type a 2-digit VERB code (00-99)
 
-To execute a command, simply type the corresponding letter at the command prompt.
-The system will provide sound feedback to indicate command execution.
+2. Press 'n' to enter NOUN input mode
+   - The NOUN field will highlight in red
+   - Type a 2-digit NOUN code (00-99)
+
+3. Press ENTER to execute the command
+   - The system will display "Executing VERB XX NOUN XX"
+   - Command will be processed and results displayed
+
+4. Press ESC (Clear) to reset VERB and NOUN to 00
+
+### Input Guidelines
+- VERB and NOUN codes are always 2 digits (leading zeros required)
+- Only digits 0-9 are accepted during input
+- Invalid combinations will display "Unknown command"
+- Type "VERB 00, NOUN 00" for complete help
+
+## 3. COMMAND REFERENCE
+--------------------
+Complete list of available VERB/NOUN combinations:
+
+### System Information Commands
+| VERB | NOUN | Command | Description |
+|------|------|---------|-------------|
+| 00   | 00   | Help    | Display all available commands and syntax |
+| 01   | 01   | Version | Show kernel version information |
+| 01   | 02   | Stats   | Display comprehensive system statistics |
+
+### File System Commands
+| VERB | NOUN | Command | Description |
+|------|------|---------|-------------|
+| 30   | 00   | List    | List all files on floppy disk |
+| 31   | XX   | Read    | Read file number XX to buffer (01-04) |
+| 32   | 00   | Display | Display current buffer content |
+| 33   | 00   | Write   | Write current buffer to floppy disk |
+| 34   | 00   | Clear   | Clear file buffer |
+
+### System Control Commands
+| VERB | NOUN | Command | Description |
+|------|------|---------|-------------|
+| 50   | 00   | Game    | Enter "Dirty Rat" mini-game |
+
+### Common Command Examples
+- VERB 00, NOUN 00: Show help
+- VERB 01, NOUN 02: System statistics
+- VERB 30, NOUN 00: List files
+- VERB 31, NOUN 01: Read file #1
+- VERB 32, NOUN 00: Display buffer
+- VERB 50, NOUN 00: Start game
 
 ## 4. FILE OPERATIONS
 -----------------
-SMOLiX offers basic file operations for working with a floppy disk.
+SMOLiX provides a comprehensive file system for floppy disk operations.
+
+### Available Files
+The system supports up to 4 fixed-size files:
+- File 01: System Manual (this document)
+- File 02: ASCII Art Gallery
+- File 03: Notepad (user editable)
+- File 04: Kernel Change Log
 
 ### Listing Files
-To list all files available on the floppy disk:
-1. Press 'l' at the command prompt
-2. The system will display all files present on the floppy
+To see all available files:
+1. Enter: VERB 30, NOUN 00
+2. System displays file list with sizes and descriptions
 
-### Opening and Reading Files
-To open and read a file:
-1. Use 'l' to list available files
-2. When a file is loaded into the buffer, press 'f' to display its contents
-3. Use UP and DOWN arrow keys to scroll through the file content
-4. Press ESC to return to the shell
+### Reading Files
+To read a file into the buffer:
+1. Enter: VERB 31, NOUN [file number]
+2. Example: VERB 31, NOUN 01 (reads System Manual)
+3. Use VERB 32, NOUN 00 to display buffer content
+
+### Viewing File Content
+After reading a file:
+1. Enter: VERB 32, NOUN 00
+2. Use UP/DOWN arrow keys to scroll through content
+3. Press ESC to return to shell
 
 ### Writing Files
-To write the current buffer content to a floppy disk:
-1. Press 'W' at the command prompt
-2. The system will write the current buffer to the floppy disk
+To save buffer content to disk:
+1. Enter: VERB 33, NOUN 00
+2. System writes current buffer to floppy
+3. Confirmation message displayed
 
-## 5. SYSTEM SETTINGS
------------------
-SMOLiX allows you to view and modify various system settings.
+### Clearing Buffer
+To clear the file buffer:
+1. Enter: VERB 34, NOUN 00
+2. Buffer is cleared and ready for new content
 
-### Viewing System Statistics
-To view system statistics:
-1. Press 's' at the command prompt
-2. The system will display information about:
-   - CPU usage
-   - Memory status
-   - System uptime
-   - Hardware information
+## 5. SYSTEM FEATURES
+------------------
 
-### Changing Video Mode
-To toggle between video modes:
-1. Press 'x' at the command prompt
-2. The system will switch between 40x25 and 80x25 text modes
+### Virtual Screen Management
+SMOLiX supports multiple virtual screens:
+- Shell screen (primary interface)
+- File system screen (file operations)
+- Game screen (Dirty Rat game)
+- Screen saver (CRT protection)
+
+### Screen Saver
+Automatic screen saver activates after period of inactivity:
+- Protects CRT monitors from burn-in
+- Shows animated patterns
+- Press any key to return to normal operation
+
+### System Statistics
+VERB 01, NOUN 02 displays comprehensive system information:
+- CPU type and speed detection
+- Memory configuration (base and extended)
+- System uptime and tick counter
+- APM power management status
+- Hardware detection results
+- Current video mode and settings
+
+### Video Modes
+System supports multiple text modes:
+- 40x25 character mode (default)
+- 80x25 character mode
+- Automatic logo scaling based on mode
+
+### Sound System
+Audio feedback for operations:
+- Boot sequence tune
+- Command execution confirmation
+- Error notification sounds
+- Game sound effects
 
 ## 6. PLAYING GAMES
 ---------------
-SMOLiX includes a built-in game called "Dirty Rat".
+SMOLiX includes "Dirty Rat" - an arcade-style mini-game.
 
 ### Starting the Game
-To start the game:
-1. Press 'g' at the command prompt
-2. The system will enter game mode
+1. Enter: VERB 50, NOUN 00
+2. Game welcome screen appears
 3. Press ENTER to begin playing
+4. Press ESC to return to shell
 
 ### Game Controls
-- Use arrow keys to move the character
-- UP: Move up
-- DOWN: Move down
-- LEFT: Move left
-- RIGHT: Move right
-- ENTER: Start game
-- ESC: Quit game and return to shell
+- Arrow Keys: Move the rat character
+  - UP: Move up
+  - DOWN: Move down
+  - LEFT: Move left
+  - RIGHT: Move right
+- ENTER: Start/restart game
+- ESC: Exit to shell
 
-### Game Instructions
-"Dirty Rat" is a simple game where you control a rat character.
-The objective is to navigate through the environment, avoiding obstacles
-and collecting items. Press ENTER to start the game and ESC to quit.
+### Game Objectives
+- Navigate the rat through the environment
+- Avoid the moving broom entities
+- Collect floppy disks for points
+- Reach the door to advance levels
+- Don't get caught by the cleaning equipment!
+
+### Game Features
+- Animated rat character with walking cycles
+- Dynamic broom movement patterns
+- Multiple level tiles and environments
+- Score tracking system
+- Collision detection
+- Progressive difficulty
 
 ## 7. TECHNICAL INFORMATION
 -----------------------
-### System Requirements
-- CPU: 386 SX, 16MHz minimum (486 DX4, 100MHz recommended)
-- Graphics: EGA Enhanced (8x16) minimum, VGA recommended
-- RAM: 256KB minimum (SMOLiX recognizes up to 640KB only)
 
-### Architecture
-- Processor Mode: Real mode (16-bit)
-- Memory Model: Segmented memory model
-- Boot Method: Standard floppy disk boot
+### System Requirements
+- CPU: 386+ (486 DX recommended for optimal performance)
+- Graphics: EGA Enhanced minimum, VGA recommended
+- RAM: 256KB minimum (system uses segmented memory model)
+- Storage: 1.44MB floppy disk drive
+- Display: CRT or LCD monitor supporting EGA/VGA modes
+
+### Architecture Details
+- Processor Mode: x86 Real Mode (16-bit)
+- Memory Model: Segmented memory addressing
+- Boot Method: Standard floppy disk boot sector
+- File System: Custom fixed-allocation system
+- Graphics: Direct VGA/EGA hardware access
+
+### Memory Layout
+- OS Memory Base: Dedicated system variables area
+- Virtual Screen Buffer: Multiple screen page storage
+- Game Entity Storage: Dynamic entity management
+- File Buffer: 8KB file operation workspace
+- Stack Space: System and user stack areas
 
 ### System Services
-SMOLiX provides various system services through software interrupts,
-including display functions, keyboard input handling, and memory management.
+SMOLiX provides services through interrupt 0x60:
+- System initialization and reset
+- Character and string output
+- Color management
+- Glyph loading and rendering
+- Keyboard input processing
+- Memory management
+- Power management (APM)
+
+### Boot Process
+1. Boot sector loads kernel from floppy
+2. System initialization and hardware detection
+3. Memory setup and variable initialization
+4. Graphics mode establishment
+5. DSKY interface activation
+6. Main system loop begins
+
+### Error Handling
+- Invalid VERB/NOUN combinations display error messages
+- Hardware failures trigger diagnostic messages
+- File operation errors provide specific feedback
+- System maintains stability through error recovery
+
+## 8. TROUBLESHOOTING
+------------------
+
+### Common Issues
+
+**DSKY Not Responding**
+- Ensure VERB and NOUN are 2-digit numbers
+- Check for valid command combinations
+- Try VERB 00, NOUN 00 for help
+
+**File Operations Failing**
+- Verify floppy disk is properly inserted
+- Check file numbers (01-04 only)
+- Ensure sufficient disk space for writes
+
+**Game Not Starting**
+- Use VERB 50, NOUN 00 to enter game
+- Press ENTER to begin gameplay
+- ESC returns to shell if stuck
+
+**Display Issues**
+- System auto-detects video capabilities
+- Both 40x25 and 80x25 modes supported
+- Logo scales automatically to screen size
+
+**System Lockup**
+- Hardware reset may be required
+- Check for proper floppy disk boot
+- Verify minimum system requirements
+
+### Getting Help
+- VERB 00, NOUN 00: Complete command reference
+- VERB 01, NOUN 02: System diagnostic information
+- All commands provide feedback messages
+- Error messages indicate specific issues
 
 ---
-SMOLiX: Copyright (C) 2025 Krzysztof Krystian Jankowski
+SMOLiX Operating System
+Version 0x0C
+
+Copyright (C) 2025 Krzysztof Krystian Jankowski
 This is free and open source software.
+Licensed under the terms specified in the LICENSE file.
+
+For more information, visit: https://krzysztofjankowski.com

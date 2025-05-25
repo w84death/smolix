@@ -2739,7 +2739,7 @@ ret
 ;
 ; ==============================================================================
 
-version_msg           db 'Version 0x0C', 0
+version_msg           db 'Version 0x0D', 0
 system_logo_msg:
 db OS_GLYPH_LOGO+0x0
 db OS_GLYPH_LOGO+0x1
