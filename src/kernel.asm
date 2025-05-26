@@ -432,6 +432,7 @@ os_dsky_process_input:
   .process_enter:
     mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_EXECUTING
     call os_dsky_execute_command
+    mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
   jmp .done
 
   .process_clear:
@@ -527,7 +528,6 @@ os_dsky_execute_command:
     call ax
     jc .error
   .done:
-    mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
     mov ax, OS_SOUND_ERROR
     call os_sound_play
     clc
@@ -536,7 +536,7 @@ ret
   mov ax, OS_SOUND_ERROR
   call os_sound_play
   stc
-stc
+ret
 
 os_dsky_commands_table:
   ; Help
@@ -2155,20 +2155,26 @@ os_printer_print_fs_buffer:
   mov si, _OS_FS_BUFFER_
   cmp byte [si], 0          ; Check if the current character is null
   je .empty_file
-  mov si, welcome_msg
+
   call os_printer_string
 
   .success_print:
+  mov bl, GLYPH_SYSTEM
+  call os_print_prompt
     mov si, success_msg
     call os_print_str
     clc
 ret
   .empty_file:
+    mov bl, GLYPH_ERROR
+    call os_print_prompt
     mov si, fs_empty_msg
     call os_print_str
     stc
 ret
   .error_init:
+    mov bl, GLYPH_ERROR
+    call os_print_prompt
     mov si, failure_msg
     call os_print_str
     stc
@@ -2616,12 +2622,37 @@ os_game_player_move:
       mov al, [_OS_GAME_CURRENT_LEVEL_]
       mov bl, [_OS_GAME_CURRENT_LEVEL_+1]
       call os_print_chr_color
-      ; inc floppy count
+
+      add byte [_OS_GAME_SCORE_], 0x10
       ; beep
       jmp .move_player
     .broke_pot:
-      ; change pot to broken
+      ; broke the pot
+      call os_cursor_pos_set
+      mov al, GLYPH_GAME_POT_BROKEN
+      mov bl, GAME_COLOR_POT
+      call os_print_chr_color
       ; spawn dirt around
+
+      mov si, os_game_positions_around
+      mov cx, 0x8
+      .dirt_loop:
+        push dx
+        lodsb
+        add dl, al
+        lodsb
+        add dh, al
+        call os_cursor_pos_set
+        call os_get_random
+        and ax, 0x3
+        dec ax
+        js .skip_dirt
+        add al, GLYPH_GAME_DIRT1
+        call os_print_chr
+        .skip_dirt:
+        pop dx
+      loop .dirt_loop
+
       jmp .skip_move
 
   .move_player:
@@ -2631,6 +2662,9 @@ os_game_player_move:
   .skip_move:
     call os_game_player_draw
 ret
+
+os_game_positions_around:
+db -1, -1, -1, 0, -1, 1, 0, -1, 0, 1, 1, -1, 1, 0, 1, 1
 
 ; Move broom ===================================================================
 ; moves the broom, handles edge detection and bouncing
