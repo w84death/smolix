@@ -47,9 +47,11 @@ _FRAME                          equ 0x3
 _DIRT                           equ 0x4
 _LAST_TILE                      equ 0x5
 
-_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x100   ; 1b
-_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x101   ; 2b
-_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x103
+_OS_FS_FLOPPY_DRIVE_            equ _OS_MEMORY_BASE_ + 0x100   ; 1b
+_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x101   ; 1b
+_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x102   ; 2b
+_OS_FS_FILE_SIZE_               equ _OS_MEMORY_BASE_ + 0x104   ; 2b
+_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x106   ; 8kb
 
 OS_STATE_INIT                   equ 0x01
 OS_STATE_SPLASH_SCREEN          equ 0x02
@@ -69,6 +71,8 @@ OS_DSKY_STATE_EXECUTING         equ 0x03
 
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
+
+OS_SCREEN_SAVER_TIME            equ 0xFF
 
 OS_FS_BLOCK_SIZE                equ 0x10
 OS_FS_FILE_SIZE                 equ 0x2000
@@ -205,6 +209,7 @@ KBD_KEY_INSERT                  equ 0x52
 ; Initialize OS ================================================================
 ; This is the main entry
 os_init:
+  mov byte [_OS_FS_FLOPPY_DRIVE_], dl
   mov byte [_OS_STATE_], OS_STATE_INIT
   mov byte [_OS_DSKY_STATE_], OS_DSKY_STATE_IDLE
   mov word [_OS_DSKY_VERB_], 0x0
@@ -212,7 +217,7 @@ os_init:
   mov byte [_OS_VIDEO_MODE_], OS_VIDEO_MODE_40
   mov byte [_OS_FS_FILE_LOADED_], OS_FS_FILE_NOT_LOADED
   mov dword [_OS_TICK_], 00
-  mov word [_OS_INACTIVE_TIMER_], 0xFF
+  mov word [_OS_INACTIVE_TIMER_], OS_SCREEN_SAVER_TIME
   mov byte [_OS_VIRTUAL_SCREEN_], OS_VIRT_PAGE_SHELL
   mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
 
@@ -246,7 +251,7 @@ os_main_loop:
     int 16h             ; Call BIOS interrupt
     jz .continue
 
-    mov word [_OS_INACTIVE_TIMER_], 0xFF
+    mov word [_OS_INACTIVE_TIMER_], OS_SCREEN_SAVER_TIME
 
     mov ah, 00h         ; BIOS keyboard read function
     int 16h
@@ -1351,7 +1356,7 @@ os_fs_list_files:
     mov bx, cx
     shl bx, 5
     cmp byte [os_fs_directory_table+bx], 0xFF
-    je .skip_move_of_list
+    je .done
     add bx, 3
     mov si, os_fs_directory_table
     add si, bx
@@ -1371,7 +1376,7 @@ os_fs_list_files:
     inc cx
   jmp .list_loop
 
-  .skip_move_of_list:
+  .done:
   mov bl, GLYPH_FLOPPY
   call os_print_prompt
   mov si, fs_select_file_msg
@@ -1436,7 +1441,7 @@ os_fs_load_buffer:
   .read_data_from_floppy:
     mov ah, 0x02            ; Read sectors function
     mov al, OS_FS_BLOCK_SIZE
-    mov dl, 0x00            ; Drive = 0 (Floppy A:)
+    mov dl, [_OS_FS_FLOPPY_DRIVE_]
     int 0x13                ; BIOS disk interrupt
     jc .disk_error          ; Error if carry flag set
 
@@ -1592,7 +1597,7 @@ os_fs_file_write:
   mov ch, 0              ; Cylinder 0
   mov cl, 0 ; Start from sector defined in constants
   mov dh, 0              ; Head 0
-  mov dl, 0x00           ; Drive 0 (first floppy drive)
+  mov dl, [_OS_FS_FLOPPY_DRIVE_]
 
   int 0x13               ; Call BIOS to write sectors
   jc .write_error        ; Error if carry flag set
@@ -1625,7 +1630,7 @@ ret
 ; Returns: None
 os_display_screen_saver:
 
-  mov cx, 0x3
+  mov cx, 0x20
   .char_loop:
   push cx
     call os_get_random
@@ -1658,12 +1663,13 @@ os_display_screen_saver:
 
     .draw_random_char:
       call os_get_random
-      ;mov bl, al
+      mov bl, al
       and al, 0x07
       add al, OS_GLYPH_ADDRESS
-      mov bl, OS_COLOR_GREEN_ON_BLACK
-      ;or bl, OS_COLOR_GREEN_ON_BLACK
 
+      mov bl, byte [_OS_TICK_+1]
+      and bl, 0x7
+      add bl, OS_COLOR_GREEN_ON_BLACK
       call os_print_chr_color
 
     .skip_drawing_char:
@@ -2547,13 +2553,19 @@ os_game_broom_draw:
 ret
 
 ; Validate position ============================================================
-; validates the new position
+; Validates the new position
 ; Expects: DX - position
 ; Returns: Carry if can't move (wall)
 ;          AL - tile type
 os_game_validate_pos:
   call os_read_chr
   cmp al, [_OS_GAME_CURRENT_LEVEL_]
+  je .can_move
+  cmp al, GLYPH_GAME_DIRT1
+  je .can_move
+  cmp al, GLYPH_GAME_DIRT2
+  je .can_move
+  cmp al, GLYPH_GAME_DIRT3
   je .can_move
   stc
   ret
@@ -2633,7 +2645,6 @@ os_game_player_move:
       mov bl, GAME_COLOR_POT
       call os_print_chr_color
       ; spawn dirt around
-
       mov si, os_game_positions_around
       mov cx, 0x8
       .dirt_loop:
@@ -2652,7 +2663,11 @@ os_game_player_move:
         .skip_dirt:
         pop dx
       loop .dirt_loop
-
+      ; add points
+      mov al, byte [_OS_GAME_SCORE_]
+      add al, 0x5
+      daa
+      mov byte [_OS_GAME_SCORE_], al
       jmp .skip_move
 
   .move_player:

@@ -126,12 +126,16 @@ boot_kernel_success:
   mov si, kernel_jump_msg
   call boot_print_str
 
+  ; Pass drive number to kernel in DL register
+  mov dl, [floppy_drive_number]
+
   ; Set up stack before jumping to kernel
   mov ax, KERNEL_SEGMENT
   mov ds, ax
   mov es, ax
   mov ss, ax
   mov sp, KERNEL_STACK_POINTER
+
   jmp KERNEL_SEGMENT:KERNEL_OFFSET
 
 ; Print character ==============================================================
