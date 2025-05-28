@@ -588,12 +588,18 @@ os_dsky_commands_table:
   db 0x32, 0x03
   dw os_fs_clear_buffer, msg_cmd_fs_clear_buf
 
+  ; Printing
   db 0x40, 0x00
   dw os_printer_print_fs_buffer, msg_cmd_print
 
+  ; Game
   db 0x50, 0x00
   dw os_enter_game, msg_cmd_game
 
+  ; CoreWar ?
+
+
+  ; Terminator
   db 0xFF
 
 ; ==============================================================================
