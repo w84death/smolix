@@ -66,3 +66,17 @@ INSTRUCTION destination, source
 ### Arena seizes
 Small: 1000
 Big: 2000
+
+## Memory
+
+EMPTY >> 6 + PROG_ID >> 5 + OPCODE & 16
+00 0 00000
+MODE >> 6 + SIGN >> 5 + VALUE & 16
+00 0 00000
+
+MOV $1, $0
+MOV = 0*64 + 1 = 1
+$1 = 1*64 + 0*32 + 1 = 65
+$0 = 0*64 + 0*32 + 0 = 64
+
+db 1, 129, 128

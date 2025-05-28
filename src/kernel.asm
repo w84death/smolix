@@ -53,16 +53,21 @@ _OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x102   ; 2b
 _OS_FS_FILE_SIZE_               equ _OS_MEMORY_BASE_ + 0x104   ; 2b
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x106   ; 8kb
 
+
+
+
 OS_STATE_INIT                   equ 0x01
 OS_STATE_SPLASH_SCREEN          equ 0x02
 OS_STATE_SHELL                  equ 0x03
 OS_STATE_FS                     equ 0x04
 OS_STATE_GAME                   equ 0x05
+OS_STATE_COREWAR                equ 0x06
 
 OS_VIRT_PAGE_SHELL              equ 0x00
 OS_VIRT_PAGE_FS                 equ 0x01
 OS_VIRT_PAGE_GAME               equ 0x02
 OS_VIRT_PAGE_SCR_SAVER          equ 0x03
+OS_VIRT_PAGE_COREWAR            equ 0x04
 
 OS_DSKY_STATE_IDLE              equ 0x00
 OS_DSKY_STATE_VERB_INPUT        equ 0x01
@@ -100,6 +105,7 @@ OS_COLOR_WHITE_ON_GREEN         equ 0x2F
 OS_COLOR_WHITE_ON_RED           equ 0x4F
 OS_COLOR_WHITE_ON_BLACK         equ 0x0F
 OS_COLOR_GREEN_ON_BLACK         equ 0x02
+OS_COLOR_DARK_GRAY_ON_BLACK     equ 0x08
 OS_COLOR_BLACK_ON_BLUE          equ 0x10
 OS_COLOR_BLUE_ON_BLUE           equ 0x11
 OS_COLOR_GREEN_ON_BLUE          equ 0x12
@@ -116,6 +122,7 @@ OS_COLOR_LIGHT_RED_ON_BLUE      equ 0x1C
 OS_COLOR_LIGHT_MAGENTA_ON_BLUE  equ 0x1D
 OS_COLOR_YELLOW_ON_BLUE         equ 0x1E
 OS_COLOR_WHITE_ON_BLUE          equ 0x1F
+
 
 BYTE                            equ 0x01
 WORD                            equ 0x02
@@ -279,6 +286,8 @@ os_main_loop:
     je .print_splash
     cmp byte [_OS_STATE_], OS_STATE_GAME
     je .cpu_delay
+    cmp byte [_OS_STATE_], OS_STATE_COREWAR
+    je .cpu_delay
 
   .print_shell:
     mov al, OS_VIRT_PAGE_SHELL
@@ -327,23 +336,33 @@ os_main_loop:
 
   call os_sound_stop
 
-
   cmp byte [_OS_STATE_], OS_STATE_GAME
   je .game_loop
+  cmp byte [_OS_STATE_], OS_STATE_COREWAR
+  je .corewar_loop
 
   dec word [_OS_INACTIVE_TIMER_]
-  jmp .skip_game_loop
+  jmp .skip_custom_loops
 
   .game_loop:
   cmp byte [_OS_GAME_STARTED_], 0
-  jz .skip_game_loop
+  jz .skip_custom_loops
     dec byte [_OS_GAME_TICK_]
-    jnz .skip_game_loop
+    jnz .skip_custom_loops
       mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
       call os_game_loop
-  .skip_game_loop:
 
+  .corewar_loop:
+
+
+  .skip_custom_loops:
 jmp os_main_loop
+
+; ==============================================================================
+;
+; DSKY FUNCTIONS
+;
+; ==============================================================================
 
 ; ==============================================================================
 ;
@@ -596,7 +615,11 @@ os_dsky_commands_table:
   db 0x50, 0x00
   dw os_enter_game, msg_cmd_game
 
-  ; CoreWar ?
+  ; CoreWar
+  db 0x60, 0x00
+  dw os_corewar_prog_list, msg_cmd_cw_list
+  db 0x60, 0x10
+  dw os_corewar_enter_arena, msg_cmd_cw_enter_arena
 
 
   ; Terminator
@@ -837,6 +860,7 @@ ret
 os_print_chr:
   push ax
   mov ah, 0x0e    ; BIOS teletype output function
+  mov bh, [_OS_VIRTUAL_SCREEN_]
   int 0x10        ; BIOS teletype output function
   pop ax
 ret
@@ -1156,6 +1180,11 @@ os_keyboard_table:
   db OS_STATE_GAME, KBD_KEY_ENTER
   dw os_game_start
   db OS_STATE_GAME, KBD_KEY_ESCAPE
+  dw os_enter_shell
+
+  db OS_STATE_COREWAR, KBD_KEY_ENTER
+  dw os_corewar_arena_start
+  db OS_STATE_COREWAR, KBD_KEY_ESCAPE
   dw os_enter_shell
 
   db 0x0
@@ -1635,7 +1664,6 @@ ret
 ; Expects: None
 ; Returns: None
 os_display_screen_saver:
-
   mov cx, 0x20
   .char_loop:
   push cx
@@ -2029,6 +2057,13 @@ ret
 ;
 ; ==============================================================================
 
+
+; ==============================================================================
+;
+; PRINTING SYSTEM (DOT-MATRIX PRINTERS)
+;
+; ==============================================================================
+
 ; Initialize Printer ===========================================================
 ; initializes the printer.
 ; Expects: None
@@ -2191,6 +2226,13 @@ ret
     call os_print_str
     stc
 ret
+
+; ==============================================================================
+;
+; THE GAME FUNCTIONS
+;
+; ==============================================================================
+
 
 ; ==============================================================================
 ;
@@ -2820,6 +2862,137 @@ os_game_loop:
   call os_game_draw_status_bar
 ret
 
+
+; ==============================================================================
+;
+; COREWAR
+;
+; ==============================================================================
+
+os_corewar_prog_list:
+  mov si, os_corewar_memory
+  call os_corewar_instruction_decode
+ret
+
+; in SI
+os_corewar_instruction_decode:
+  mov bl, GLYPH_MSG
+  call os_print_prompt
+
+  ; PROG_ID
+  xor ax,ax
+
+  mov al, '['
+  call os_print_chr
+
+  lodsb
+  push ax
+  and al, 0x20
+  shr al, 0x5
+  call os_print_num
+
+  mov al, ']'
+  mov ah, ' '
+  call os_print_chr_double
+
+  ; OPCODE
+  pop ax
+  and al, 0x1F
+  push si
+  mov si, os_corewar_opcodes_table
+  shl al, 0x2
+  add si, ax
+  call os_print_str
+  pop si
+
+  mov al, ' '
+  call os_print_chr
+
+  ; Destination
+  xor ax,ax
+  lodsb
+  push ax
+  call print_mode
+  pop ax
+  call print_sign_value
+
+  mov al, ','
+  mov ah, ' '
+  call os_print_chr_double
+
+  xor ax,ax
+  lodsb
+  push ax
+  call print_mode
+  pop ax
+  call print_sign_value
+
+ret
+
+; in AL
+print_mode:
+  and al, 0xC0
+  shr al, 0x6
+  mov di, os_corewar_modes_table
+  add di, ax
+  mov al, [di]
+  call os_print_chr
+ret
+; in AL
+print_sign_value:
+  mov bl, al
+  and bl, 0x20
+  shr bl, 0x5
+  cmp bl, 0x0
+  jz .skip_sign
+    push ax
+    mov al, '-'
+    call os_print_chr
+    pop ax
+  .skip_sign:
+  and al, 0xF
+  call os_print_num
+ret
+
+os_corewar_enter_arena:
+  mov byte [_OS_STATE_], OS_STATE_COREWAR
+  mov al, OS_VIRT_PAGE_COREWAR
+  call os_virual_screen_set
+  call os_clear_screen
+  call os_corewar_arena_display
+ret
+
+os_corewar_arena_start:
+
+ret
+
+os_corewar_arena_display:
+  mov al, CHR_DOT
+  mov bl, OS_COLOR_DARK_GRAY_ON_BLACK
+  mov ah, 0x09    ; BIOS function to print character with color
+  mov bh, [_OS_VIRTUAL_SCREEN_]
+  mov cx, 1000
+  int 0x10
+ret
+
+os_corewar_opcodes_table:
+  db 'DAT', 0x0 ; data (kills the process)
+  db 'MOV', 0x0 ; move (copies data from one address to another)
+  db 'ADD', 0x0 ; add (adds one number to another)
+  db 'JMP', 0x0 ; jump (continues execution from another address)
+  db 'JZ ', 0x0 ; jump if zero
+  db 'JNZ', 0x0 ; jump if not zero
+  db 'CMP', 0x0 ; compare and skip if equal (combines SEQ/SNE)
+  db 'NOP', 0x0 ; no operation
+
+os_corewar_modes_table:
+  db '#' ;  Immediate  (data)
+  db '$' ;  Direct    (relative address of data)
+  db '@' ;  Indirect  (pointer to data)
+
+os_corewar_memory:
+  db 0x01, 0x41, 0x40 ; [0] MOV $1, $0
+
 ; ==============================================================================
 ;
 ; THE VOID
@@ -2917,6 +3090,8 @@ msg_cmd_fs_edit       db 'Edit current buffer', 0x0
 msg_cmd_game          db 'Play "Dirty Rat" game', 0x0
 msg_cmd_print         db 'Print current file (LPT1)', 0x0
 msg_cmd_tick          db 'System tick', 0x0
+msg_cmd_cw_list       db 'List program', 0x0
+msg_cmd_cw_enter_arena db 'Enter arena', 0x0
 fs_ruler_80_msg:
 db GLYPH_RULER_START,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x00
 db GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_MIDDLE,GLYPH_RULER_NO+0x01
