@@ -2887,6 +2887,7 @@ os_corewar_instruction_decode:
 
   lodsb
   push ax
+
   and al, 0x20
   shr al, 0x5
   call os_print_num
