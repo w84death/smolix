@@ -364,12 +364,6 @@ jmp os_main_loop
 ;
 ; ==============================================================================
 
-; ==============================================================================
-;
-; DSKY FUNCTIONS
-;
-; ==============================================================================
-
 os_dsky_display:
   mov dx, 0x000D
   call os_cursor_pos_set
@@ -621,6 +615,25 @@ os_dsky_commands_table:
   db 0x60, 0x10
   dw os_corewar_enter_arena, msg_cmd_cw_enter_arena
 
+
+
+; Verb 60 : Noun 00 - show CoreWar instructions, list, overall "main screen"
+; Verb 60 : Noun 01 - list warriors
+; Verb 60 : Noun 02 - list code of selected warrior (last one is "new")
+; Verb 60 : Noun 03 - insert selected warrior into arena
+; Verb 60 : Noun 10 - start battle simulation (arena screen, ESC to back)
+; Verb 60 : Noun 11 - end battle arena
+; Verb 60 : Noun 12 - back to arena screen
+; Verb 61 : Noun XX - select warrior
+; Verb 62 : Noun XX - change line to edit of selected warrior
+; Verb 63 : Noun XX - change opcode XX
+; Verb 64 : Noun XY - change addressing mode (#,$,@); X for A, Y for B
+; Verb 65 : Noun XX - value A
+; Verb 66 : Noun XX - value B (if needed)
+; Verb 67 : Noun 00 - proceed to next line
+; Verb 67 : Noun 01 - go to previous line
+; Verb 67 : Noun 02 - go to beginning
+; Verb 67 : Noun 03 - go to last line
 
   ; Terminator
   db 0xFF
@@ -2992,6 +3005,7 @@ os_corewar_modes_table:
   db '@' ;  Indirect  (pointer to data)
 
 os_corewar_memory:
+
   db 0x01, 0x41, 0x40 ; [0] MOV $1, $0
 
 ; ==============================================================================

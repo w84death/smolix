@@ -1,12 +1,12 @@
-romimage: file=/usr/share/bochs/BIOS-bochs-legacy
-vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
+romimage: file=/usr/local/share/bochs/BIOS-bochs-legacy
+vgaromimage: file=/usr/local/share/bochs/VGABIOS-lgpl-latest.bin
 display_library: x, options="gui_debug"
 
 cpu: model=pentium, count=1
 megs: 1
 floppya: 1_44="build/img/floppy.img", status=inserted
 boot: floppy
-mouse: enabled=1, type=ps2
+mouse: enabled=0, type=ps2
 clock: sync=realtime, time0=local
 magic_break: enabled=1
 speaker: mode=gui

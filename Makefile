@@ -5,7 +5,7 @@
 
 # Tools
 ASM = fasm
-BOCHS = bochs -q -f .bochsrc
+BOCHS = bochs -q -debugger -f .bochsrc
 QEMU = qemu-system-i386 -m 1 -k en-us -rtc base=localtime -vga std -cpu 486 -boot order=a -drive format=raw,file=$(FLOPPY_IMG)
 FLATPAL_86BOX = flatpak run net._86box._86Box
 DD = dd

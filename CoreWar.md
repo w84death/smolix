@@ -1,33 +1,9 @@
 # SmolCoreWar
 
 ## Description
+Simplified, custom version of a Core War. A programming game introduced in 1984 by D. G. Jones and A. K. Dewdney. In the game, two or more battle programs, known as warriors, compete for control of a virtual computer.
 
-
-
-## DSKY input
-
-Verb 60 : Noun 00 - show CoreWar instructions, list, overall "main screen"
-Verb 60 : Noun 01 - list warriors
-Verb 60 : Noun 02 - list code of selected warrior (last one is "new")
-Verb 60 : Noun 03 - insert selected warrior into arena
-Verb 60 : Noun 10 - start battle simulation (arena screen, ESC to back)
-Verb 60 : Noun 11 - end battle arena
-Verb 60 : Noun 12 - back to arena screen
-
-Verb 61 : Noun XX - select warrior
-
-Verb 62 : Noun XX - change line to edit of selected warrior
-
-Verb 63 : Noun XX - change opcode XX
-Verb 64 : Noun XY - change addressing mode (#,$,@); X for A, Y for B
-Verb 65 : Noun XX - value A
-Verb 66 : Noun XX - value B (if needed)
-Verb 67 : Noun 00 - proceed to next line
-Verb 67 : Noun 01 - go to previous line
-Verb 67 : Noun 02 - go to beginning
-Verb 67 : Noun 03 - go to last line
-
-Opcodes:
+## Opcodes
 
 0 DAT — data (kills the process)
 1 MOV — move (copies data from one address to another)
@@ -38,15 +14,12 @@ Opcodes:
 6 CMP — compare and skip if equal (combines SEQ/SNE)
 7 NOP — no operation
 
-Addressing modes:
+## Addressing modes
 0 = # Immediate  (literal value)
 1 = $ Direct (relative address)
 2 = @ Indirect (pointer)
 
-Values (for A and B):
-00-49: Positive values 0 to +49
-50-99: Negative values -50 to -1 (subtract 100)
-
+## Assembly style
 SMOLiX CoreWar Syntax (Intel-style):
 INSTRUCTION destination, source
 
@@ -67,10 +40,18 @@ INSTRUCTION destination, source
 Small: 1000
 Big: 2000
 
-## Memory
+## Memory layout
+Classinc IMP:
+[0] MOV $1, $0
 
+Is represented in 3 bytes:
+db 0x01, 0x41, 0x40
+
+First byte is Program ID and Opcode
 EMPTY >> 6 + PROG_ID >> 5 + OPCODE & 16
 00 0 00000
+
+Second and third are values with adressing mode
 MODE >> 6 + SIGN >> 5 + VALUE & 16
 00 0 00000
 
@@ -78,5 +59,3 @@ MOV $1, $0
 MOV = 0*64 + 1 = 1
 $1 = 1*64 + 0*32 + 1 = 65
 $0 = 0*64 + 0*32 + 0 = 64
-
-db 1, 129, 128
