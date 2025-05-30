@@ -2884,26 +2884,38 @@ ret
 
 os_corewar_prog_list:
   mov si, os_corewar_memory
-  call os_corewar_instruction_decode
+  .memory_loop:
+    mov al, [si]
+    cmp al, 0xFF
+    je .done
+    call os_corewar_instruction_decode
+  jmp .memory_loop
+  .done:
 ret
+
+OS_CW_PROG_ID_MASK  equ 0x20
+OS_CW_PROG_ID_SHIFT equ 0x05
+OS_CW_OPCODE_MASK   equ 0x1F
+OS_CW_MODE_MASK     equ 0xC0
+OS_CW_MODE_SHIFT    equ 0x06
+OS_CW_SIGN_MASK     equ 0x20
+OS_CW_SIGN_SHIFT    equ 0x05
+OS_CW_VALUE_MASK    equ 0x0F
 
 ; in SI
 os_corewar_instruction_decode:
   mov bl, GLYPH_MSG
   call os_print_prompt
 
-  ; PROG_ID
-  xor ax,ax
+  xor ax, ax          ; Clear AX
 
+  ; PROG_ID
   mov al, '['
   call os_print_chr
 
   lodsb
   push ax
-
-  and al, 0x20
-  shr al, 0x5
-  call os_print_num
+  call os_corewar_print_prog_id
 
   mov al, ']'
   mov ah, ' '
@@ -2911,13 +2923,7 @@ os_corewar_instruction_decode:
 
   ; OPCODE
   pop ax
-  and al, 0x1F
-  push si
-  mov si, os_corewar_opcodes_table
-  shl al, 0x2
-  add si, ax
-  call os_print_str
-  pop si
+  call os_corewar_print_opcode
 
   mov al, ' '
   call os_print_chr
@@ -2926,9 +2932,9 @@ os_corewar_instruction_decode:
   xor ax,ax
   lodsb
   push ax
-  call print_mode
+  call os_corewar_print_mode
   pop ax
-  call print_sign_value
+  call os_corewar_print_sign_value
 
   mov al, ','
   mov ah, ' '
@@ -2937,26 +2943,43 @@ os_corewar_instruction_decode:
   xor ax,ax
   lodsb
   push ax
-  call print_mode
+  call os_corewar_print_mode
   pop ax
-  call print_sign_value
+  call os_corewar_print_sign_value
 
 ret
 
+os_corewar_print_prog_id:
+  and al, OS_CW_PROG_ID_MASK
+  shr al, OS_CW_PROG_ID_SHIFT
+  call os_print_num
+ret
+
+os_corewar_print_opcode:
+  and al, OS_CW_OPCODE_MASK
+  push si
+  mov si, os_corewar_opcodes_table
+  shl al, 0x2
+  add si, ax
+  call os_print_str
+  pop si
+ret
+
 ; in AL
-print_mode:
-  and al, 0xC0
-  shr al, 0x6
+os_corewar_print_mode:
+  and al, OS_CW_MODE_MASK
+  shr al, OS_CW_MODE_SHIFT
   mov di, os_corewar_modes_table
   add di, ax
   mov al, [di]
   call os_print_chr
 ret
+
 ; in AL
-print_sign_value:
+os_corewar_print_sign_value:
   mov bl, al
-  and bl, 0x20
-  shr bl, 0x5
+  and bl, OS_CW_SIGN_MASK
+  shr bl, OS_CW_SIGN_SHIFT
   cmp bl, 0x0
   jz .skip_sign
     push ax
@@ -2964,7 +2987,7 @@ print_sign_value:
     call os_print_chr
     pop ax
   .skip_sign:
-  and al, 0xF
+  and al, OS_CW_VALUE_MASK
   call os_print_num
 ret
 
@@ -3005,14 +3028,18 @@ os_corewar_modes_table:
   db '@' ;  Indirect  (pointer to data)
 
 os_corewar_memory:
+  db 0x00, 0x00, 0x00 ; [0] NOP
+  db 0x21, 0x41, 0x40 ; [1] MOV $1, $0
+  db 0x00, 0x00, 0x00 ; [0] NOP
+  db 0x00, 0x00, 0x00 ; [0] NOP
+  db 0x00, 0x00, 0x00 ; [0] NOP
+  db 0xFF
 
-  db 0x01, 0x41, 0x40 ; [0] MOV $1, $0
-
-; ==============================================================================
+; =============================================================================
 ;
 ; THE VOID
 ;
-; ==============================================================================
+; =============================================================================
 
 ; Void =========================================================================
 ; This is a placeholder function.
