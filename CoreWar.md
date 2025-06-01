@@ -49,7 +49,7 @@ db 0x01, 0x41, 0x40
 
 First byte is Program ID and Opcode
 EMPTY >> 7 + PROG_ID >> 5 + OPCODE & 16
-0 0000000
+0 00 00000
 
 Second and third are values with adressing mode
 MODE >> 6 + SIGN >> 5 + VALUE & 16

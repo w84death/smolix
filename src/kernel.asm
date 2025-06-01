@@ -53,7 +53,8 @@ _OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x042    ; 2b
 _OS_FS_FILE_SIZE_               equ _OS_MEMORY_BASE_ + 0x044    ; 2b
 _OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x046    ; 8kb
 ; space for 8kb file
-_OS_COREWAR_ARENA_              equ _OS_MEMORY_BASE_ + 0x2000   ; 2kb
+_OS_COREWAR_PROG_PC_            equ _OS_MEMORY_BASE_ + 0x0200   ; 2b * 2 progs
+_OS_COREWAR_ARENA_              equ _OS_MEMORY_BASE_ + 0x2010   ; 2kb
 ; space for 2kb arena
 
 OS_STATE_INIT                   equ 0x01
@@ -67,7 +68,7 @@ OS_VIRT_PAGE_SHELL              equ 0x00
 OS_VIRT_PAGE_FS                 equ 0x01
 OS_VIRT_PAGE_GAME               equ 0x02
 OS_VIRT_PAGE_SCR_SAVER          equ 0x03
-OS_VIRT_PAGE_COREWAR            equ 0x04
+OS_VIRT_PAGE_COREWAR            equ 0x03
 
 OS_DSKY_STATE_IDLE              equ 0x00
 OS_DSKY_STATE_VERB_INPUT        equ 0x01
@@ -352,8 +353,15 @@ os_main_loop:
       mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
       call os_game_loop
 
-  .corewar_loop:
+  jmp .skip_custom_loops
 
+  .corewar_loop:
+  cmp byte [_OS_GAME_STARTED_], 0
+  jz .skip_custom_loops
+    dec byte [_OS_GAME_TICK_]
+    jnz .skip_custom_loops
+      mov byte [_OS_GAME_TICK_], OS_GAME_DELAY
+      call os_corewar_arena_display
 
   .skip_custom_loops:
 jmp os_main_loop
@@ -1194,7 +1202,7 @@ os_keyboard_table:
   dw os_enter_shell
 
   db OS_STATE_COREWAR, KBD_KEY_ENTER
-  dw os_corewar_arena_start
+  dw os_corewar_arena_simulate
   db OS_STATE_COREWAR, KBD_KEY_ESCAPE
   dw os_enter_shell
 
@@ -2881,17 +2889,36 @@ ret
 ; ==============================================================================
 
 os_corewar_prog_list:
-  mov si, os_corewar_example_bomber
+mov bl, GLYPH_MSG
+call os_print_prompt
+
+  mov si, os_corewar_example_imp
+  xor cx, cx
   .memory_loop:
     mov al, [si]
     cmp al, 0xFF
     je .done
     call os_corewar_instruction_decode
+    inc cx
   jmp .memory_loop
   .done:
+
+  mov bl, GLYPH_MSG
+  call os_print_prompt
+
+  mov si, os_corewar_example_bomber
+  xor cx, cx
+  .memory_loop2:
+    mov al, [si]
+    cmp al, 0xFF
+    je .done2
+    call os_corewar_instruction_decode
+    inc cx
+  jmp .memory_loop2
+  .done2:
 ret
 
-OS_CW_PROG_ID_MASK  equ 0x20
+OS_CW_PROG_ID_MASK  equ 0x9F
 OS_CW_PROG_ID_SHIFT equ 0x05
 OS_CW_OPCODE_MASK   equ 0x1F
 OS_CW_MODE_MASK     equ 0xC0
@@ -2900,27 +2927,25 @@ OS_CW_SIGN_MASK     equ 0x20
 OS_CW_SIGN_SHIFT    equ 0x05
 OS_CW_VALUE_MASK    equ 0x0F
 
-; in SI
+; in SI, BX
 os_corewar_instruction_decode:
   mov bl, GLYPH_MSG
   call os_print_prompt
-
-  xor ax, ax          ; Clear AX
 
   ; PROG_ID
   mov al, '['
   call os_print_chr
 
-  lodsb
-  push ax
-  call os_corewar_print_prog_id
+  mov ax, cx
+  call os_print_num
 
   mov al, ']'
   mov ah, ' '
   call os_print_chr_double
 
+  xor ax, ax
   ; OPCODE
-  pop ax
+  lodsb
   call os_corewar_two_operands
   setc dl
   call os_corewar_print_opcode
@@ -3016,14 +3041,28 @@ ret
 
 os_corewar_enter_arena:
   mov byte [_OS_STATE_], OS_STATE_COREWAR
-  mov al, OS_VIRT_PAGE_COREWAR
-  call os_virual_screen_set
 
   mov di, _OS_COREWAR_ARENA_
-  mov cx, 1000
-  mov ax, 0x00
+  mov cx, 1000*3
+  xor ax, ax
   rep stosw
 
+  mov si, os_corewar_example_bomber
+  mov di, _OS_COREWAR_ARENA_
+  add di, 3*12
+  mov word [_OS_COREWAR_PROG_PC_], di
+  mov cx, 3*5
+  rep movsb
+
+  mov si, os_corewar_example_imp
+  mov di, _OS_COREWAR_ARENA_
+  add di, 3*512
+  mov word [_OS_COREWAR_PROG_PC_+2], di
+  mov cx, 3
+  rep movsb
+
+
+  call os_clear_screen
   call os_corewar_arena_display
 ret
 
@@ -3031,29 +3070,127 @@ os_corewar_arena_start:
 
 ret
 
+os_corewar_arena_simulate:
+;xchg bx,bx
+  mov si, word [_OS_COREWAR_PROG_PC_+2]
+  mov di, si
+
+  .prepare_opcode:
+  movzx ax, byte [si]
+  and al, OS_CW_OPCODE_MASK
+  movzx dx, al      ; DL -> opcode
+
+  .prepare_target:
+    movzx ax, byte [si+1]
+    movzx bx, al      ; BL -> prepare target
+    and bl, OS_CW_VALUE_MASK
+
+  .set_target:
+    and al, OS_CW_MODE_MASK
+    shr al, OS_CW_MODE_SHIFT
+    ; there is no imidiate target
+    cmp al, 0x01
+    jz .set_direct_target
+    cmp al, 0x02
+    jz .set_indirect_target
+
+  .set_direct_target:
+    imul bx, 3
+    add di, bx        ; DI -> target set
+    jmp .prepare_source
+  .set_indirect_target:
+    mov al, byte [si+bx]
+    and al, OS_CW_VALUE_MASK
+    imul ax, 3
+    add di, ax      ; DI -> target set
+    jmp .prepare_source
+
+  .prepare_source:
+    movzx ax, byte [si+2]
+    movzx bx, al      ; BL -> prepare source
+    and bl, OS_CW_VALUE_MASK
+  .set_source:
+    and al, OS_CW_MODE_MASK
+    shr al, OS_CW_MODE_SHIFT
+    cmp al, 0x00
+    jz .set_imidiate_source
+    cmp al, 0x01
+    jz .set_direct_source
+    cmp al, 0x02
+    jz .set_indirect_source
+
+    .set_imidiate_source:
+      ; AL -> value
+      ; DL -> source set
+      mov dh, 0x1
+      jmp .execute_opcode
+    .set_direct_source:
+      imul bx, 3
+      add si, bx        ; SI -> source set
+      jmp .execute_opcode
+    .set_indirect_source:
+      mov al, byte [si+bx]
+      and al, OS_CW_VALUE_MASK
+      imul ax, 3
+      add si, ax      ; SI -> source set
+      jmp .execute_opcode
+
+
+  .execute_opcode:
+  cmp dl, 0x01
+  jz .opcode_mov
+  jmp .processed
+
+  .opcode_mov:
+    cmp dh, 0x1
+    jz .imidiate_mov
+    mov cx, 3
+    rep movsb
+    jmp .processed
+    .imidiate_mov:
+    mov ah, [di]
+    and ah, 0xC0
+    add ah, al
+    or ah, 0x80
+    mov [di], ah
+    jmp .processed
+
+
+  .processed:
+    ; jmp = di - 3
+    ; rest = next instruction
+    add word [_OS_COREWAR_PROG_PC_+2], 3
+
+  .done:
+    call os_corewar_arena_display
+ret
+
 os_corewar_arena_display:
+  call os_cursor_pos_reset
+  xor ax,ax
+
   mov si, _OS_COREWAR_ARENA_
-  mov cx, 1000
+  mov cx, 40*24
   .arena_loop:
-    push si
-    lodsb
-    and al, OS_CW_OPCODE_MASK
-    mov si, os_corewar_opcodes_table
-    shl al, 0x2
     lodsb
     test al, al
-    jz .print_dot
-    .print_opcode:
-      mov bl, OS_COLOR_GREEN_ON_BLACK
-      add bl, al
-      add al, '0'
-    jmp .print
-    .print_dot:
-      mov al, CHR_DOT
-      mov bl, OS_COLOR_DARK_GRAY_ON_BLACK
-    .print:
-    call os_print_chr_color
+    jz .print_empty
+
+    push si
+    mov si, os_corewar_opcodes_table
+    and al, OS_CW_OPCODE_MASK
+    shl al, 2
+    add si, ax
+    mov byte al, [si]
     pop si
+    jmp .print
+
+    .print_empty:
+    mov al, CHR_DOT
+
+    .print:
+    call os_print_chr
+
     add si, 2
   loop .arena_loop
 ret
@@ -3093,15 +3230,15 @@ os_corewar_modes_table:
   db '@'  ;  Indirect  (pointer to data)
 
 os_corewar_example_imp:
-  db 0x01, 0x41, 0x40   ; MOV $1, $0
+  db 0x21, 0x41, 0x40   ; MOV $1, $0
   db 0xFF
 
 os_corewar_example_bomber:
-  db 0x02, 0x43, 0x04   ; ADD $3, #4
-  db 0x01, 0x82, 0x43   ; MOV @2, $3
-  db 0x03, 0xFE, 0x00   ; JMP $-2
-  db 0x00, 0x04, 0x00   ; DAT #4
-  db 0x00, 0x00, 0x00   ; DAT #0
+  db 0x22, 0x43, 0x04   ; ADD $3, #4
+  db 0x21, 0x82, 0x43   ; MOV @2, $3
+  db 0x23, 0x62, 0x00   ; JMP $-2
+  db 0x20, 0x04, 0x00   ; DAT #4
+  db 0x20, 0x00, 0x00   ; DAT #0
   db 0xFF
 
 ; =============================================================================
