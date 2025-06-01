@@ -46,15 +46,15 @@ _DIR                            equ 0x2
 _FRAME                          equ 0x3
 _DIRT                           equ 0x4
 _LAST_TILE                      equ 0x5
-
-_OS_FS_FLOPPY_DRIVE_            equ _OS_MEMORY_BASE_ + 0x100   ; 1b
-_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x101   ; 1b
-_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x102   ; 2b
-_OS_FS_FILE_SIZE_               equ _OS_MEMORY_BASE_ + 0x104   ; 2b
-_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x106   ; 8kb
-
-
-
+; space for 10 entities
+_OS_FS_FLOPPY_DRIVE_            equ _OS_MEMORY_BASE_ + 0x040    ; 1b
+_OS_FS_FILE_LOADED_             equ _OS_MEMORY_BASE_ + 0x041    ; 1b
+_OS_FS_FILE_POS_                equ _OS_MEMORY_BASE_ + 0x042    ; 2b
+_OS_FS_FILE_SIZE_               equ _OS_MEMORY_BASE_ + 0x044    ; 2b
+_OS_FS_BUFFER_                  equ _OS_MEMORY_BASE_ + 0x046    ; 8kb
+; space for 8kb file
+_OS_COREWAR_ARENA_              equ _OS_MEMORY_BASE_ + 0x2000   ; 2kb
+; space for 2kb arena
 
 OS_STATE_INIT                   equ 0x01
 OS_STATE_SPLASH_SCREEN          equ 0x02
@@ -77,7 +77,7 @@ OS_DSKY_STATE_EXECUTING         equ 0x03
 OS_VIDEO_MODE_40                equ 0x00      ; 40x25
 OS_VIDEO_MODE_80                equ 0x03      ; 80x25
 
-OS_SCREEN_SAVER_TIME            equ 0xFF
+OS_SCREEN_SAVER_TIME            equ 0x09FF
 
 OS_FS_BLOCK_SIZE                equ 0x10
 OS_FS_FILE_SIZE                 equ 0x2000
@@ -889,11 +889,9 @@ os_print_chr_color:
   mov cx, 0x01    ; Number of characters to print
   int 0x10        ; BIOS teletype output function
   ; Move cursor forward after printing
-  push dx
   call os_cursor_pos_get
   inc dl                  ; Move cursor one position right
   call os_cursor_pos_set
-  pop dx
   popa
 ret
 
@@ -2883,7 +2881,7 @@ ret
 ; ==============================================================================
 
 os_corewar_prog_list:
-  mov si, os_corewar_memory
+  mov si, os_corewar_example_bomber
   .memory_loop:
     mov al, [si]
     cmp al, 0xFF
@@ -2923,6 +2921,8 @@ os_corewar_instruction_decode:
 
   ; OPCODE
   pop ax
+  call os_corewar_two_operands
+  setc dl
   call os_corewar_print_opcode
 
   mov al, ' '
@@ -2936,6 +2936,9 @@ os_corewar_instruction_decode:
   pop ax
   call os_corewar_print_sign_value
 
+  cmp dl, 1
+  jz .skip_operand
+
   mov al, ','
   mov ah, ' '
   call os_print_chr_double
@@ -2946,15 +2949,35 @@ os_corewar_instruction_decode:
   call os_corewar_print_mode
   pop ax
   call os_corewar_print_sign_value
-
+ret
+  .skip_operand:
+  inc si
 ret
 
+; in AL
+; out CF
+os_corewar_two_operands:
+  movzx bx, al
+  and bl, OS_CW_OPCODE_MASK
+  push si
+  mov si, os_corewar_opcodes_operands
+  cmp byte [si+bx], 2
+  pop si
+  jz .has_two
+  stc
+ret
+  .has_two:
+  clc
+ret
+
+; in AL
 os_corewar_print_prog_id:
   and al, OS_CW_PROG_ID_MASK
   shr al, OS_CW_PROG_ID_SHIFT
   call os_print_num
 ret
 
+; in AL
 os_corewar_print_opcode:
   and al, OS_CW_OPCODE_MASK
   push si
@@ -2995,7 +3018,12 @@ os_corewar_enter_arena:
   mov byte [_OS_STATE_], OS_STATE_COREWAR
   mov al, OS_VIRT_PAGE_COREWAR
   call os_virual_screen_set
-  call os_clear_screen
+
+  mov di, _OS_COREWAR_ARENA_
+  mov cx, 1000
+  mov ax, 0x00
+  rep stosw
+
   call os_corewar_arena_display
 ret
 
@@ -3004,35 +3032,76 @@ os_corewar_arena_start:
 ret
 
 os_corewar_arena_display:
-  mov al, CHR_DOT
-  mov bl, OS_COLOR_DARK_GRAY_ON_BLACK
-  mov ah, 0x09    ; BIOS function to print character with color
-  mov bh, [_OS_VIRTUAL_SCREEN_]
+  mov si, _OS_COREWAR_ARENA_
   mov cx, 1000
-  int 0x10
+  .arena_loop:
+    push si
+    lodsb
+    and al, OS_CW_OPCODE_MASK
+    mov si, os_corewar_opcodes_table
+    shl al, 0x2
+    lodsb
+    test al, al
+    jz .print_dot
+    .print_opcode:
+      mov bl, OS_COLOR_GREEN_ON_BLACK
+      add bl, al
+      add al, '0'
+    jmp .print
+    .print_dot:
+      mov al, CHR_DOT
+      mov bl, OS_COLOR_DARK_GRAY_ON_BLACK
+    .print:
+    call os_print_chr_color
+    pop si
+    add si, 2
+  loop .arena_loop
 ret
 
 os_corewar_opcodes_table:
-  db 'DAT', 0x0 ; data (kills the process)
-  db 'MOV', 0x0 ; move (copies data from one address to another)
-  db 'ADD', 0x0 ; add (adds one number to another)
-  db 'JMP', 0x0 ; jump (continues execution from another address)
-  db 'JZ ', 0x0 ; jump if zero
-  db 'JNZ', 0x0 ; jump if not zero
-  db 'CMP', 0x0 ; compare and skip if equal (combines SEQ/SNE)
-  db 'NOP', 0x0 ; no operation
+  db 'DAT', 0x0   ; data (kills the process)
+  db 'MOV', 0x0   ; move (copies data from one address to another)
+  db 'ADD', 0x0   ; add (adds one number to another)
+  db 'JMP', 0x0   ; jump (continues execution from another address)
+  db 'JZ ', 0x0   ; jump if zero
+  db 'JNZ', 0x0   ; jump if not zero
+  db 'CMP', 0x0   ; compare and skip if equal
+  db 'NOP', 0x0   ; no operation
+
+OS_CW_DAT equ 0x00
+OS_CW_MOV equ 0x01
+OS_CW_ADD equ 0x02
+OS_CW_JMP equ 0x03
+OS_CW_JZ  equ 0x04
+OS_CW_JNZ equ 0x05
+OS_CW_CMP equ 0x06
+OS_CW_NOP equ 0x07
+
+os_corewar_opcodes_operands:
+  db 1  ; DAT
+  db 2  ; MOV
+  db 2  ; ADD
+  db 1  ; JMP
+  db 1  ; JZ
+  db 1  ; JNZ
+  db 2  ; CMP
+  db 0  ; NOP
 
 os_corewar_modes_table:
-  db '#' ;  Immediate  (data)
-  db '$' ;  Direct    (relative address of data)
-  db '@' ;  Indirect  (pointer to data)
+  db '#'  ;  Immediate  (data)
+  db '$'  ;  Direct    (relative address of data)
+  db '@'  ;  Indirect  (pointer to data)
 
-os_corewar_memory:
-  db 0x00, 0x00, 0x00 ; [0] NOP
-  db 0x21, 0x41, 0x40 ; [1] MOV $1, $0
-  db 0x00, 0x00, 0x00 ; [0] NOP
-  db 0x00, 0x00, 0x00 ; [0] NOP
-  db 0x00, 0x00, 0x00 ; [0] NOP
+os_corewar_example_imp:
+  db 0x01, 0x41, 0x40   ; MOV $1, $0
+  db 0xFF
+
+os_corewar_example_bomber:
+  db 0x02, 0x43, 0x04   ; ADD $3, #4
+  db 0x01, 0x82, 0x43   ; MOV @2, $3
+  db 0x03, 0xFE, 0x00   ; JMP $-2
+  db 0x00, 0x04, 0x00   ; DAT #4
+  db 0x00, 0x00, 0x00   ; DAT #0
   db 0xFF
 
 ; =============================================================================

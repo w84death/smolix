@@ -28,11 +28,11 @@ INSTRUCTION destination, source
 100: MOV 1, 0
 
 ## Bomber
-100: ADD 3, #4      ; Add 4 to position 103 (our pointer)
-101: MOV @3, 4      ; Copy position 104 to location pointed to by position 103
-102: JMP -2         ; Jump back
-103: DAT #4         ; Pointer
-104: DAT #0         ; Bomb
+100: ADD $3, #4      ; Add 4 to position 103 (our pointer)
+101: MOV @2, $3      ; Copy position 104 to location pointed to by position 103
+102: JMP $-2         ; Jump back
+103: DAT #4          ; Pointer
+104: DAT #0          ; Bomb
 
 ## Environment
 
@@ -48,8 +48,8 @@ Is represented in 3 bytes:
 db 0x01, 0x41, 0x40
 
 First byte is Program ID and Opcode
-EMPTY >> 6 + PROG_ID >> 5 + OPCODE & 16
-00 0 00000
+EMPTY >> 7 + PROG_ID >> 5 + OPCODE & 16
+0 0000000
 
 Second and third are values with adressing mode
 MODE >> 6 + SIGN >> 5 + VALUE & 16
@@ -58,4 +58,12 @@ MODE >> 6 + SIGN >> 5 + VALUE & 16
 MOV $1, $0
 MOV = 1*32 + 1 = 33 / 0x21
 $1 = 1*64 + 0*32 + 1 = 65 / 0x41
-$0 = 0*64 + 0*32 + 0 = 64 / 0x40
+$0 = 1*64 + 0*32 + 0 = 64 / 0x40
+
+
+
+ADD $3, #4    ; 1*32 + 2 = 34 . 1*64 + 0*32 + 3 . 0*64 + 0*32 + 4
+MOV @2, $3    ; 1*32 + 1 = 33 . 2*64 + 0*32 + 2 . 1*64 + 0*32 + 3
+JMP $-2       ; 1*32 + 3 = 35 . 1*64 + 1*32 + 2 . 0
+DAT #4        ; 1*32 + 0 = 32 . 0*64 + 0*32 + 4 . 0
+DAT #0        ; 1*32 + 0 = 32 . 0*64 + 0
