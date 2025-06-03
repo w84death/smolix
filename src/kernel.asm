@@ -2456,20 +2456,15 @@ os_game_start:
   push ax
   call os_game_spawn_items
 
-  push 0x0024
   push 0x1425
   push GAME_COLOR_DOOR
   mov al, GLYPH_GAME_DOOR
-  mov ah, 0x02
+  mov ah, 0x01
   push ax
   call os_game_spawn_items
 
-
-  ; entities
+  ; player
   call os_game_player_draw
-  mov si, _OS_GAME_ENTITIES_
-  add si, 0x06
-  call os_game_broom_draw
 ret
 
 os_game_draw_horizontal_wall: ; IN: DX pos, CL len
