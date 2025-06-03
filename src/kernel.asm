@@ -2464,8 +2464,11 @@ os_game_start:
   push ax
   call os_game_spawn_items
 
+
   ; entities
   call os_game_player_draw
+  mov si, _OS_GAME_ENTITIES_
+  add si, 0x06
   call os_game_broom_draw
 ret
 
@@ -2750,7 +2753,7 @@ db -1, -1, -1, 0, -1, 1, 0, -1, 0, 1, 1, -1, 1, 0, 1, 1
 
 ; Move broom ===================================================================
 ; moves the broom, handles edge detection and bouncing
-; Expects: BL: 0=up, 1=right, 2=down, 3=left
+; Expects: SI: Entitie memory location; BL: 0=up, 1=right, 2=down, 3=left
 ; Returns: None
 os_move_broom:
 
@@ -2802,7 +2805,10 @@ os_move_broom:
     mov byte [si+_DIR], bl
 ret
 
-
+; Broom AI =====================================================================
+; Random movement or follow player
+; Expects: SI: Entitie memory location;
+; Returns: None
 os_game_broom_ai:
   call os_get_random
   and ax, 0x03        ; Values 0-3
