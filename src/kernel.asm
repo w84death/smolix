@@ -1041,7 +1041,6 @@ os_clear_screen:
   call os_fill_screen_with_glyph
 ret
 
-
 ; Cursor position reset ========================================================
 ; resets the cursor position to the top left of the screen.
 ; Expects: None
@@ -3062,8 +3061,10 @@ os_corewar_enter_arena:
   mov cx, 3
   rep movsb
 
+  mov al, CHR_SPACE
+  mov bl, OS_COLOR_DARK_GRAY_ON_BLACK
+  call os_fill_screen_with_glyph
 
-  call os_clear_screen
   call os_corewar_arena_display
 ret
 
@@ -3072,7 +3073,6 @@ os_corewar_arena_start:
 ret
 
 os_corewar_arena_simulate:
-;xchg bx,bx
   mov si, word [_OS_COREWAR_PROG_PC_+2]
   mov di, si
 
@@ -3169,28 +3169,44 @@ ret
 os_corewar_arena_display:
   call os_cursor_pos_reset
   xor ax,ax
-
   mov si, _OS_COREWAR_ARENA_
   mov cx, 40*24
+  xor dx, dx
   .arena_loop:
     lodsb
-    test al, al
+    test al, 0x20
     jz .print_empty
 
     push si
     mov si, os_corewar_opcodes_table
-    and al, OS_CW_OPCODE_MASK
+    and ax, OS_CW_OPCODE_MASK
     shl al, 2
     add si, ax
     mov byte al, [si]
     pop si
+    mov bl, OS_COLOR_GREEN_ON_BLACK
+
     jmp .print
 
     .print_empty:
-    mov al, CHR_DOT
+      mov al, CHR_DOT
+      mov bl, OS_COLOR_DARK_GRAY_ON_BLACK
 
     .print:
-    call os_print_chr
+      call os_print_chr_color
+
+    .check_new_line:
+      inc dx
+      cmp dx, 40
+      jnz .skip_new_line
+
+    .new_line:
+      mov al, CHR_CR
+      mov ah, CHR_LF
+      call os_print_chr_double
+      xor dx, dx
+    .skip_new_line:
+
 
     add si, 2
   loop .arena_loop
